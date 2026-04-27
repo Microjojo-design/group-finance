@@ -6050,8 +6050,11 @@ function closeAttModal(){
 }
 
 // ── openTxMo 覆寫：開啟時重置附件暫存並初始化授權區塊 ─
-const _origOpenTxMo = openTxMo;
-function openTxMo(t='income'){
+const _origOpenTxMo = function(t='income'){
+  setMoType(t);
+  document.getElementById('txMo').classList.add('open');
+};
+window.openTxMo = function(t='income'){
   _moAttFiles = [];
   _origOpenTxMo(t);
   // 延遲一幀確保 DOM 已顯示
@@ -6064,14 +6067,16 @@ function openTxMo(t='income'){
       if(z) z.style.display = 'none';
     }
   });
-}
+};
 
 // ── closeTxMo 覆寫：關閉時重置 ────────────────
-const _origCloseTxMo = window.closeTxMo;
+const _origCloseTxMo = function(){
+  document.getElementById('txMo').classList.remove('open');
+};
 window.closeTxMo = function(){
   _moAttFiles = [];
   renderMoAttList();
-  if(_origCloseTxMo) _origCloseTxMo();
+  _origCloseTxMo();
 };
 
 // ── Staff 登入後初始化授權區塊 ─────────────────
