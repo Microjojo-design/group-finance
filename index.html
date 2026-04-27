@@ -5872,6 +5872,14 @@ async function driveUploadFile(file, co, yyyymm){
   );
   const d = await res.json();
   if(!d.id) throw new Error('上傳失敗：' + JSON.stringify(d));
+
+  // 設定為「知道連結的人可以檢視」
+  await fetch(`https://www.googleapis.com/drive/v3/files/${d.id}/permissions`, {
+    method:'POST',
+    headers:{ Authorization:'Bearer '+_gToken, 'Content-Type':'application/json' },
+    body: JSON.stringify({ role:'reader', type:'anyone' })
+  });
+
   return { name:d.name, fileId:d.id, url:d.webViewLink, size:file.size };
 }
 
