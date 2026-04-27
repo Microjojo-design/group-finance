@@ -4874,7 +4874,6 @@ function renderApproval(){
           <div class="ap-title">${r.category}
             <span class="st-badge ${stCls[st]}" style="margin-left:6px">${stLabel[st]}</span>
             ${coTag}
-            ${typeof _attBadgeHtml==='function'?_attBadgeHtml(r):''}
           </div>
           <div class="ap-meta">
             ${r.type==='income'?'收入':'支出'}
@@ -4884,6 +4883,7 @@ function renderApproval(){
             · ${r.date} · 填寫人：${r.by||'—'}
             ${r.note?`· ${r.note}`:''}
           </div>
+          ${typeof _attBadgeHtml==='function'?_attBadgeHtml(r):''}
           ${rejectBlock}${approvedBlock}
           ${actionBtns}
         </div>
@@ -6087,9 +6087,20 @@ window.initStView = function(){
 // （附件圖示已在 renderRecs 加入，審核頁另補）
 function _attBadgeHtml(rec){
   if(!rec.attachments || !rec.attachments.length) return '';
-  return `<span style="font-size:11px;background:#eff4ff;color:#1a56db;border:1px solid #c7d8ff;border-radius:4px;padding:1px 6px;margin-left:6px">📎 ${rec.attachments.length} 個附件</span>`;
+  const links = rec.attachments.map(att=>
+    `<a href="${att.url}" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;gap:6px;padding:5px 9px;background:#fff;border:1px solid #e2e7f2;border-radius:6px;text-decoration:none;color:#1a56db;font-size:12px;font-weight:500">
+      <span>${_attIcon(att.name)}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${att.name}</span>
+      <span style="color:#9aa3be;font-size:11px;flex-shrink:0">${_fmtSize(att.size||0)}</span>
+      <span style="flex-shrink:0;font-size:11px">↗</span>
+    </a>`
+  ).join('');
+  return `<div style="margin-top:8px">
+    <div style="font-size:11px;color:#4a5480;font-weight:600;margin-bottom:5px">📎 附件（${rec.attachments.length} 個）</div>
+    <div style="display:flex;flex-direction:column;gap:4px">${links}</div>
+  </div>`;
 }
-// 將此函式 export 給 renderApproval 使用（已存在的函式直接呼叫即可）
 window._attBadgeHtml = _attBadgeHtml;
 
 </script>
