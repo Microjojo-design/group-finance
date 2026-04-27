@@ -2328,8 +2328,24 @@ async function delUser(id){
 // TX MODAL (GM)
 // ═══════════════════════════════════════════
 document.getElementById('m-date').value=today();
-function openTxMo(t='income'){setMoType(t);document.getElementById('txMo').classList.add('open');}
-function closeTxMo(){document.getElementById('txMo').classList.remove('open');}
+function openTxMo(t='income'){
+  _moAttFiles=[];
+  setMoType(t);
+  document.getElementById('txMo').classList.add('open');
+  requestAnimationFrame(()=>{
+    renderAllAuthAreas();
+    renderMoAttList();
+    if(!_gClientReady()){
+      const z=document.getElementById('mo-att-zone');
+      if(z) z.style.display='none';
+    }
+  });
+}
+function closeTxMo(){
+  _moAttFiles=[];
+  renderMoAttList();
+  document.getElementById('txMo').classList.remove('open');
+}
 function setMoType(t){
   moType=t;
   const cats=getCats(activeCo,t);
@@ -6048,36 +6064,6 @@ function showAttModal(id, co, evt){
 function closeAttModal(){
   document.getElementById('attViewMo').classList.remove('open');
 }
-
-// ── openTxMo 覆寫：開啟時重置附件暫存並初始化授權區塊 ─
-const _origOpenTxMo = function(t='income'){
-  setMoType(t);
-  document.getElementById('txMo').classList.add('open');
-};
-window.openTxMo = function(t='income'){
-  _moAttFiles = [];
-  _origOpenTxMo(t);
-  // 延遲一幀確保 DOM 已顯示
-  requestAnimationFrame(()=>{
-    renderAllAuthAreas();
-    renderMoAttList();
-    // 若 Client ID 未設定，隱藏整個附件區塊
-    if(!_gClientReady()){
-      const z = document.getElementById('mo-att-zone');
-      if(z) z.style.display = 'none';
-    }
-  });
-};
-
-// ── closeTxMo 覆寫：關閉時重置 ────────────────
-const _origCloseTxMo = function(){
-  document.getElementById('txMo').classList.remove('open');
-};
-window.closeTxMo = function(){
-  _moAttFiles = [];
-  renderMoAttList();
-  _origCloseTxMo();
-};
 
 // ── Staff 登入後初始化授權區塊 ─────────────────
 // 原 initStView 後補充呼叫
