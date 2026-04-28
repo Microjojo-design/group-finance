@@ -1067,6 +1067,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
           <div class="card">
             <div class="chd"><div class="ct" style="color:var(--inc)">＋ 新增收入</div></div>
             <div class="fg"><label>收入類別</label><select id="si-cat"></select></div>
+            <div class="fg"><label>收入名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="si-title" placeholder="請輸入收入名稱（必填）"></div>
+            <div class="fg"><label>收入來源 <span style="color:var(--exp)">*</span></label><input type="text" id="si-cp" placeholder="請輸入來源公司或對象（必填）"></div>
             <div class="fr2">
               <div class="fg"><label>金額（元）</label><input type="number" id="si-amt" placeholder="0" min="0"></div>
               <div class="fg"><label>日期</label><input type="date" id="si-date"></div>
@@ -1088,6 +1090,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
           <div class="card">
             <div class="chd"><div class="ct" style="color:var(--exp)">－ 新增支出</div></div>
             <div class="fg"><label>支出類別</label><select id="se-cat"></select></div>
+            <div class="fg"><label>支出名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="se-title" placeholder="請輸入支出名稱（必填）"></div>
+            <div class="fg"><label>支出對象 <span style="color:var(--exp)">*</span></label><input type="text" id="se-cp" placeholder="請輸入支出對象或公司名稱（必填）"></div>
             <div class="fr2">
               <div class="fg"><label>金額（元）</label><input type="number" id="se-amt" placeholder="0" min="0"></div>
               <div class="fg"><label>日期</label><input type="date" id="se-date"></div>
@@ -1144,6 +1148,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
     <div class="mhd"><h2>新增記錄</h2><button class="mclose" onclick="closeTxMo()">✕</button></div>
     <div class="tts"><div class="tt" id="ttI" onclick="setMoType('income')">＋ 收入</div><div class="tt" id="ttE" onclick="setMoType('expense')">－ 支出</div></div>
     <div class="fg"><label>類別</label><select id="m-cat"></select></div>
+    <div class="fg"><label id="m-title-lbl">收入名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="m-title" placeholder="請輸入名稱（必填）"></div>
+    <div class="fg"><label id="m-cp-lbl">收入來源 <span style="color:var(--exp)">*</span></label><input type="text" id="m-cp" placeholder="請輸入來源／對象（必填）"></div>
     <div class="fr2">
       <div class="fg"><label>金額（元）</label><input type="number" id="m-amt" placeholder="0" min="0"></div>
       <div class="fg"><label>日期</label><input type="date" id="m-date"></div>
@@ -1232,6 +1238,25 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
     <div class="mft">
       <button class="btn" onclick="closeRejectMo()">取消</button>
       <button class="btn" style="background:#e11d48;color:#fff;border:none" onclick="confirmReject()">確認退回</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─ MODAL: GM 編輯記錄 ─ -->
+<div class="mo" id="gmEditMo">
+  <div class="mbox">
+    <div class="mhd"><h2 id="gmEditTitle">編輯記錄</h2><button class="mclose" onclick="closeGmEditMo()">✕</button></div>
+    <div class="fg"><label>類別</label><select id="ge-cat"></select></div>
+    <div class="fg"><label id="ge-title-lbl">名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="ge-title" placeholder="請輸入名稱（必填）"></div>
+    <div class="fg"><label id="ge-cp-lbl">來源／對象 <span style="color:var(--exp)">*</span></label><input type="text" id="ge-cp" placeholder="請輸入來源／對象（必填）"></div>
+    <div class="fr2">
+      <div class="fg"><label>金額（元）</label><input type="number" id="ge-amt" placeholder="0" min="0"></div>
+      <div class="fg"><label>日期</label><input type="date" id="ge-date"></div>
+    </div>
+    <div class="fg"><label>備註</label><textarea id="ge-note" placeholder="備註（選填）"></textarea></div>
+    <div class="mft">
+      <button class="btn" onclick="closeGmEditMo()">取消</button>
+      <button class="btn bp" onclick="submitGmEdit()">儲存變更</button>
     </div>
   </div>
 </div>
@@ -1424,6 +1449,8 @@ async function loadRecs(co){
       if(r.rejected_by)   rec.rejectedBy   = r.rejected_by;
       if(r.rejected_at)   rec.rejectedAt   = r.rejected_at;
       if(r.attachments)   rec.attachments  = r.attachments;
+      if(r.title)         rec.title        = r.title;
+      if(r.counterparty)  rec.counterparty = r.counterparty;
       return rec;
     });
   }catch(e){console.error('載入'+co+'記錄失敗:',e);_cache[co]=[];}
@@ -1437,6 +1464,7 @@ function _recToDb(r,co){
     approved_at:  r.approvedAt||null,  reject_reason:r.rejectReason||null,
     rejected_by:  r.rejectedBy||null,  rejected_at:r.rejectedAt||null,
     attachments: r.attachments||null,
+    title: r.title||null, counterparty: r.counterparty||null,
   };
 }
 
@@ -1988,13 +2016,23 @@ function renderTxList(recs,listId,cntId,showDel){
   el.innerHTML=recs.map(r=>{
     const st=r.status||'approved';
     const icon=stIcon[st]?`<span title="${st==='pending'?'待審核':'已退回'}" style="margin-left:4px">${stIcon[st]}</span>`:'';
+    const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
+    const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${r.title}</span>`:'';
+    const cpLine=r.counterparty?`<span style="color:var(--txt3);font-size:11px"> · ${r.counterparty}</span>`:'';
+    const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:'';
+    const subLine=titleLine||cpLine?`<div class="txim" style="margin-top:1px">${titleLine}${cpLine}</div>`:'';
     return`<div class="txi">
       <div class="txil">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
-        <div><div class="txin">${r.category}${icon}${isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:''}${r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:''}</div><div class="txim">${r.date}${r.by?' · '+r.by:''}</div></div>
+        <div>
+          <div class="txin">${r.category}${icon}${attIcon}${noteLine}</div>
+          ${subLine}
+          <div class="txim">${r.date}${r.by?' · '+r.by:''}</div>
+        </div>
       </div>
       <div class="txir">
         <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+        ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${activeCo}')">✏️</button>`:''}
         ${showDel&&isGM?`<button class="txd" onclick="gmDelRec(${r.id},'${activeCo}')">✕</button>`:''}
       </div>
     </div>`;
@@ -2353,23 +2391,38 @@ function setMoType(t){
   document.getElementById('ttI').className='tt'+(t==='income'?' ai':'');
   document.getElementById('ttE').className='tt'+(t==='expense'?' ae':'');
   document.getElementById('m-sub').className=t==='income'?'btn bi':'btn be';
+  document.getElementById('m-title-lbl').innerHTML=t==='income'
+    ?'收入名稱 <span style="color:var(--exp)">*</span>'
+    :'支出名稱 <span style="color:var(--exp)">*</span>';
+  document.getElementById('m-cp-lbl').innerHTML=t==='income'
+    ?'收入來源 <span style="color:var(--exp)">*</span>'
+    :'支出對象 <span style="color:var(--exp)">*</span>';
+  document.getElementById('m-title').placeholder=t==='income'?'請輸入收入名稱（必填）':'請輸入支出名稱（必填）';
+  document.getElementById('m-cp').placeholder=t==='income'?'請輸入來源公司或對象（必填）':'請輸入支出對象或公司名稱（必填）';
 }
 function submitTxMo(){
   const amt=parseFloat(document.getElementById('m-amt').value);
   const cat=document.getElementById('m-cat').value;
   const date=document.getElementById('m-date').value;
   const note=document.getElementById('m-note').value.trim();
+  const title=document.getElementById('m-title').value.trim();
+  const counterparty=document.getElementById('m-cp').value.trim();
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
+  if(!title){toast('請填寫名稱（必填）',false);return;}
+  if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
   const recs=getRecs(activeCo);
   const isGM=currentUser.role==='gm';
   const status=isGM?'approved':'pending';
   const attachments=_moAttFiles.length>0?[..._moAttFiles]:null;
-  recs.push({id:Date.now(),type:moType,category:cat,amount:amt,date,note,
+  recs.push({id:Date.now(),type:moType,category:cat,amount:amt,date,note,title,counterparty,
     by:currentUser.name, status, attachments,
     submittedAt: isGM ? null : new Date().toISOString()
   });
   setRecs(activeCo,recs);
-  document.getElementById('m-amt').value='';document.getElementById('m-note').value='';
+  document.getElementById('m-amt').value='';
+  document.getElementById('m-note').value='';
+  document.getElementById('m-title').value='';
+  document.getElementById('m-cp').value='';
   _moAttFiles=[];renderMoAttList();
   closeTxMo();
   if(isGM){
@@ -2439,16 +2492,22 @@ function staffSub(type){
   const cat=document.getElementById(p?'si-cat':'se-cat').value;
   const date=document.getElementById(p?'si-date':'se-date').value;
   const note=document.getElementById(p?'si-note':'se-note').value.trim();
+  const title=document.getElementById(p?'si-title':'se-title').value.trim();
+  const counterparty=document.getElementById(p?'si-cp':'se-cp').value.trim();
   const by=currentUser.name;
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
+  if(!title){toast('請填寫名稱（必填）',false);return;}
+  if(!counterparty){toast(p?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
   const attArr=p?_siAttFiles:_seAttFiles;
   const attachments=attArr.length>0?[...attArr]:null;
   const recs=getRecs(activeCo);
-  recs.push({id:Date.now(),type,category:cat,amount:amt,date,note,by,
+  recs.push({id:Date.now(),type,category:cat,amount:amt,date,note,title,counterparty,by,
     status:'pending', submittedAt: new Date().toISOString(), attachments});
   setRecs(activeCo,recs);
   document.getElementById(p?'si-amt':'se-amt').value='';
   document.getElementById(p?'si-note':'se-note').value='';
+  document.getElementById(p?'si-title':'se-title').value='';
+  document.getElementById(p?'si-cp':'se-cp').value='';
   if(p){_siAttFiles=[];renderStAttList('income');}
   else {_seAttFiles=[];renderStAttList('expense');}
   toast(`已送出，等待主管核簽`);
@@ -4883,6 +4942,7 @@ function renderApproval(){
             · ${r.date} · 填寫人：${r.by||'—'}
             ${r.note?`· ${r.note}`:''}
           </div>
+          ${r.title||r.counterparty?`<div style="font-size:12px;color:var(--txt2);margin-top:4px">${r.title?`<span style="font-weight:600">${r.title}</span>`:''} ${r.counterparty?`<span style="color:var(--txt3)">· ${r.counterparty}</span>`:''}</div>`:''}
           ${typeof _attBadgeHtml==='function'?_attBadgeHtml(r):''}
           ${rejectBlock}${approvedBlock}
           ${actionBtns}
@@ -4941,6 +5001,56 @@ function gmDelRec(id, co){
   setRecs(co, getRecs(co).filter(r=>r.id!==id));
   render(); renderRecs(); renderApproval(); updatePendingBadge();
   toast('已刪除');
+}
+
+// ── GM 編輯已核准記錄 ──────────────────────────
+let _gmEditId=null, _gmEditCo=null;
+
+function openGmEditMo(id, co){
+  const rec=getRecs(co).find(r=>r.id===id);
+  if(!rec||rec.status!=='approved'||currentUser?.role!=='gm') return;
+  _gmEditId=id; _gmEditCo=co;
+  // 填入類別選單
+  const cats=getCats(co, rec.type);
+  document.getElementById('ge-cat').innerHTML=cats.map(c=>`<option${c===rec.category?' selected':''}>${c}</option>`).join('');
+  // 填入欄位
+  document.getElementById('ge-title').value=rec.title||'';
+  document.getElementById('ge-cp').value=rec.counterparty||'';
+  document.getElementById('ge-amt').value=rec.amount;
+  document.getElementById('ge-date').value=rec.date;
+  document.getElementById('ge-note').value=rec.note||'';
+  // 更新標籤
+  const isInc=rec.type==='income';
+  document.getElementById('gmEditTitle').textContent=isInc?'編輯收入記錄':'編輯支出記錄';
+  document.getElementById('ge-title-lbl').innerHTML=(isInc?'收入名稱':'支出名稱')+' <span style="color:var(--exp)">*</span>';
+  document.getElementById('ge-cp-lbl').innerHTML=(isInc?'收入來源':'支出對象')+' <span style="color:var(--exp)">*</span>';
+  document.getElementById('gmEditMo').classList.add('open');
+}
+
+function closeGmEditMo(){
+  document.getElementById('gmEditMo').classList.remove('open');
+  _gmEditId=null; _gmEditCo=null;
+}
+
+function submitGmEdit(){
+  if(!_gmEditId||!_gmEditCo) return;
+  const title=document.getElementById('ge-title').value.trim();
+  const counterparty=document.getElementById('ge-cp').value.trim();
+  const amt=parseFloat(document.getElementById('ge-amt').value);
+  const date=document.getElementById('ge-date').value;
+  const note=document.getElementById('ge-note').value.trim();
+  const cat=document.getElementById('ge-cat').value;
+  if(!title){toast('請填寫名稱（必填）',false);return;}
+  if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
+  if(!amt||!date){toast('請填寫金額與日期',false);return;}
+  const recs=getRecs(_gmEditCo);
+  const idx=recs.findIndex(r=>r.id===_gmEditId);
+  if(idx<0){toast('找不到記錄',false);return;}
+  recs[idx]={...recs[idx], category:cat, title, counterparty, amount:amt, date, note};
+  setRecs(_gmEditCo, recs);
+  closeGmEditMo();
+  render(); renderRecs();
+  toast('記錄已更新 ✅');
 }
 
 // Staff: edit rejected record and resubmit
