@@ -1206,23 +1206,35 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 <!-- Staff: edit rejected record modal -->
 <div id="stEditMo" class="mo">
   <div class="mo-box" style="max-width:460px">
-    <div class="mhd"><div class="mt">✏️ 修改後重新送出</div><button class="mcl" onclick="closeStEditMo()">✕</button></div>
+    <div class="mhd"><div class="mt" id="steModalTitle">✏️ 修改記錄</div><button class="mcl" onclick="closeStEditMo()">✕</button></div>
     <div class="mb">
-      <div id="steRejectInfo" style="background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:10px 12px;font-size:13px;color:#9f1239;margin-bottom:14px"></div>
+      <div id="steRejectInfo" style="display:none;background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:10px 12px;font-size:13px;color:#9f1239;margin-bottom:14px"></div>
+      <div id="stePendingInfo" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:13px;color:#1d4ed8;margin-bottom:14px">⏳ 此筆尚待主管核簽，您可直接修改後儲存。</div>
       <div class="fg"><label>類型</label>
-        <select id="steType" onchange="populateStEditCats(this.value,'')">
+        <select id="steType" onchange="populateStEditCats(this.value,'');updateStEditLabels()">
           <option value="income">收入</option>
           <option value="expense">支出</option>
         </select>
       </div>
       <div class="fg"><label>類別</label><select id="steCat"></select></div>
+      <div class="fg"><label id="ste-title-lbl">名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="steTitle" placeholder="請輸入名稱（必填）"></div>
+      <div class="fg"><label id="ste-cp-lbl">來源／對象 <span style="color:var(--exp)">*</span></label><input type="text" id="steCp" placeholder="請輸入來源或對象（必填）"></div>
       <div class="fg"><label>金額</label><input type="number" id="steAmt" placeholder="0"></div>
       <div class="fg"><label>日期</label><input type="date" id="steDate"></div>
       <div class="fg"><label>備註</label><textarea id="steNote" placeholder="備註說明（選填）"></textarea></div>
+      <div class="att-zone" id="ste-att-zone">
+        <div class="att-zone-hd">
+          <label>📎 附件（選填，最多 8 個）</label>
+          <button type="button" class="att-upload-btn" id="ste-att-btn" onclick="steAttPick()">＋ 新增附件</button>
+        </div>
+        <div id="ste-att-auth-area"></div>
+        <div class="att-list" id="ste-att-list"></div>
+        <div class="att-hint" id="ste-att-hint" style="display:none"></div>
+      </div>
     </div>
     <div class="mft">
       <button class="btn" onclick="closeStEditMo()">取消</button>
-      <button class="btn bp" onclick="submitStEdit()">重新送出審核</button>
+      <button class="btn bp" id="steSubmitBtn" onclick="submitStEdit()">儲存</button>
     </div>
   </div>
 </div>
@@ -2521,11 +2533,19 @@ function renderStToday(){
   const el=document.getElementById('stTodayL');
   if(!recs.length){el.innerHTML='<div class="empty">今天尚未輸入記錄</div>';return;}
   el.innerHTML=recs.map(r=>`
-    <div class="txi">
-      <div class="txil"><div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
-        <div><div class="txin">${r.category}${r.note?` — ${r.note}`:''}</div><div class="txim">${r.date}</div></div>
+    <div class="txi" style="flex-direction:column;align-items:stretch;gap:4px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
+        <div style="flex:1">
+          <div class="txin">${r.category}${r.note?` — ${r.note}`:''}</div>
+          <div class="txim">${r.date}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+          ${r.status==='pending'?'<span class="st-badge st-pending" style="margin-top:2px">⏳ 待審核</span>':''}
+        </div>
       </div>
-      <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+      ${r.status==='pending'?`<button class="btn bsm" style="margin-top:2px;align-self:flex-end" onclick="openStEditMo(${r.id})">✏️ 修改待審記錄</button>`:''}
     </div>`).join('');
 }
 
@@ -2554,7 +2574,7 @@ function renderStHist(){
   el.innerHTML=recs.map(r=>{
     const st=r.status||'approved';
     const rejectBlock=st==='rejected'&&r.rejectReason?`<div class="ap-reject-reason">退回原因：${r.rejectReason}</div>`:'';
-    const editBtn=st==='rejected'?`<button class="btn bsm" style="margin-top:6px" onclick="openStEditMo(${r.id})">✏️ 修改後重新送出</button>`:'';
+    const editBtn=(st==='rejected'||st==='pending')?`<button class="btn bsm" style="margin-top:6px" onclick="openStEditMo(${r.id})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button>`:'';
     return`<div class="txi" style="flex-direction:column;align-items:stretch;gap:6px">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
@@ -5057,44 +5077,79 @@ function submitGmEdit(){
 let stEditId=null;
 function openStEditMo(id){
   const r=getRecs(activeCo).find(r=>r.id===id);
-  if(!r||r.status!=='rejected') return;
+  if(!r||(r.status!=='rejected'&&r.status!=='pending')) return;
   stEditId=id;
   // Populate edit modal
   document.getElementById('steType').value=r.type;
   populateStEditCats(r.type, r.category);
+  document.getElementById('steTitle').value=r.title||'';
+  document.getElementById('steCp').value=r.counterparty||'';
   document.getElementById('steAmt').value=r.amount;
   document.getElementById('steDate').value=r.date;
   document.getElementById('steNote').value=r.note||'';
-  document.getElementById('steRejectInfo').textContent=
-    r.rejectReason?`退回原因：${r.rejectReason}`:'主管已退回此筆，請修改後重新送出。';
+  // Show/hide info banners and adjust labels based on status
+  const isPending=r.status==='pending';
+  document.getElementById('steRejectInfo').style.display=isPending?'none':'block';
+  document.getElementById('stePendingInfo').style.display=isPending?'block':'none';
+  if(!isPending){
+    document.getElementById('steRejectInfo').textContent=
+      r.rejectReason?`退回原因：${r.rejectReason}`:'主管已退回此筆，請修改後重新送出。';
+  }
+  document.getElementById('steModalTitle').textContent=isPending?'✏️ 修改待審記錄':'✏️ 修改後重新送出';
+  document.getElementById('steSubmitBtn').textContent=isPending?'儲存修改':'重新送出審核';
+  updateStEditLabels();
+  // 載入現有附件到暫存陣列
+  _steAttFiles = r.attachments ? [...r.attachments] : [];
+  renderSteAttList();
+  renderSteAuthArea();
   document.getElementById('stEditMo').classList.add('open');
+}
+function updateStEditLabels(){
+  const t=document.getElementById('steType').value;
+  document.getElementById('ste-title-lbl').innerHTML=(t==='income'?'收入名稱':'支出名稱')+' <span style="color:var(--exp)">*</span>';
+  document.getElementById('ste-cp-lbl').innerHTML=(t==='income'?'收入來源':'支出對象')+' <span style="color:var(--exp)">*</span>';
 }
 function populateStEditCats(type, selected){
   const cats=getCats(activeCo,type);
   const sel=document.getElementById('steCat');
   sel.innerHTML=cats.map(c=>`<option${c===selected?' selected':''}>${c}</option>`).join('');
 }
-function closeStEditMo(){ document.getElementById('stEditMo').classList.remove('open'); stEditId=null; }
+function closeStEditMo(){ document.getElementById('stEditMo').classList.remove('open'); stEditId=null; _steAttFiles=[]; }
 function submitStEdit(){
   if(!stEditId) return;
   const recs=getRecs(activeCo);
   const idx=recs.findIndex(r=>r.id===stEditId);
   if(idx<0) return;
+  const origStatus=recs[idx].status;
   const type=document.getElementById('steType').value;
   const amt=parseFloat(document.getElementById('steAmt').value);
   const date=document.getElementById('steDate').value;
   const note=document.getElementById('steNote').value.trim();
   const cat=document.getElementById('steCat').value;
+  const title=document.getElementById('steTitle').value.trim();
+  const counterparty=document.getElementById('steCp').value.trim();
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
-  recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,
-    status:'pending', submittedAt:new Date().toISOString(),
-    rejectReason:null, rejectedBy:null, rejectedAt:null};
-  setRecs(activeCo,recs);
-  closeStEditMo();
-  toast('已重新送出，等待主管核簽');
+  if(!title){toast('請填寫名稱（必填）',false);return;}
+  if(!counterparty){toast(type==='income'?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
+  const attachments = _steAttFiles.length > 0 ? [..._steAttFiles] : null;
+  if(origStatus==='pending'){
+    // 待審中修改：維持 pending，不重設 submittedAt
+    recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments};
+    setRecs(activeCo,recs);
+    closeStEditMo();
+    toast('已修改，繼續等待主管核簽');
+  } else {
+    // 已退回修改：重新送出，重設 submittedAt，清除退回資訊
+    recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments,
+      status:'pending', submittedAt:new Date().toISOString(),
+      rejectReason:null, rejectedBy:null, rejectedAt:null};
+    setRecs(activeCo,recs);
+    closeStEditMo();
+    toast('已重新送出，等待主管核簽');
+    renderRejectedNotice();
+    updatePendingBadge();
+  }
   renderStHist(); renderStToday();
-  renderRejectedNotice();
-  updatePendingBadge();
 }
 
 
@@ -5893,6 +5948,7 @@ let _gFolderId = null;       // 根資料夾 ID（首次上傳時建立）
 let _moAttFiles  = [];  // GM modal
 let _siAttFiles  = [];  // Staff 收入
 let _seAttFiles  = [];  // Staff 支出
+let _steAttFiles = [];  // Staff 編輯 Modal
 
 // ── 判斷 Client ID 是否已設定 ────────────────
 function _gClientReady(){ return GDRIVE_CLIENT_ID && GDRIVE_CLIENT_ID.length > 10; }
@@ -5922,7 +5978,7 @@ function gDriveAuth(onSuccess){
 }
 
 function renderAllAuthAreas(){
-  ['mo-att-auth-area','si-att-auth-area','se-att-auth-area'].forEach(id=>{
+  ['mo-att-auth-area','si-att-auth-area','se-att-auth-area','ste-att-auth-area'].forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
     if(_gToken){
@@ -6154,6 +6210,79 @@ function _stAttRemove(type, i){
   if(att && att.fileId && _gToken) driveDeleteFile(att.fileId).catch(()=>{});
   attArr.splice(i, 1);
   renderStAttList(type);
+}
+
+// ── Staff 編輯 Modal 附件 ─────────────────────────
+function renderSteAuthArea(){
+  const el = document.getElementById('ste-att-auth-area');
+  if(!el) return;
+  if(_gToken){
+    el.innerHTML = `<div class="gauth-ok">✅ 已連結 Google Drive，可上傳附件</div>`;
+  } else {
+    el.innerHTML = `<button type="button" class="gauth-btn" onclick="gDriveAuth(()=>{renderSteAttList();renderSteAuthArea();})">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      連結 Google Drive 以啟用附件上傳
+    </button>`;
+  }
+}
+
+function steAttPick(){
+  if(!_gToken){ gDriveAuth(()=>{ renderSteAttList(); renderSteAuthArea(); }); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.accept = 'image/*,.pdf,.xlsx,.xls,.doc,.docx,.csv,.zip,.rar';
+  input.onchange = async (e) => {
+    const files = [...e.target.files];
+    const remaining = ATT_MAX - _steAttFiles.length;
+    if(files.length > remaining) toast(`最多 ${ATT_MAX} 個，只取前 ${remaining} 個`, false);
+    const toUpload = files.slice(0, remaining);
+    if(!toUpload.length) return;
+    const btn = document.getElementById('ste-att-btn');
+    if(btn){ btn.disabled=true; btn.textContent='上傳中…'; }
+    try{
+      const co = activeCo || 'general';
+      const yyyymm = (document.getElementById('steDate')?.value||'').slice(0,7) || new Date().toISOString().slice(0,7);
+      for(const f of toUpload){
+        const att = await driveUploadFile(f, co, yyyymm);
+        _steAttFiles.push(att);
+      }
+    }catch(err){
+      toast('上傳失敗：' + err.message, false);
+    }
+    if(btn){ btn.disabled=false; btn.textContent='＋ 新增附件'; }
+    renderSteAttList();
+  };
+  input.click();
+}
+
+function renderSteAttList(){
+  const list = document.getElementById('ste-att-list');
+  const btn  = document.getElementById('ste-att-btn');
+  const hint = document.getElementById('ste-att-hint');
+  if(!list) return;
+  if(btn) btn.disabled = _steAttFiles.length >= ATT_MAX;
+  if(hint){
+    hint.style.display = _steAttFiles.length > 0 ? 'block' : 'none';
+    hint.textContent = `已附加 ${_steAttFiles.length} / ${ATT_MAX} 個檔案`;
+  }
+  list.innerHTML = _steAttFiles.map((att, i) => `
+    <div class="att-item">
+      <span class="att-item-icon">${_attIcon(att.name)}</span>
+      <div class="att-item-info">
+        <div class="att-item-name">${att.name}</div>
+        <div class="att-item-size">${_fmtSize(att.size||0)}</div>
+      </div>
+      ${att.url ? `<a class="att-item-link" href="${att.url}" target="_blank" rel="noopener">開啟</a>` : ''}
+      <button class="att-item-del" onclick="_steAttRemove(${i})" title="移除">✕</button>
+    </div>`).join('');
+}
+
+function _steAttRemove(i){
+  const att = _steAttFiles[i];
+  if(att && att.fileId && _gToken) driveDeleteFile(att.fileId).catch(()=>{});
+  _steAttFiles.splice(i, 1);
+  renderSteAttList();
 }
 
 // ── GM 查看附件 Modal ─────────────────────────
