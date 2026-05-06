@@ -614,6 +614,18 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
           <div class="mnav"><button onclick="changeMonth(-1)">‹</button><span id="mLbl2"></span><button onclick="changeMonth(1)">›</button></div>
         </div>
       </div>
+      <div id="recSearchRow" style="display:none;padding:0 0 14px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="recKeyword" placeholder="🔍 搜尋關鍵字（類別、摘要、對象、備註、經辦）" oninput="renderRecs()" style="flex:1;min-width:220px;background:var(--sur);border:1px solid var(--bdr);border-radius:9px;padding:9px 13px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none;color:var(--txt)">
+          <select id="fCo" onchange="renderRecs()" class="btn" style="padding:6px 11px">
+            <option value="">全部公司</option>
+            <option value="xiaori">小日常</option>
+            <option value="xiangyue">翔悅建設</option>
+            <option value="shixin">蒔心田生醫</option>
+            <option value="gaoshu">高速駕訓</option>
+          </select>
+        </div>
+      </div>
       <div class="card"><div class="txl" id="recTxl" style="max-height:580px"><div class="empty">尚無記錄</div></div></div>
     </div>
 
@@ -2039,13 +2051,13 @@ function renderTxList(recs,listId,cntId,showDel){
         <div>
           <div class="txin">${r.category}${icon}${attIcon}${noteLine}</div>
           ${subLine}
-          <div class="txim">${r.date}${r.by?' · '+r.by:''}</div>
+          <div class="txim">${r.date}${r.by?' · '+r.by:''}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+r._coName+'</span>':''}</div>
         </div>
       </div>
       <div class="txir">
         <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
-        ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${activeCo}')">✏️</button>`:''}
-        ${showDel&&isGM?`<button class="txd" onclick="gmDelRec(${r.id},'${activeCo}')">✕</button>`:''}
+        ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
+        ${showDel&&isGM?`<button class="txd" onclick="gmDelRec(${r.id},'${r._co||activeCo}')">✕</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -2157,14 +2169,31 @@ function openStEditMoFromCo(id, co){
 
 function renderRecs(){
   if(!currentUser||( currentUser.role!=='gm'&&currentUser.role!=='viewer')) return;
+  const isGM=currentUser.role==='gm';
+  const searchRow=document.getElementById('recSearchRow');
+  if(searchRow) searchRow.style.display=isGM?'block':'none';
   const type=document.getElementById('fType')?.value||'';
   const catSel=document.getElementById('fCat');const cat=catSel?.value||'';
+  const keyword=(document.getElementById('recKeyword')?.value||'').trim().toLowerCase();
+  const fCo=isGM?(document.getElementById('fCo')?.value||''):'';
+  const coNames={'xiaori':'小日常','xiangyue':'翔悅','shixin':'蒔心田','gaoshu':'高速'};
+  let recs;
+  if(keyword&&isGM){
+    const coList=fCo?[fCo]:['xiaori','xiangyue','shixin','gaoshu'];
+    recs=[];
+    coList.forEach(co=>{ getRecs(co).forEach(r=>{ recs.push({...r,_co:co,_coName:coNames[co]}); }); });
+  } else {
+    const targetCo=(isGM&&fCo)?fCo:activeCo;
+    recs=getRecs(targetCo).filter(r=>r.date.startsWith(mk(curDate))).map(r=>({...r,_co:targetCo}));
+  }
   const allC=[...new Set(getRecs(activeCo).map(r=>r.category))].sort();
   if(catSel) catSel.innerHTML='<option value="">全部類別</option>'+allC.map(c=>`<option ${cat===c?'selected':''}>${c}</option>`).join('');
-  let recs=getRecs(activeCo).filter(r=>r.date.startsWith(mk(curDate)));
   if(type) recs=recs.filter(r=>r.type===type);
   if(cat) recs=recs.filter(r=>r.category===cat);
+  if(keyword) recs=recs.filter(r=>[r.category,r.note,r.title,r.counterparty,r.by].filter(Boolean).join(' ').toLowerCase().includes(keyword));
   recs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const subEl=document.getElementById('recSub');
+  if(subEl) subEl.textContent=keyword?`搜尋「${keyword}」— ${recs.length} 筆`:'—';
   renderTxList(recs,'recTxl',null,true);
 }
 
@@ -2545,7 +2574,7 @@ function renderStToday(){
           ${r.status==='pending'?'<span class="st-badge st-pending" style="margin-top:2px">⏳ 待審核</span>':''}
         </div>
       </div>
-      ${r.status==='pending'?`<button class="btn bsm" style="margin-top:2px;align-self:flex-end" onclick="openStEditMo(${r.id})">✏️ 修改待審記錄</button>`:''}
+      ${r.status==='pending'?`<div style="display:flex;gap:6px;margin-top:2px;align-self:flex-end"><button class="btn bsm" onclick="openStEditMo(${r.id})">✏️ 修改</button><button class="btn bsm bdel" onclick="stDelPendingRec(${r.id})">🗑 刪除</button></div>`:''}
     </div>`).join('');
 }
 
@@ -2574,7 +2603,7 @@ function renderStHist(){
   el.innerHTML=recs.map(r=>{
     const st=r.status||'approved';
     const rejectBlock=st==='rejected'&&r.rejectReason?`<div class="ap-reject-reason">退回原因：${r.rejectReason}</div>`:'';
-    const editBtn=(st==='rejected'||st==='pending')?`<button class="btn bsm" style="margin-top:6px" onclick="openStEditMo(${r.id})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button>`:'';
+    const editBtn=(st==='rejected'||st==='pending')?`<div style="display:flex;gap:6px;margin-top:6px">${st==='pending'?`<button class="btn bsm bdel" onclick="stDelPendingRec(${r.id})">🗑 刪除</button>`:''}<button class="btn bsm" onclick="openStEditMo(${r.id})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button></div>`:'';
     return`<div class="txi" style="flex-direction:column;align-items:stretch;gap:6px">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
@@ -5021,6 +5050,19 @@ function gmDelRec(id, co){
   setRecs(co, getRecs(co).filter(r=>r.id!==id));
   render(); renderRecs(); renderApproval(); updatePendingBadge();
   toast('已刪除');
+}
+
+// ── 經辦刪除待審記錄 ──────────────────────────
+function stDelPendingRec(id){
+  const rec=getRecs(activeCo).find(r=>r.id===id);
+  if(!rec||rec.status!=='pending'||rec.by!==currentUser?.name) return;
+  if(!confirm('確定刪除此待審記錄？此操作無法復原。')) return;
+  if(rec.attachments&&rec.attachments.length>0&&_gToken){
+    rec.attachments.forEach(att=>{ if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{}); });
+  }
+  setRecs(activeCo, getRecs(activeCo).filter(r=>r.id!==id));
+  renderStToday(); renderStHist(); updatePendingBadge();
+  toast('已刪除待審記錄');
 }
 
 // ── GM 編輯已核准記錄 ──────────────────────────
