@@ -1364,12 +1364,37 @@ const CAT_ICONS = {
 };
 function getCatIcon(c){ return CAT_ICONS[c] || (c.startsWith('蒔-')?(c.includes('物流')?'📦':c.includes('廣告')?'📣':c.includes('薪資')?'💼':c.includes('代工')?'🧪':'🌿'):'📌'); }
 
-function getCustomCats(co,type){
-  try{ return JSON.parse(localStorage.getItem(`customCats_${co}_${type}`)||'[]'); }catch(e){ return []; }
+// 自訂類別：記憶體快取（key: `${co}_${type}`），由 loadCustomCats() 初始化
+const _customCatsCache={};
+function getCustomCats(co,type){ return _customCatsCache[`${co}_${type}`]||[]; }
+
+async function loadCustomCats(){
+  try{
+    const rows=await sbFetch('custom_cats?select=co,type,name&order=id.asc');
+    // 清空後重建快取
+    Object.keys(_customCatsCache).forEach(k=>delete _customCatsCache[k]);
+    rows.forEach(r=>{
+      const k=`${r.co}_${r.type}`;
+      if(!_customCatsCache[k]) _customCatsCache[k]=[];
+      _customCatsCache[k].push(r.name);
+    });
+  }catch(e){ console.error('載入自訂類別失敗:',e); }
 }
-function saveCustomCats(co,type,arr){
-  localStorage.setItem(`customCats_${co}_${type}`, JSON.stringify(arr));
+
+async function addCustomCatToDb(co,type,name){
+  const rows=await sbFetch('custom_cats','POST',[{co,type,name}]);
+  const k=`${co}_${type}`;
+  if(!_customCatsCache[k]) _customCatsCache[k]=[];
+  _customCatsCache[k].push(name);
+  return rows;
 }
+
+async function deleteCustomCatFromDb(co,type,name){
+  await sbFetch(`custom_cats?co=eq.${encodeURIComponent(co)}&type=eq.${encodeURIComponent(type)}&name=eq.${encodeURIComponent(name)}`,'DELETE');
+  const k=`${co}_${type}`;
+  if(_customCatsCache[k]) _customCatsCache[k]=_customCatsCache[k].filter(c=>c!==name);
+}
+
 function getCats(co,type){
   let base;
   if(co==='shixin') base=type==='income'?SX_INC:SX_EXP;
@@ -1592,8 +1617,8 @@ async function initApp(){
   }, 8000);
 
   try{
-    // 1. 載入使用者（快，即使失敗也有預設帳號可用）
-    await loadUsers();
+    // 1. 載入使用者 + 自訂類別（平行執行）
+    await Promise.all([loadUsers(), loadCustomCats()]);
 
     // 2. 立刻顯示登入畫面
     clearTimeout(fallbackTimer);
@@ -2564,26 +2589,27 @@ function renderCatMgmt(){
   ];
   el.innerHTML=rows.length?rows.join(''):'<div style="color:var(--txt3);font-size:13px;text-align:center;padding:16px">尚無類別</div>';
 }
-function addCustomCat(){
+async function addCustomCat(){
   const co=document.getElementById('cm-co')?.value||'xiaori';
   const input=document.getElementById('cm-new');
   const name=(input?.value||'').trim();
   if(!name){ toast('請輸入類別名稱'); return; }
   const existing=getCats(co,_cmType);
   if(existing.includes(name)){ toast('此類別已存在'); return; }
-  const custom=getCustomCats(co,_cmType);
-  custom.push(name);
-  saveCustomCats(co,_cmType,custom);
-  input.value='';
-  renderCatMgmt();
-  toast(`已新增「${name}」`);
+  try{
+    await addCustomCatToDb(co,_cmType,name);
+    input.value='';
+    renderCatMgmt();
+    toast(`已新增「${name}」`);
+  }catch(e){ toast('新增失敗，請重試',false); }
 }
-function deleteCustomCat(co,type,name){
+async function deleteCustomCat(co,type,name){
   if(!confirm(`確定刪除「${name}」？\n（已有此類別的記錄不受影響）`)) return;
-  const custom=getCustomCats(co,type).filter(c=>c!==name);
-  saveCustomCats(co,type,custom);
-  renderCatMgmt();
-  toast(`已刪除「${name}」`);
+  try{
+    await deleteCustomCatFromDb(co,type,name);
+    renderCatMgmt();
+    toast(`已刪除「${name}」`);
+  }catch(e){ toast('刪除失敗，請重試',false); }
 }
 
 async function saveGMSettings(){
