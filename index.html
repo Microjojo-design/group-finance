@@ -571,6 +571,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="ni" id="nav-monthreport" onclick="showPage('monthreport',this)"><span class="nic">📝</span>一鍵月報</div>
       <div class="ni" id="nav-users" onclick="showPage('users',this)"><span class="nic">👥</span>帳號管理</div>
       <div class="ni" onclick="showPage('gmsettings',this)"><span class="nic">⚙️</span>我的帳號設定</div>
+      <div class="ni" id="nav-catmgmt" onclick="showPage('catmgmt',this)"><span class="nic">🏷️</span>類別管理</div>
       <div class="ni" id="nav-import" onclick="showPage('import',this)"><span class="nic">📥</span>匯入報表</div>
       <div class="ni" id="nav-export" onclick="exportCSV()"><span class="nic">💾</span>匯出資料</div>
       <div class="ni logout" onclick="doLogout()"><span class="nic">🚪</span>登出</div>
@@ -996,6 +997,35 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
     </div>
 
 
+    <!-- CATEGORY MANAGEMENT PAGE (GM only) -->
+    <div id="page-catmgmt" class="page">
+      <div class="topbar">
+        <div><div class="pt">🏷️ 類別管理</div><div class="ps">自訂各公司的收入／支出類別項目</div></div>
+      </div>
+      <div class="card" style="max-width:600px">
+        <div class="fg">
+          <label>公司</label>
+          <select id="cm-co" onchange="renderCatMgmt()">
+            <option value="xiaori">🏠 小日常</option>
+            <option value="xiangyue">🏗 翔悅建設</option>
+            <option value="shixin">🌿 蒔心田生醫</option>
+            <option value="gaoshu">🚗 高速駕訓班</option>
+          </select>
+        </div>
+        <div class="stabs" style="margin-bottom:16px">
+          <button class="stab active" id="cmTabInc" onclick="setCmType('income')">收入類別</button>
+          <button class="stab" id="cmTabExp" onclick="setCmType('expense')">支出類別</button>
+        </div>
+        <!-- 新增輸入列 -->
+        <div style="display:flex;gap:8px;margin-bottom:18px">
+          <input type="text" id="cm-new" placeholder="輸入新類別名稱..." style="flex:1" onkeydown="if(event.key==='Enter')addCustomCat()">
+          <button class="btn bp" onclick="addCustomCat()">＋ 新增</button>
+        </div>
+        <!-- 類別清單 -->
+        <div id="cm-list"></div>
+      </div>
+    </div>
+
     <!-- MONTH REPORT PAGE (GM only) -->
     <div id="page-monthreport" class="page">
       <div class="topbar">
@@ -1334,10 +1364,19 @@ const CAT_ICONS = {
 };
 function getCatIcon(c){ return CAT_ICONS[c] || (c.startsWith('蒔-')?(c.includes('物流')?'📦':c.includes('廣告')?'📣':c.includes('薪資')?'💼':c.includes('代工')?'🧪':'🌿'):'📌'); }
 
+function getCustomCats(co,type){
+  try{ return JSON.parse(localStorage.getItem(`customCats_${co}_${type}`)||'[]'); }catch(e){ return []; }
+}
+function saveCustomCats(co,type,arr){
+  localStorage.setItem(`customCats_${co}_${type}`, JSON.stringify(arr));
+}
 function getCats(co,type){
-  if(co==='shixin') return type==='income'?SX_INC:SX_EXP;
-  if(co==='gaoshu') return type==='income'?GS_INC:GS_EXP;
-  return type==='income'?SHARED_INC:SHARED_EXP;
+  let base;
+  if(co==='shixin') base=type==='income'?SX_INC:SX_EXP;
+  else if(co==='gaoshu') base=type==='income'?GS_INC:GS_EXP;
+  else base=type==='income'?SHARED_INC:SHARED_EXP;
+  const custom=getCustomCats(co,type);
+  return custom.length?[...base,...custom]:base;
 }
 
 // ═══════════════════════════════════════════
@@ -1946,6 +1985,7 @@ function showPage(name,el){
   if(name==='rangequery'){ initRqDefaults(); runRangeQuery(); }
   if(name==='approval') renderApproval();
   if(name==='monthreport') renderMonthReport();
+  if(name==='catmgmt') renderCatMgmt();
 }
 
 function changeMonth(d){
@@ -2495,6 +2535,57 @@ function loadGMSettings(){
   document.getElementById('gset-pwd').value='';
   document.getElementById('gset-pwd2').value='';
 }
+// ── 類別管理（GM only）──
+let _cmType='income';
+function setCmType(t){
+  _cmType=t;
+  document.getElementById('cmTabInc').classList.toggle('active',t==='income');
+  document.getElementById('cmTabExp').classList.toggle('active',t==='expense');
+  renderCatMgmt();
+}
+function renderCatMgmt(){
+  const co=document.getElementById('cm-co')?.value||'xiaori';
+  let base;
+  if(co==='shixin') base=_cmType==='income'?SX_INC:SX_EXP;
+  else if(co==='gaoshu') base=_cmType==='income'?GS_INC:GS_EXP;
+  else base=_cmType==='income'?SHARED_INC:SHARED_EXP;
+  const custom=getCustomCats(co,_cmType);
+  const el=document.getElementById('cm-list');
+  if(!el) return;
+  const rows=[
+    ...base.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;margin-bottom:4px;background:var(--bg2)">
+      <span style="font-size:13.5px">${c}</span>
+      <span style="font-size:11px;color:var(--txt3);padding:2px 7px;border-radius:10px;background:var(--bdr)">預設</span>
+    </div>`),
+    ...custom.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;margin-bottom:4px;background:var(--sur)">
+      <span style="font-size:13.5px">${c}</span>
+      <button class="btn bsm bdel" onclick="deleteCustomCat('${co}','${_cmType}','${c.replace(/'/g,"\\'")}')">刪除</button>
+    </div>`)
+  ];
+  el.innerHTML=rows.length?rows.join(''):'<div style="color:var(--txt3);font-size:13px;text-align:center;padding:16px">尚無類別</div>';
+}
+function addCustomCat(){
+  const co=document.getElementById('cm-co')?.value||'xiaori';
+  const input=document.getElementById('cm-new');
+  const name=(input?.value||'').trim();
+  if(!name){ toast('請輸入類別名稱'); return; }
+  const existing=getCats(co,_cmType);
+  if(existing.includes(name)){ toast('此類別已存在'); return; }
+  const custom=getCustomCats(co,_cmType);
+  custom.push(name);
+  saveCustomCats(co,_cmType,custom);
+  input.value='';
+  renderCatMgmt();
+  toast(`已新增「${name}」`);
+}
+function deleteCustomCat(co,type,name){
+  if(!confirm(`確定刪除「${name}」？\n（已有此類別的記錄不受影響）`)) return;
+  const custom=getCustomCats(co,type).filter(c=>c!==name);
+  saveCustomCats(co,type,custom);
+  renderCatMgmt();
+  toast(`已刪除「${name}」`);
+}
+
 async function saveGMSettings(){
   const name=document.getElementById('gset-name').value.trim();
   const email=document.getElementById('gset-email').value.trim().toLowerCase();
