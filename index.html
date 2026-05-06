@@ -1513,6 +1513,10 @@ async function _syncRecs(co){
         const idx=_cache[co].findIndex(r=>r===local);
         if(idx>=0) _cache[co][idx].id=dbRec.id;
       });
+      // Re-render staff views so buttons reflect real DB ids
+      if(currentUser&&currentUser.role!=='gm'&&co===activeCo){
+        renderStToday(); renderStHist();
+      }
     }
     // PATCH modified existing records
     const toUpdate=data.filter(r=>dbIdSet.has(r.id));
