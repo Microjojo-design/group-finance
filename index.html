@@ -1323,6 +1323,18 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
   </div>
 </div>
 
+<!-- ─ MODAL: 核簽明細查看 ─ -->
+<div class="mo" id="apDetailMo">
+  <div class="mbox" style="max-width:520px;max-height:90dvh;overflow-y:auto">
+    <div class="mhd">
+      <h2 id="apd-title">記錄明細</h2>
+      <button class="mclose" onclick="closeApDetail()">✕</button>
+    </div>
+    <div id="apd-body"></div>
+    <div id="apd-actions" style="display:flex;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--bdr)"></div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════
 // COMPANY CONFIG
@@ -5090,15 +5102,15 @@ function renderApproval(){
     const approvedBlock=st==='approved'&&r.approvedBy
       ?`<div style="font-size:11px;color:var(--txt3);margin-top:4px">核准：${r.approvedBy} · ${r.approvedAt?r.approvedAt.substring(0,10):''}</div>`:'';
     const actionBtns=st==='pending'?`
-      <div class="ap-actions">
+      <div class="ap-actions" onclick="event.stopPropagation()">
         <button class="btn-approve" onclick="approveRec(${r.id},'${r._co}')">✅ 核准</button>
         <button class="btn-reject" onclick="openRejectMo(${r.id},'${r._co}')">↩️ 退回</button>
         <button class="btn-del-sm" onclick="gmDelRec(${r.id},'${r._co}')">🗑 刪除</button>
       </div>`:
-      `<div class="ap-actions">
+      `<div class="ap-actions" onclick="event.stopPropagation()">
         <button class="btn-del-sm" onclick="gmDelRec(${r.id},'${r._co}')">🗑 刪除</button>
       </div>`;
-    return`<div class="ap-card ap-${st}">
+    return`<div class="ap-card ap-${st}" onclick="openApDetail(${r.id},'${r._co}')" style="cursor:pointer">
       <div class="ap-row">
         <div class="ap-icon ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div class="ap-body">
@@ -6514,6 +6526,95 @@ function _attBadgeHtml(rec){
   </div>`;
 }
 window._attBadgeHtml = _attBadgeHtml;
+
+// ── 核簽明細 Modal ─────────────────────────────
+let _apdId=null, _apdCo=null;
+
+function openApDetail(id, co){
+  _apdId=id; _apdCo=co;
+  const coNames={xiaori:'小日常',xiangyue:'翔悅建設',shixin:'蒔心田生醫',gaoshu:'高速駕訓班'};
+  const stLabel={approved:'✅ 已核准',pending:'⏳ 待審核',rejected:'↩️ 已退回'};
+  const stCls={approved:'st-approved',pending:'st-pending',rejected:'st-rejected'};
+
+  const rec=getRecs(co).find(r=>r.id===id);
+  if(!rec) return;
+  const st=rec.status||'approved';
+
+  document.getElementById('apd-title').textContent=
+    rec.category+(rec.type==='income'?' 收入明細':' 支出明細');
+
+  const rows=[
+    ['公司', coNames[co]||co],
+    ['類別', rec.category],
+    rec.title?['名稱', rec.title]:null,
+    rec.counterparty?[rec.type==='income'?'收入來源':'支出對象', rec.counterparty]:null,
+    ['金額', `<strong style="font-size:17px;color:${rec.type==='income'?'var(--inc)':'var(--exp)'}">${rec.type==='income'?'+':'-'}${fmt(rec.amount)}</strong>`],
+    ['日期', rec.date],
+    ['填寫人', rec.by||'—'],
+    ['狀態', `<span class="st-badge ${stCls[st]}">${stLabel[st]}</span>`],
+    rec.note?['備註', `<span style="color:var(--txt2)">${rec.note}</span>`]:null,
+    rec.submittedAt?['送審時間', rec.submittedAt.substring(0,10)]:null,
+    rec.approvedBy?['核准人', `${rec.approvedBy}${rec.approvedAt?' · '+rec.approvedAt.substring(0,10):''}`]:null,
+    rec.rejectReason?['退回原因', `<span style="color:#9f1239">${rec.rejectReason}</span>`]:null,
+  ].filter(Boolean);
+
+  const tableHtml=rows.map(([lbl,val])=>
+    `<tr>
+      <td style="font-size:12px;color:var(--txt2);padding:8px 14px 8px 0;white-space:nowrap;vertical-align:top;font-weight:500">${lbl}</td>
+      <td style="font-size:13px;padding:8px 0">${val}</td>
+    </tr>`).join('');
+
+  const attHtml=rec.attachments&&rec.attachments.length>0
+    ?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bdr)">
+        <div style="font-size:11px;color:var(--txt2);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📎 附件（${rec.attachments.length} 個）</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${rec.attachments.map(att=>`
+            <a href="${att.url}" target="_blank" rel="noopener"
+              style="display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;text-decoration:none;color:var(--acc);font-size:13px;font-weight:500;transition:background .15s"
+              onmouseover="this.style.background='#eff4ff'" onmouseout="this.style.background='var(--sur2)'">
+              <span style="font-size:20px;flex-shrink:0">${_attIcon(att.name)}</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${att.name}</span>
+              <span style="color:var(--txt3);font-size:11px;flex-shrink:0">${_fmtSize(att.size||0)}</span>
+              <span style="flex-shrink:0;font-size:12px">↗</span>
+            </a>`).join('')}
+        </div>
+      </div>`
+    :'';
+
+  document.getElementById('apd-body').innerHTML=
+    `<table style="width:100%;border-collapse:collapse">${tableHtml}</table>${attHtml}`;
+
+  const actEl=document.getElementById('apd-actions');
+  if(st==='pending'){
+    actEl.innerHTML=`
+      <button class="btn-approve" style="flex:1;padding:10px;font-size:14px" onclick="approveFromDetail()">✅ 核准</button>
+      <button class="btn-reject" style="flex:1;padding:10px;font-size:14px" onclick="rejectFromDetail()">↩️ 退回</button>
+      <button class="btn-del-sm" style="padding:10px 14px" onclick="closeApDetail()">關閉</button>`;
+  } else {
+    actEl.innerHTML=`<button class="btn-del-sm" style="margin-left:auto;padding:10px 20px" onclick="closeApDetail()">關閉</button>`;
+  }
+
+  document.getElementById('apDetailMo').classList.add('open');
+}
+
+function closeApDetail(){
+  document.getElementById('apDetailMo').classList.remove('open');
+  _apdId=null; _apdCo=null;
+}
+
+function approveFromDetail(){
+  if(!_apdId||!_apdCo) return;
+  const id=_apdId, co=_apdCo;
+  closeApDetail();
+  approveRec(id, co);
+}
+
+function rejectFromDetail(){
+  if(!_apdId||!_apdCo) return;
+  const id=_apdId, co=_apdCo;
+  closeApDetail();
+  openRejectMo(id, co);
+}
 
 </script>
 </body>
