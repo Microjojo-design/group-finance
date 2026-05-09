@@ -2660,7 +2660,7 @@ function populateStaffCats(){
 // ═══════════════════════════════════════════
 // STAFF: ENTRY
 // ═══════════════════════════════════════════
-function staffSub(type){
+async function staffSub(type){
   const p=type==='income';
   const amt=parseFloat(document.getElementById(p?'si-amt':'se-amt').value);
   const cat=document.getElementById(p?'si-cat':'se-cat').value;
@@ -2674,19 +2674,29 @@ function staffSub(type){
   if(!counterparty){toast(p?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
   const attArr=p?_siAttFiles:_seAttFiles;
   const attachments=attArr.length>0?[...attArr]:null;
-  const recs=getRecs(activeCo);
-  const _lid=Date.now();
-  recs.push({id:_lid,localId:_lid,type,category:cat,amount:amt,date,note,title,counterparty,by,
-    status:'pending', submittedAt: new Date().toISOString(), attachments});
-  setRecs(activeCo,recs);
-  document.getElementById(p?'si-amt':'se-amt').value='';
-  document.getElementById(p?'si-note':'se-note').value='';
-  document.getElementById(p?'si-title':'se-title').value='';
-  document.getElementById(p?'si-cp':'se-cp').value='';
-  if(p){_siAttFiles=[];renderStAttList('income');}
-  else {_seAttFiles=[];renderStAttList('expense');}
-  toast(`已送出，等待主管核簽`);
-  renderStToday();renderStHist();
+  // 防止重複送出
+  const subBtn=document.querySelector(`[onclick="staffSub('${type}')"]`);
+  if(subBtn){ subBtn.disabled=true; subBtn.textContent='送出中…'; }
+  const newRec={type,category:cat,amount:amt,date,note,title,counterparty,by,
+    status:'pending', submittedAt:new Date().toISOString(), attachments};
+  try{
+    const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
+    const realId=inserted[0].id;
+    // 直接更新 cache（不觸發 _syncRecs，避免重複 INSERT）
+    getRecs(activeCo).push({...newRec,id:realId,localId:realId});
+    document.getElementById(p?'si-amt':'se-amt').value='';
+    document.getElementById(p?'si-note':'se-note').value='';
+    document.getElementById(p?'si-title':'se-title').value='';
+    document.getElementById(p?'si-cp':'se-cp').value='';
+    if(p){_siAttFiles=[];renderStAttList('income');}
+    else {_seAttFiles=[];renderStAttList('expense');}
+    toast(`✅ 送出成功！「${title}」${type==='income'?'收入':'支出'} ${fmt(amt)} 已送交主管核簽`);
+    renderStToday(); renderStHist(); updatePendingBadge();
+  }catch(e){
+    toast('送出失敗，請確認網路後重試 ⚠️',false);
+  }finally{
+    if(subBtn){ subBtn.disabled=false; subBtn.textContent=p?'確認新增收入':'確認新增支出'; }
+  }
 }
 
 function renderStToday(){
@@ -5136,16 +5146,24 @@ function renderApproval(){
   }).join('');
 }
 
-function approveRec(id, co){
+async function approveRec(id, co){
   const recs=getRecs(co);
   const idx=recs.findIndex(r=>r.id===id);
   if(idx<0) return;
-  recs[idx].status='approved';
-  recs[idx].approvedBy=currentUser.name;
-  recs[idx].approvedAt=new Date().toISOString();
-  setRecs(co,recs);
-  toast('已核准');
-  renderApproval(); updatePendingBadge(); render(); renderRecs();
+  const approvedAt=new Date().toISOString();
+  try{
+    await sbFetch(`records?id=eq.${id}`,'PATCH',{
+      status:'approved', approved_by:currentUser.name, approved_at:approvedAt
+    });
+    recs[idx].status='approved';
+    recs[idx].approvedBy=currentUser.name;
+    recs[idx].approvedAt=approvedAt;
+    setRecs(co,recs);
+    toast('已核准 ✅');
+    renderApproval(); updatePendingBadge(); render(); renderRecs();
+  }catch(e){
+    toast('核准失敗，請確認網路後重試 ⚠️',false);
+  }
 }
 
 function openRejectMo(id, co){
@@ -5157,20 +5175,29 @@ function closeRejectMo(){
   document.getElementById('rejectMo').classList.remove('open');
   rejectTargetId=null; rejectTargetCo=null;
 }
-function confirmReject(){
+async function confirmReject(){
   if(!rejectTargetId||!rejectTargetCo) return;
   const reason=document.getElementById('rejectReason').value.trim();
   const recs=getRecs(rejectTargetCo);
   const idx=recs.findIndex(r=>r.id===rejectTargetId);
   if(idx<0) return;
-  recs[idx].status='rejected';
-  recs[idx].rejectReason=reason;
-  recs[idx].rejectedBy=currentUser.name;
-  recs[idx].rejectedAt=new Date().toISOString();
-  setRecs(rejectTargetCo,recs);
-  closeRejectMo();
-  toast('已退回');
-  renderApproval(); updatePendingBadge();
+  const rejectedAt=new Date().toISOString();
+  try{
+    await sbFetch(`records?id=eq.${rejectTargetId}`,'PATCH',{
+      status:'rejected', reject_reason:reason,
+      rejected_by:currentUser.name, rejected_at:rejectedAt
+    });
+    recs[idx].status='rejected';
+    recs[idx].rejectReason=reason;
+    recs[idx].rejectedBy=currentUser.name;
+    recs[idx].rejectedAt=rejectedAt;
+    setRecs(rejectTargetCo,recs);
+    closeRejectMo();
+    toast('已退回');
+    renderApproval(); updatePendingBadge();
+  }catch(e){
+    toast('退回失敗，請確認網路後重試 ⚠️',false);
+  }
 }
 
 function gmDelRec(id, co){
