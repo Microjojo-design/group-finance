@@ -2688,8 +2688,8 @@ async function staffSub(type){
     document.getElementById(p?'si-note':'se-note').value='';
     document.getElementById(p?'si-title':'se-title').value='';
     document.getElementById(p?'si-cp':'se-cp').value='';
-    if(p){_siAttFiles=[];renderStAttList('income');}
-    else {_seAttFiles=[];renderStAttList('expense');}
+    if(p){_siAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_siAttFiles=[];renderStAttList('income');}
+    else {_seAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_seAttFiles=[];renderStAttList('expense');}
     toast(`✅ 送出成功！「${title}」${type==='income'?'收入':'支出'} ${fmt(amt)} 已送交主管核簽`);
     renderStToday(); renderStHist(); updatePendingBadge();
   }catch(e){
@@ -6367,7 +6367,9 @@ function staffAttPick(type){
       const dateEl = document.getElementById(type==='income'?'si-date':'se-date');
       const yyyymm = (dateEl?.value||'').slice(0,7) || new Date().toISOString().slice(0,7);
       for(const f of toUpload){
+        const localUrl = f.type.startsWith('image/') ? URL.createObjectURL(f) : null;
         const att = await driveUploadFile(f, co, yyyymm);
+        if(localUrl) att._localUrl = localUrl;
         attArr.push(att);
       }
     }catch(err){
@@ -6397,20 +6399,27 @@ function renderStAttList(type){
     hint.style.display = attArr.length > 0 ? 'block' : 'none';
     hint.textContent = `已附加 ${attArr.length} / ${ATT_MAX} 個檔案`;
   }
-  list.innerHTML = attArr.map((att, i) => `
+  list.innerHTML = attArr.map((att, i) => {
+    const thumbHtml = att._localUrl
+      ? `<img src="${att._localUrl}" style="width:40px;height:30px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer" onclick="window.open('${att.url}','_blank')" title="點擊在 Drive 開啟">`
+      : `<span class="att-item-icon">${_attIcon(att.name)}</span>`;
+    return `
     <div class="att-item">
-      <span class="att-item-icon">${_attIcon(att.name)}</span>
+      ${thumbHtml}
       <div class="att-item-info">
         <div class="att-item-name">${att.name}</div>
         <div class="att-item-size">${_fmtSize(att.size||0)}</div>
       </div>
+      ${att.url ? `<a class="att-item-link" href="${att.url}" target="_blank" rel="noopener">預覽</a>` : ''}
       <button class="att-item-del" onclick="_stAttRemove('${type}',${i})" title="移除">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function _stAttRemove(type, i){
   const attArr = type==='income' ? _siAttFiles : _seAttFiles;
   const att = attArr[i];
+  if(att._localUrl) URL.revokeObjectURL(att._localUrl);
   if(att && att.fileId && _gToken) driveDeleteFile(att.fileId).catch(()=>{});
   attArr.splice(i, 1);
   renderStAttList(type);
