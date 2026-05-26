@@ -234,8 +234,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .mbox{background:var(--sur);border:1px solid var(--bdr);border-radius:15px;padding:24px;width:100%;max-width:500px;margin:20px;box-shadow:var(--shl);animation:fuUp .25s ease}
 .mbox.wide{max-width:620px}
 @keyframes fuUp{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
-.mhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.mhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;cursor:grab;user-select:none;-webkit-user-select:none}
 .mhd h2{font-size:15px;font-weight:800}
+.mhd button,.mhd .mclose,.mhd .mcl{cursor:pointer}
+.mbox.dragging{transition:none;animation:none}
 .mclose{background:none;border:none;font-size:19px;cursor:pointer;color:var(--txt3);padding:2px 6px;border-radius:4px}
 .mclose:hover{background:var(--sur2)}
 .mft{display:flex;gap:8px;margin-top:16px}
@@ -424,7 +426,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
   .mob-topbar{display:flex !important}
 
   /* ── Modal ── */
-  .mbox{width:calc(100vw - 20px);max-height:90dvh;overflow-y:auto;margin:10px}
+  .mo{align-items:flex-start;overflow-y:auto;padding:10px 0}
+  .mbox{width:calc(100vw - 20px);max-height:none;overflow-y:visible;margin:10px auto 20px}
   .mbox.wide{width:calc(100vw - 20px)}
   .fr2{grid-template-columns:1fr}
 
@@ -1108,12 +1111,15 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div class="g2">
           <div class="card">
             <div class="chd"><div class="ct" style="color:var(--inc)">＋ 新增收入</div></div>
+            <div style="background:var(--sur2);border-radius:8px;padding:7px 12px;margin-bottom:8px;font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px">
+              <span>📄 單號</span><span id="si-docno" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--txt);font-weight:600;letter-spacing:1px">—</span>
+            </div>
             <div class="fg"><label>收入類別</label><select id="si-cat"></select></div>
             <div class="fg"><label>收入名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="si-title" placeholder="請輸入收入名稱（必填）"></div>
             <div class="fg"><label>收入來源 <span style="color:var(--exp)">*</span></label><input type="text" id="si-cp" placeholder="請輸入來源公司或對象（必填）"></div>
             <div class="fr2">
               <div class="fg"><label>金額（元）</label><input type="number" id="si-amt" placeholder="0" min="0"></div>
-              <div class="fg"><label>日期</label><input type="date" id="si-date"></div>
+              <div class="fg"><label>日期</label><input type="date" id="si-date" oninput="document.getElementById('si-docno').textContent=generateDocNo(this.value)"></div>
             </div>
             <div class="fg"><label>備註</label><textarea id="si-note" placeholder="備註說明（選填）"></textarea></div>
             <div class="fg"><label>輸入人員</label><input type="text" id="si-by" readonly></div>
@@ -1131,12 +1137,15 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
           </div>
           <div class="card">
             <div class="chd"><div class="ct" style="color:var(--exp)">－ 新增支出</div></div>
+            <div style="background:var(--sur2);border-radius:8px;padding:7px 12px;margin-bottom:8px;font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px">
+              <span>📄 單號</span><span id="se-docno" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--txt);font-weight:600;letter-spacing:1px">—</span>
+            </div>
             <div class="fg"><label>支出類別</label><select id="se-cat"></select></div>
             <div class="fg"><label>支出名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="se-title" placeholder="請輸入支出名稱（必填）"></div>
             <div class="fg"><label>支出對象 <span style="color:var(--exp)">*</span></label><input type="text" id="se-cp" placeholder="請輸入支出對象或公司名稱（必填）"></div>
             <div class="fr2">
               <div class="fg"><label>金額（元）</label><input type="number" id="se-amt" placeholder="0" min="0"></div>
-              <div class="fg"><label>日期</label><input type="date" id="se-date"></div>
+              <div class="fg"><label>日期</label><input type="date" id="se-date" oninput="document.getElementById('se-docno').textContent=generateDocNo(this.value)"></div>
             </div>
             <div class="fg"><label>備註</label><textarea id="se-note" placeholder="備註說明（選填）"></textarea></div>
             <div class="fg"><label>輸入人員</label><input type="text" id="se-by" readonly></div>
@@ -1188,13 +1197,16 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 <div class="mo" id="txMo">
   <div class="mbox">
     <div class="mhd"><h2>新增記錄</h2><button class="mclose" onclick="closeTxMo()">✕</button></div>
+    <div style="background:var(--sur2);border-radius:8px;padding:7px 12px;margin-bottom:12px;font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px">
+      <span>📄 單號</span><span id="m-docno" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--txt);font-weight:600;letter-spacing:1px">—</span>
+    </div>
     <div class="tts"><div class="tt" id="ttI" onclick="setMoType('income')">＋ 收入</div><div class="tt" id="ttE" onclick="setMoType('expense')">－ 支出</div></div>
     <div class="fg"><label>類別</label><select id="m-cat"></select></div>
     <div class="fg"><label id="m-title-lbl">收入名稱 <span style="color:var(--exp)">*</span></label><input type="text" id="m-title" placeholder="請輸入名稱（必填）"></div>
     <div class="fg"><label id="m-cp-lbl">收入來源 <span style="color:var(--exp)">*</span></label><input type="text" id="m-cp" placeholder="請輸入來源／對象（必填）"></div>
     <div class="fr2">
       <div class="fg"><label>金額（元）</label><input type="number" id="m-amt" placeholder="0" min="0"></div>
-      <div class="fg"><label>日期</label><input type="date" id="m-date"></div>
+      <div class="fg"><label>日期</label><input type="date" id="m-date" oninput="document.getElementById('m-docno').textContent=generateDocNo(this.value)"></div>
     </div>
     <div class="fg"><label>備註</label><textarea id="m-note" placeholder="備註（選填）"></textarea></div>
     <!-- 附件區塊 -->
@@ -1551,6 +1563,7 @@ async function loadRecs(co){
       if(r.attachments)   rec.attachments  = r.attachments;
       if(r.title)         rec.title        = r.title;
       if(r.counterparty)  rec.counterparty = r.counterparty;
+      if(r.doc_no)        rec.docNo        = r.doc_no;
       return rec;
     });
   }catch(e){console.error('載入'+co+'記錄失敗:',e);_cache[co]=[];}
@@ -1565,6 +1578,7 @@ function _recToDb(r,co){
     rejected_by:  r.rejectedBy||null,  rejected_at:r.rejectedAt||null,
     attachments: r.attachments||null,
     title: r.title||null, counterparty: r.counterparty||null,
+    doc_no: r.docNo||null,
   };
 }
 
@@ -1897,6 +1911,9 @@ function doLogin(){
     document.getElementById('se-date').value=today();
     document.getElementById('si-by').value=user.name;
     document.getElementById('se-by').value=user.name;
+    const _t=today();
+    const _siDn=document.getElementById('si-docno');if(_siDn) _siDn.textContent=generateDocNo(_t);
+    const _seDn=document.getElementById('se-docno');if(_seDn) _seDn.textContent=generateDocNo(_t);
     renderStToday();
     renderStHist();
     loadStSettings();
@@ -2126,13 +2143,14 @@ function renderTxList(recs,listId,cntId,showDel){
     const cpLine=r.counterparty?`<span style="color:var(--txt3);font-size:11px"> · ${r.counterparty}</span>`:'';
     const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:'';
     const subLine=titleLine||cpLine?`<div class="txim" style="margin-top:1px">${titleLine}${cpLine}</div>`:'';
+    const docNoLine=r.docNo?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--txt3);margin-left:4px">#${r.docNo}</span>`:'';
     return`<div class="txi">
       <div class="txil">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div>
           <div class="txin">${r.category}${icon}${attIcon}${noteLine}</div>
           ${subLine}
-          <div class="txim">${r.date}${r.by?' · '+r.by:''}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+r._coName+'</span>':''}</div>
+          <div class="txim">${r.date}${r.by?' · '+r.by:''}${docNoLine}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+r._coName+'</span>':''}</div>
         </div>
       </div>
       <div class="txir">
@@ -2271,7 +2289,7 @@ function renderRecs(){
   if(catSel) catSel.innerHTML='<option value="">全部類別</option>'+allC.map(c=>`<option ${cat===c?'selected':''}>${c}</option>`).join('');
   if(type) recs=recs.filter(r=>r.type===type);
   if(cat) recs=recs.filter(r=>r.category===cat);
-  if(keyword) recs=recs.filter(r=>[r.category,r.note,r.title,r.counterparty,r.by].filter(Boolean).join(' ').toLowerCase().includes(keyword));
+  if(keyword) recs=recs.filter(r=>[r.category,r.note,r.title,r.counterparty,r.by,r.docNo].filter(Boolean).join(' ').toLowerCase().includes(keyword));
   recs.sort((a,b)=>new Date(b.date)-new Date(a.date));
   const subEl=document.getElementById('recSub');
   if(subEl) subEl.textContent=keyword?`搜尋「${keyword}」— ${recs.length} 筆`:'—';
@@ -2485,12 +2503,32 @@ async function delUser(id){
 }
 
 // ═══════════════════════════════════════════
+// DOC NO
+// ═══════════════════════════════════════════
+function generateDocNo(date){
+  if(!date) return '—';
+  const prefix=date.replace(/-/g,'');
+  let maxSeq=0;
+  ['xiaori','xiangyue','shixin','gaoshu'].forEach(co=>{
+    (getRecs(co)||[]).forEach(r=>{
+      if(r.docNo&&r.docNo.startsWith(prefix)){
+        const seq=parseInt(r.docNo.slice(8),10);
+        if(seq>maxSeq) maxSeq=seq;
+      }
+    });
+  });
+  return prefix+String(maxSeq+1).padStart(3,'0');
+}
+
+// ═══════════════════════════════════════════
 // TX MODAL (GM)
 // ═══════════════════════════════════════════
 document.getElementById('m-date').value=today();
 function openTxMo(t='income'){
   _moAttFiles=[];
   setMoType(t);
+  const d=document.getElementById('m-date').value||today();
+  document.getElementById('m-docno').textContent=generateDocNo(d);
   document.getElementById('txMo').classList.add('open');
   requestAnimationFrame(()=>{
     renderAllAuthAreas();
@@ -2536,8 +2574,9 @@ function submitTxMo(){
   const isGM=currentUser.role==='gm';
   const status=isGM?'approved':'pending';
   const attachments=_moAttFiles.length>0?[..._moAttFiles]:null;
+  const docNo=generateDocNo(date);
   recs.push({id:Date.now(),type:moType,category:cat,amount:amt,date,note,title,counterparty,
-    by:currentUser.name, status, attachments,
+    by:currentUser.name, status, attachments, docNo,
     submittedAt: isGM ? null : new Date().toISOString()
   });
   setRecs(activeCo,recs);
@@ -2674,11 +2713,12 @@ async function staffSub(type){
   if(!counterparty){toast(p?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
   const attArr=p?_siAttFiles:_seAttFiles;
   const attachments=attArr.length>0?[...attArr]:null;
+  const docNo=generateDocNo(date);
   // 防止重複送出
   const subBtn=document.querySelector(`[onclick="staffSub('${type}')"]`);
   if(subBtn){ subBtn.disabled=true; subBtn.textContent='送出中…'; }
   const newRec={type,category:cat,amount:amt,date,note,title,counterparty,by,
-    status:'pending', submittedAt:new Date().toISOString(), attachments};
+    status:'pending', submittedAt:new Date().toISOString(), attachments, docNo};
   try{
     const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
     const realId=inserted[0].id;
@@ -2691,6 +2731,10 @@ async function staffSub(type){
     if(p){_siAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_siAttFiles=[];renderStAttList('income');}
     else {_seAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_seAttFiles=[];renderStAttList('expense');}
     toast(`✅ 送出成功！「${title}」${type==='income'?'收入':'支出'} ${fmt(amt)} 已送交主管核簽`);
+    // 更新單號預覽（下一筆）
+    const nextDate=document.getElementById(p?'si-date':'se-date').value||today();
+    const dnEl=document.getElementById(p?'si-docno':'se-docno');
+    if(dnEl) dnEl.textContent=generateDocNo(nextDate);
     renderStToday(); renderStHist(); updatePendingBadge();
   }catch(e){
     toast('送出失敗，請確認網路後重試 ⚠️',false);
@@ -2711,7 +2755,7 @@ function renderStToday(){
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div style="flex:1">
           <div class="txin">${r.category}${r.note?` — ${r.note}`:''}</div>
-          <div class="txim">${r.date}</div>
+          <div class="txim">${r.date}${r.docNo?` <span style="font-family:'DM Mono',monospace;font-size:10px">#${r.docNo}</span>`:''}</div>
         </div>
         <div style="text-align:right">
           <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
@@ -6651,6 +6695,60 @@ function rejectFromDetail(){
   closeApDetail();
   openRejectMo(id, co);
 }
+
+// ═══════════════════════════════════════════
+// MODAL DRAG-TO-MOVE
+// ═══════════════════════════════════════════
+(function(){
+  let dragging=false, dragEl=null, startX=0, startY=0, tx=0, ty=0;
+
+  // Reset drag state when any modal opens (class "open" added)
+  new MutationObserver(muts=>{
+    muts.forEach(m=>{
+      if(m.type==='attributes'&&m.attributeName==='class'&&m.target.classList.contains('open')){
+        const box=m.target.querySelector('.mbox,.mo-box');
+        if(box){ box.style.transform=''; }
+        tx=ty=0; dragEl=null;
+      }
+    });
+  }).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+
+  document.addEventListener('mousedown',e=>{
+    const hd=e.target.closest('.mhd');
+    if(!hd||e.target.closest('button,.mclose,.mcl')) return;
+    const box=hd.closest('.mbox,.mo-box');
+    if(!box) return;
+    dragging=true; dragEl=box;
+    startX=e.clientX-tx; startY=e.clientY-ty;
+    e.preventDefault();
+  });
+
+  document.addEventListener('touchstart',e=>{
+    const hd=e.target.closest('.mhd');
+    if(!hd||e.target.closest('button,.mclose,.mcl')) return;
+    const box=hd.closest('.mbox,.mo-box');
+    if(!box) return;
+    dragging=true; dragEl=box;
+    startX=e.touches[0].clientX-tx; startY=e.touches[0].clientY-ty;
+  },{passive:true});
+
+  document.addEventListener('mousemove',e=>{
+    if(!dragging||!dragEl) return;
+    tx=e.clientX-startX; ty=e.clientY-startY;
+    dragEl.style.transform=`translate(${tx}px,${ty}px)`;
+    e.preventDefault();
+  });
+
+  document.addEventListener('touchmove',e=>{
+    if(!dragging||!dragEl) return;
+    tx=e.touches[0].clientX-startX; ty=e.touches[0].clientY-startY;
+    dragEl.style.transform=`translate(${tx}px,${ty}px)`;
+  },{passive:false});
+
+  function onEnd(){ dragging=false; }
+  document.addEventListener('mouseup',onEnd);
+  document.addEventListener('touchend',onEnd);
+})();
 
 </script>
 </body>
