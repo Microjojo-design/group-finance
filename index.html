@@ -5633,7 +5633,7 @@ function parseImportGSMth(file){
 
       // ── 計算彙總 ──
       const totInc=parsed.filter(p=>p.type==='income').reduce((s,p)=>s+p.amount,0);
-      const totExp=parsed.filter(p=>p.type==='expense'&&p.category!==CAILIAOB_CAT).reduce((s,p)=>s+p.amount,0);
+      const totExp=parsed.filter(p=>p.type==='expense'&&p.category!==CAILIAOB_CAT&&!GS_DETAIL_CATS.includes(p.category)).reduce((s,p)=>s+p.amount,0);
       const totMat=parsed.filter(p=>p.category===CAILIAOB_CAT).reduce((s,p)=>s+p.amount,0);
       const totExpAll=totExp+totMat;
       const net=totInc-totExp;
@@ -5652,8 +5652,9 @@ function parseImportGSMth(file){
       html+=`<table class="imp-tbl"><thead><tr><th>類別</th><th>類型</th><th class="r">金額</th></tr></thead><tbody>`;
       parsed.forEach(p=>{
         const isClb=p.category===CAILIAOB_CAT;
-        const color=p.type==='income'?'var(--inc)':isClb?'#c2410c':'var(--exp)';
-        const tag=p.type==='income'?'收入':isClb?'材料B（獨立）':'支出';
+        const isDtl=GS_DETAIL_CATS.includes(p.category);
+        const color=p.type==='income'?'var(--inc)':isClb?'#c2410c':isDtl?'#7c3aed':'var(--exp)';
+        const tag=p.type==='income'?'收入':isClb?'材料B（獨立）':isDtl?'明細（不計總額）':'支出';
         html+=`<tr><td>${p.category}</td><td><span style="font-size:11px;color:${color}">${tag}</span></td><td class="r" style="color:${color};font-weight:600">${fmt(p.amount)}</td></tr>`;
       });
       html+=`</tbody></table>`;
