@@ -5682,29 +5682,42 @@ function parseImportGSMth(file){
   reader.readAsArrayBuffer(file);
 }
 
-function confirmImportGSMth(){
+async function confirmImportGSMth(){
   if(!gsMthStaging) return;
   const {parsed,ym}=gsMthStaging;
-  // 清除該月高速資料（by='匯入' 或 by='系統'）
-  let existing=getRecs('gaoshu').filter(r=>r.date.substring(0,7)!==ym);
-  let id=Date.now();
-  const newRecs=parsed.map(p=>({
-    id:id++,type:p.type,category:p.category,amount:p.amount,
-    date:ym+'-15',note:'當月報表匯入',by:'匯入',status:'approved'
-  }));
-  setRecs('gaoshu',[...existing,...newRecs]);
-
   const [y,m]=ym.split('-');
   const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
-  document.getElementById('imp-gsmth-badge').textContent=`已匯入 ${mLabel}`;
-  document.getElementById('imp-gsmth-actions').style.display='none';
-  document.getElementById('imp-gsmth-preview').innerHTML=
-    `<div class="imp-success">✅ ${mLabel} 匯入完成！共 ${newRecs.length} 筆分類記錄。</div>`;
-  const drop=document.getElementById('imp-gsmth-drop');
-  drop.style.borderColor=''; drop.style.background='';
-  gsMthStaging=null;
-  toast(`高速駕訓班 ${mLabel} 匯入完成`);
-  if(activeCo==='gaoshu'){render();renderRecs();renderReport();renderAICharts();}
+  const nextDate=new Date(parseInt(y),parseInt(m),1);
+  const nextYm=`${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,'0')}`;
+  try{
+    // 只刪 by='匯入' 的記錄，手動 key 的記錄不動
+    await sbFetch(`records?co=eq.gaoshu&by=eq.${encodeURIComponent('匯入')}&date=gte.${ym}-01&date=lt.${nextYm}-01`,'DELETE');
+    const toInsert=parsed.map(p=>({
+      co:'gaoshu',type:p.type,category:p.category,amount:p.amount,
+      date:ym+'-15',note:'當月報表匯入',by:'匯入',status:'approved'
+    }));
+    const inserted=await sbFetch('records','POST',toInsert);
+    const newRecs=inserted.map(r=>({
+      id:r.id,type:r.type,category:r.category,amount:Number(r.amount),
+      date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'
+    }));
+    _cache['gaoshu']=[
+      ...getRecs('gaoshu').filter(r=>r.date.substring(0,7)!==ym||r.by!=='匯入'),
+      ...newRecs
+    ];
+    document.getElementById('imp-gsmth-badge').textContent=`已匯入 ${mLabel}`;
+    document.getElementById('imp-gsmth-actions').style.display='none';
+    document.getElementById('imp-gsmth-preview').innerHTML=
+      `<div class="imp-success">✅ ${mLabel} 匯入完成！共 ${newRecs.length} 筆分類記錄。</div>`;
+    const drop=document.getElementById('imp-gsmth-drop');
+    drop.style.borderColor=''; drop.style.background='';
+    gsMthStaging=null;
+    toast(`高速駕訓班 ${mLabel} 匯入完成`);
+    if(activeCo==='gaoshu'){render();renderRecs();renderReport();renderAICharts();}
+  }catch(e){
+    toast('匯入失敗，請確認網路後重試 ⚠️',false);
+    console.error(e);
+  }
 }
 
 function cancelImportGSMth(){
@@ -5833,22 +5846,42 @@ function parseImportGS(file){
   reader.readAsArrayBuffer(file);
 }
 
-function confirmImportGS(){
+async function confirmImportGS(){
   if(!gsStaging||!gsStaging.length){toast('無資料可匯入',false);return;}
   const affected=[...new Set(gsStaging.map(d=>d.ym))];
-  let existing=getRecs('gaoshu').filter(r=>!affected.includes(r.date.substring(0,7)));
-  let id=Date.now();
-  const newRecs=gsStaging.map(d=>({id:id++,type:d.type,category:d.category,amount:d.amount,
-    date:d.ym+'-15',note:'彙整報表匯入',by:'匯入',status:'approved'}));
-  setRecs('gaoshu',[...existing,...newRecs]);
-  document.getElementById('imp-gs-badge').textContent=`已匯入 ${affected.length} 個月`;
-  document.getElementById('imp-gs-actions').style.display='none';
-  document.getElementById('imp-gs-preview').innerHTML=`<div class="imp-success">✅ 匯入完成！共 ${newRecs.length} 筆。</div>`;
-  document.getElementById('imp-gs-drop').style.borderColor='';
-  document.getElementById('imp-gs-drop').style.background='';
-  gsStaging=null;
-  toast(`高速駕訓班匯入完成，共 ${newRecs.length} 筆`);
-  if(activeCo==='gaoshu'){render();renderRecs();renderReport();renderAICharts();}
+  try{
+    // 只刪 by='匯入' 的記錄，手動 key 的記錄不動
+    await Promise.all(affected.map(ym=>{
+      const [y,m]=ym.split('-');
+      const nextDate=new Date(parseInt(y),parseInt(m),1);
+      const nextYm=`${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,'0')}`;
+      return sbFetch(`records?co=eq.gaoshu&by=eq.${encodeURIComponent('匯入')}&date=gte.${ym}-01&date=lt.${nextYm}-01`,'DELETE');
+    }));
+    const toInsert=gsStaging.map(d=>({
+      co:'gaoshu',type:d.type,category:d.category,amount:d.amount,
+      date:d.ym+'-15',note:'彙整報表匯入',by:'匯入',status:'approved'
+    }));
+    const inserted=await sbFetch('records','POST',toInsert);
+    const newRecs=inserted.map(r=>({
+      id:r.id,type:r.type,category:r.category,amount:Number(r.amount),
+      date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'
+    }));
+    _cache['gaoshu']=[
+      ...getRecs('gaoshu').filter(r=>!affected.includes(r.date.substring(0,7))||r.by!=='匯入'),
+      ...newRecs
+    ];
+    document.getElementById('imp-gs-badge').textContent=`已匯入 ${affected.length} 個月`;
+    document.getElementById('imp-gs-actions').style.display='none';
+    document.getElementById('imp-gs-preview').innerHTML=`<div class="imp-success">✅ 匯入完成！共 ${newRecs.length} 筆。</div>`;
+    document.getElementById('imp-gs-drop').style.borderColor='';
+    document.getElementById('imp-gs-drop').style.background='';
+    gsStaging=null;
+    toast(`高速駕訓班匯入完成，共 ${newRecs.length} 筆`);
+    if(activeCo==='gaoshu'){render();renderRecs();renderReport();renderAICharts();}
+  }catch(e){
+    toast('匯入失敗，請確認網路後重試 ⚠️',false);
+    console.error(e);
+  }
 }
 
 function cancelImportGS(){
