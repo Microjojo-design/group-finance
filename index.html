@@ -5294,16 +5294,19 @@ function gmDelRec(id, co){
 }
 
 // ── 經辦刪除待審記錄 ──────────────────────────
-function stDelPendingRec(id){
+async function stDelPendingRec(id){
   const rec=getRecs(activeCo).find(r=>r.id===id||r.localId===id);
   if(!rec||rec.status!=='pending'||rec.by!==currentUser?.name) return;
   if(!confirm('確定刪除此待審記錄？此操作無法復原。')) return;
-  if(rec.attachments&&rec.attachments.length>0&&_gToken){
-    rec.attachments.forEach(att=>{ if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{}); });
-  }
-  setRecs(activeCo, getRecs(activeCo).filter(r=>r.id!==rec.id));
-  renderStToday(); renderStHist(); updatePendingBadge();
-  toast('已刪除待審記錄');
+  try{
+    await sbFetch(`records?id=eq.${rec.id}`,'DELETE');
+    if(rec.attachments&&rec.attachments.length>0&&_gToken){
+      rec.attachments.forEach(att=>{ if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{}); });
+    }
+    _cache[activeCo]=getRecs(activeCo).filter(r=>r.id!==rec.id);
+    renderStToday(); renderStHist(); updatePendingBadge();
+    toast('已刪除待審記錄');
+  }catch(e){toast('刪除失敗，請重試',false);console.error(e);}
 }
 
 // ── GM 編輯已核准記錄 ──────────────────────────
@@ -5398,7 +5401,7 @@ function populateStEditCats(type, selected){
   sel.innerHTML=cats.map(c=>`<option${c===selected?' selected':''}>${c}</option>`).join('');
 }
 function closeStEditMo(){ document.getElementById('stEditMo').classList.remove('open'); stEditId=null; _steAttFiles=[]; }
-function submitStEdit(){
+async function submitStEdit(){
   if(!stEditId) return;
   const recs=getRecs(activeCo);
   const idx=recs.findIndex(r=>r.id===stEditId);
@@ -5415,22 +5418,32 @@ function submitStEdit(){
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast(type==='income'?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
   const attachments = _steAttFiles.length > 0 ? [..._steAttFiles] : null;
+
   if(origStatus==='pending'){
-    // 待審中修改：維持 pending，不重設 submittedAt
-    recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments};
-    setRecs(activeCo,recs);
-    closeStEditMo();
-    toast('已修改，繼續等待主管核簽');
+    // 待審中修改：直接 PATCH，維持 pending
+    const patch={type,category:cat,amount:amt,date,note:note||'',title,counterparty,attachments:attachments||null};
+    try{
+      await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      recs[idx]={...recs[idx],...patch};
+      _cache[activeCo]=[...recs];
+      closeStEditMo();
+      toast('已修改，繼續等待主管核簽');
+    }catch(e){toast('儲存失敗，請重試',false);console.error(e);return;}
   } else {
-    // 已退回修改：重新送出，重設 submittedAt，清除退回資訊
-    recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments,
-      status:'pending', submittedAt:new Date().toISOString(),
-      rejectReason:null, rejectedBy:null, rejectedAt:null};
-    setRecs(activeCo,recs);
-    closeStEditMo();
-    toast('已重新送出，等待主管核簽');
-    renderRejectedNotice();
-    updatePendingBadge();
+    // 已退回修改：直接 PATCH，重新送出
+    const now=new Date().toISOString();
+    const patch={type,category:cat,amount:amt,date,note:note||'',title,counterparty,attachments:attachments||null,
+      status:'pending',submitted_at:now,reject_reason:null,rejected_by:null,rejected_at:null};
+    try{
+      await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments,
+        status:'pending',submittedAt:now,rejectReason:null,rejectedBy:null,rejectedAt:null};
+      _cache[activeCo]=[...recs];
+      closeStEditMo();
+      toast('已重新送出，等待主管核簽');
+      renderRejectedNotice();
+      updatePendingBadge();
+    }catch(e){toast('送出失敗，請重試',false);console.error(e);return;}
   }
   renderStHist(); renderStToday();
 }
