@@ -4395,14 +4395,16 @@ function _mrRenderDataCards(co){
     const dj  = _mrRepairDajunji(rCur), djP = _mrRepairDajunji(rPrev), djY = _mrRepairDajunji(rYoY);
     const hasDetail = xk > 0 || dj > 0;
     const mkRow = (label, cur, prev, yoy) => {
-      const momColor = cur<=prev?'var(--green)':'var(--red)';
-      const yoyColor = cur<=yoy?'var(--green)':'var(--red)';
+      const momColor = prev > 0 ? (cur<=prev?'var(--green)':'var(--red)') : 'var(--txt3)';
+      const yoyColor = yoy > 0 ? (cur<=yoy?'var(--green)':'var(--red)') : 'var(--txt3)';
+      const momTxt = prev > 0 ? `環比 ${_mrDiff(cur,prev)}元 (${_mrPct(cur,prev)})` : '環比 （無歷史明細）';
+      const yoyTxt = yoy > 0 ? `同比 ${_mrDiff(cur,yoy)}元 (${_mrPct(cur,yoy)})` : '同比 （無歷史明細）';
       return `<div style="margin-top:10px;padding:10px 12px;background:var(--sur2);border-radius:8px">
         <div style="font-size:12px;color:var(--txt3);margin-bottom:3px">${label}</div>
         <div style="font-size:17px;font-weight:700">${_mrFmt(cur)}元</div>
         <div style="font-size:11px;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
-          <span style="color:${momColor}">環比 ${_mrDiff(cur,prev)}元 (${_mrPct(cur,prev)})</span>
-          <span style="color:${yoyColor}">同比 ${_mrDiff(cur,yoy)}元 (${_mrPct(cur,yoy)})</span>
+          <span style="color:${momColor}">${momTxt}</span>
+          <span style="color:${yoyColor}">${yoyTxt}</span>
         </div>
       </div>`;
     };
@@ -4574,33 +4576,47 @@ function generateMonthReportText(){
 
     if(hasDetail){
       // 有車種明細：分兩段輸出
-      lines.push(`(1)小客車維修費與材料費總額，與上個月相比，${diffLbl(xk,xkP)||'持平'}。與去年${+yoyMon}月同期相比，${diffLbl(xk,xkY)||'持平'}。`);
-      lines.push(`(2)大重機維修費與材料費總額，與上個月相比，${diffLbl(dj,djP)||'持平'}。與去年${+yoyMon}月同期相比，${diffLbl(dj,djY)||'持平'}。`);
+      // 基期為 0 代表該月尚無明細資料（舊格式匯入），顯示提示而非誤導性數字
+      const dtlCmp = (cur, base) => base > 0 ? (diffLbl(cur, base) || '持平') : '（無歷史明細資料）';
+      lines.push(`(1)小客車維修費與材料費總額，與上個月相比，${dtlCmp(xk,xkP)}。與去年${+yoyMon}月同期相比，${dtlCmp(xk,xkY)}。`);
+      lines.push(`(2)大重機維修費與材料費總額，與上個月相比，${dtlCmp(dj,djP)}。與去年${+yoyMon}月同期相比，${dtlCmp(dj,djY)}。`);
       lines.push('');
 
       // Narrative: 小客車
-      const xkMomUp = xk > xkP, xkYoyUp = xk > xkY;
-      if(xkMomUp && xkYoyUp){
-        lines.push('小客車維修材料費較上個月及去年同期相比皆增加，持續關注是否有特定車輛需要評估汰換。');
-      } else if(!xkMomUp && !xkYoyUp){
-        lines.push('小客車維修材料費較上個月與去年同期相比皆有降低，整體維修金額控制良好。');
-      } else if(xkMomUp && !xkYoyUp){
-        lines.push('小客車雖較上月略有增加，但與去年同期相比仍屬降低，後續持續觀察。');
+      if(xkP === 0 && xkY === 0){
+        lines.push('小客車維修材料費為初次匯入車種明細，暫無歷史比較資料，後續月份方可追蹤趨勢。');
       } else {
-        lines.push('小客車維修材料費較上個月有所下降，與去年同期相比亦屬改善，整體維修費控制尚可。');
+        const xkMomUp = xkP > 0 ? xk > xkP : null;
+        const xkYoyUp = xkY > 0 ? xk > xkY : null;
+        if(xkMomUp !== null && xkYoyUp !== null){
+          if(xkMomUp && xkYoyUp) lines.push('小客車維修材料費較上個月及去年同期相比皆增加，持續關注是否有特定車輛需要評估汰換。');
+          else if(!xkMomUp && !xkYoyUp) lines.push('小客車維修材料費較上個月與去年同期相比皆有降低，整體維修金額控制良好。');
+          else if(xkMomUp) lines.push('小客車雖較上月略有增加，但與去年同期相比仍屬降低，後續持續觀察。');
+          else lines.push('小客車維修材料費較上個月有所下降，與去年同期相比亦屬改善，整體維修費控制尚可。');
+        } else if(xkMomUp !== null){
+          lines.push(xkMomUp ? '小客車維修材料費較上個月增加，請持續關注。' : '小客車維修材料費較上個月有所下降，整體維修費控制尚可。');
+        } else {
+          lines.push(xkYoyUp ? '小客車維修材料費與去年同期相比增加，持續關注。' : '小客車維修材料費與去年同期相比有所降低。');
+        }
       }
       lines.push('');
 
       // Narrative: 大重機
-      const djMomUp = dj > djP, djYoyUp = dj > djY;
-      if(djMomUp && djYoyUp){
-        lines.push('大重機維修材料費較上個月及去年同期相比皆增加，請持續關注維修狀況。');
-      } else if(!djMomUp && !djYoyUp){
-        lines.push('大重機維修材料費較上個月與去年同期相比皆有降低，整體維修金額控制良好。');
-      } else if(djMomUp && !djYoyUp){
-        lines.push('大重機雖較上月略有增加，但與去年同期相比大幅降低，整體維修金額尚可。');
+      if(djP === 0 && djY === 0){
+        lines.push('大重機維修材料費為初次匯入車種明細，暫無歷史比較資料，後續月份方可追蹤趨勢。');
       } else {
-        lines.push('大重機維修材料費較上個月有所下降，與去年同期相比亦屬改善，整體費用可控。');
+        const djMomUp = djP > 0 ? dj > djP : null;
+        const djYoyUp = djY > 0 ? dj > djY : null;
+        if(djMomUp !== null && djYoyUp !== null){
+          if(djMomUp && djYoyUp) lines.push('大重機維修材料費較上個月及去年同期相比皆增加，請持續關注維修狀況。');
+          else if(!djMomUp && !djYoyUp) lines.push('大重機維修材料費較上個月與去年同期相比皆有降低，整體維修金額控制良好。');
+          else if(djMomUp) lines.push('大重機雖較上月略有增加，但與去年同期相比大幅降低，整體維修金額尚可。');
+          else lines.push('大重機維修材料費較上個月有所下降，與去年同期相比亦屬改善，整體費用可控。');
+        } else if(djMomUp !== null){
+          lines.push(djMomUp ? '大重機維修材料費較上個月增加，請持續關注維修狀況。' : '大重機維修材料費較上個月有所下降，整體費用可控。');
+        } else {
+          lines.push(djYoyUp ? '大重機維修材料費與去年同期相比增加，請持續關注。' : '大重機維修材料費與去年同期相比有所降低，整體費用可控。');
+        }
       }
     } else {
       // 無車種明細（舊資料 fallback）：合併顯示
