@@ -1918,7 +1918,12 @@ async function doLogin(){
 
     // 背景載入收支記錄
     Promise.all(['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)))
-      .then(()=>initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e)));
+      .then(()=>{
+        initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e));
+        render(); renderRecs();
+        if(currentUser.role==='viewer') renderRejectedNotice();
+        if(currentUser.role==='gm') updatePendingBadge();
+      });
 
   }catch(e){
     err.textContent='連線失敗，請稍後再試';
@@ -2149,8 +2154,11 @@ function renderTxList(recs,listId,cntId,showDel){
   if(!recs.length){el.innerHTML='<div class="empty">尚無記錄</div>';return;}
   const stIcon={pending:'⏳',rejected:'↩️'};
   const isGM=currentUser&&currentUser.role==='gm';
+  const isViewer=currentUser&&currentUser.role==='viewer';
   el.innerHTML=recs.map(r=>{
     const st=r.status||'approved';
+    const rco=r._co||activeCo;
+    const isOwn=isViewer&&r.by===currentUser.name;
     const icon=stIcon[st]?`<span title="${st==='pending'?'待審核':'已退回'}" style="margin-left:4px">${stIcon[st]}</span>`:'';
     const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
     const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${r.title}</span>`:'';
@@ -2158,6 +2166,9 @@ function renderTxList(recs,listId,cntId,showDel){
     const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:'';
     const subLine=titleLine||cpLine?`<div class="txim" style="margin-top:1px">${titleLine}${cpLine}</div>`:'';
     const docNoLine=r.docNo?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--txt3);margin-left:4px">#${r.docNo}</span>`:'';
+    // viewer 自己的 pending/rejected 記錄顯示操作按鈕
+    const viewerPendingBtns=isOwn&&st==='pending'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️</button><button class="txd" onclick="viewerDelPendingRec(${r.id},'${rco}')">✕</button>`:'';
+    const viewerRejectedBtns=isOwn&&st==='rejected'?`<button class="txd" style="background:#fee2e2;color:#9f1239;border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️ 重送</button>`:'';
     return`<div class="txi">
       <div class="txil">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
@@ -2169,6 +2180,7 @@ function renderTxList(recs,listId,cntId,showDel){
       </div>
       <div class="txir">
         <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+        ${viewerPendingBtns}${viewerRejectedBtns}
         ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
         ${showDel&&isGM?`<button class="txd" onclick="gmDelRec(${r.id},'${r._co||activeCo}')">✕</button>`:''}
       </div>
@@ -5319,6 +5331,21 @@ async function stDelPendingRec(id){
     renderStToday(); renderStHist(); updatePendingBadge();
     toast('已刪除待審記錄');
   }catch(e){toast('刪除失敗，請重試',false);console.error(e);}
+}
+
+// ── Viewer 刪除自己的待審記錄 ──────────────────────────
+async function viewerDelPendingRec(id, co){
+  const prevCo=activeCo; activeCo=co;
+  const rec=getRecs(co).find(r=>r.id===id||r.localId===id);
+  if(!rec||rec.status!=='pending'||rec.by!==currentUser?.name){activeCo=prevCo;return;}
+  if(!confirm('確定刪除此待審記錄？此操作無法復原。')){activeCo=prevCo;return;}
+  try{
+    await sbFetch(`records?id=eq.${rec.id}`,'DELETE');
+    _cache[co]=getRecs(co).filter(r=>r.id!==rec.id);
+    renderRecs(); updatePendingBadge();
+    toast('已刪除待審記錄');
+  }catch(e){toast('刪除失敗，請重試',false);console.error(e);}
+  activeCo=prevCo;
 }
 
 // ── GM 編輯已核准記錄 ──────────────────────────
