@@ -1168,6 +1168,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="spg" id="sp-history">
         <div class="card">
           <div class="chd"><div class="ct">我的所有輸入記錄</div><div class="cbadge" id="stHistCnt">0 筆</div></div>
+          <div style="margin-bottom:8px">
+            <input type="search" id="shfKw" placeholder="🔍 搜尋類別、名稱、對象、備註…" oninput="renderStHist()"
+              style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--bdr);border-radius:8px;background:var(--card2);color:var(--txt);font-size:13px;outline:none">
+          </div>
           <div class="fbar">
             <select id="shfType" onchange="renderStHist()"><option value="">全部類型</option><option value="income">收入</option><option value="expense">支出</option></select>
             <select id="shfCat" onchange="renderStHist()"><option value="">全部類別</option></select>
@@ -2801,6 +2805,7 @@ function renderStHist(){
   const fType=document.getElementById('shfType')?.value||'';
   const fCat=document.getElementById('shfCat')?.value||'';
   const fMonth=document.getElementById('shfMonth')?.value||'';
+  const fKw=(document.getElementById('shfKw')?.value||'').trim().toLowerCase();
   const catSel=document.getElementById('shfCat');
   let recs=getRecs(activeCo).filter(r=>r.by===by);
   const allC=[...new Set(recs.map(r=>r.category))].sort();
@@ -2808,6 +2813,7 @@ function renderStHist(){
   if(fType) recs=recs.filter(r=>r.type===fType);
   if(fCat) recs=recs.filter(r=>r.category===fCat);
   if(fMonth) recs=recs.filter(r=>r.date.startsWith(fMonth));
+  if(fKw) recs=recs.filter(r=>[r.category,r.title,r.counterparty,r.note].some(v=>v&&v.toLowerCase().includes(fKw)));
   recs.sort((a,b)=>new Date(b.date)-new Date(a.date));
   document.getElementById('stHistCnt').textContent=recs.length+' 筆';
   const el=document.getElementById('stHistL');
