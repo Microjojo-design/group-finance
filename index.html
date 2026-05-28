@@ -2588,13 +2588,13 @@ async function submitTxMo(){
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
-  const isGMorViewer=currentUser.role==='gm'||currentUser.role==='viewer';
-  const status=isGMorViewer?'approved':'pending';
+  const isGM=currentUser.role==='gm';
+  const status=isGM?'approved':'pending';
   const attachments=_moAttFiles.length>0?[..._moAttFiles]:null;
   const docNo=generateDocNo(date);
   const newRec={type:moType,category:cat,amount:amt,date,note,title,counterparty,
     by:currentUser.name, status, attachments, docNo,
-    submittedAt: isGMorViewer ? null : new Date().toISOString()
+    submittedAt: isGM ? null : new Date().toISOString()
   };
   try{
     const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
@@ -2606,8 +2606,13 @@ async function submitTxMo(){
     document.getElementById('m-cp').value='';
     _moAttFiles=[];renderMoAttList();
     closeTxMo();
-    toast(moType==='income'?`已新增收入 ${fmt(amt)}`:`已新增支出 ${fmt(amt)}`);
-    render(); renderRecs();
+    if(isGM){
+      toast(moType==='income'?`已新增收入 ${fmt(amt)}`:`已新增支出 ${fmt(amt)}`);
+      render(); renderRecs();
+    } else {
+      toast(`✅ 送出成功！「${title}」${moType==='income'?'收入':'支出'} ${fmt(amt)} 已送交主管核簽`);
+      renderRecs(); updatePendingBadge();
+    }
   }catch(e){
     toast('新增失敗，請確認網路後重試 ⚠️',false);
     console.error(e);
