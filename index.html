@@ -1575,17 +1575,14 @@ function _recToDb(r,co){
 }
 
 async function _syncRecs(co){
+  // 多使用者環境：只做 INSERT 和 PATCH，絕不自動 DELETE
+  // 刪除記錄必須透過 gmDelRec / stDelPendingRec 直接呼叫 DELETE API
   const data=_cache[co]||[];
   try{
     const existing=await sbFetch(`records?co=eq.${co}&select=id`);
     const dbIdSet=new Set(existing.map(r=>r.id));
-    const localIds=new Set(data.map(r=>r.id));
 
-    // DELETE removed records
-    for(const id of dbIdSet){
-      if(!localIds.has(id)) await sbFetch(`records?id=eq.${id}`,'DELETE');
-    }
-    // INSERT new records (id not yet in DB, or id > 1e12 = temp Date.now() id)
+    // INSERT new records (id not yet in DB)
     const toInsert=data.filter(r=>!dbIdSet.has(r.id));
     if(toInsert.length){
       const inserted=await sbFetch('records','POST',toInsert.map(r=>_recToDb(r,co)));
@@ -5285,18 +5282,21 @@ async function confirmReject(){
   }
 }
 
-function gmDelRec(id, co){
+async function gmDelRec(id, co){
   if(!confirm('確定刪除？此操作無法復原。')) return;
-  // 同步刪除 Google Drive 附件
-  const rec=getRecs(co).find(r=>r.id===id);
-  if(rec&&rec.attachments&&rec.attachments.length>0&&_gToken){
-    rec.attachments.forEach(att=>{
-      if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{});
-    });
-  }
-  setRecs(co, getRecs(co).filter(r=>r.id!==id));
-  render(); renderRecs(); renderApproval(); updatePendingBadge();
-  toast('已刪除');
+  try{
+    await sbFetch(`records?id=eq.${id}`,'DELETE');
+    // 同步刪除 Google Drive 附件
+    const rec=getRecs(co).find(r=>r.id===id);
+    if(rec&&rec.attachments&&rec.attachments.length>0&&_gToken){
+      rec.attachments.forEach(att=>{
+        if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{});
+      });
+    }
+    _cache[co]=(getRecs(co)).filter(r=>r.id!==id);
+    render(); renderRecs(); renderApproval(); updatePendingBadge();
+    toast('已刪除');
+  }catch(e){toast('刪除失敗，請重試',false);console.error(e);}
 }
 
 // ── 經辦刪除待審記錄 ──────────────────────────
