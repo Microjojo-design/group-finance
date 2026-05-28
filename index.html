@@ -992,7 +992,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="topbar"><div><div class="pt">我的帳號設定</div><div class="ps">修改登入 Email 與密碼</div></div></div>
       <div class="card" style="max-width:480px">
         <div class="fg"><label>姓名</label><input type="text" id="gset-name"></div>
-        <div class="fg"><label>登入 Email</label><input type="email" id="gset-email"></div>
+        <div class="fg"><label>登入 Email</label><input type="email" id="gset-email" readonly style="opacity:.6;cursor:default"></div>
         <div class="fg"><label>新密碼（留空則不變更）</label><input type="password" id="gset-pwd" placeholder="留空則不修改"></div>
         <div class="fg"><label>確認新密碼</label><input type="password" id="gset-pwd2" placeholder="再輸入一次"></div>
         <button class="btn bp" style="width:100%;justify-content:center" onclick="saveGMSettings()">儲存設定</button>
@@ -1181,7 +1181,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div class="card" style="max-width:460px">
           <div class="ct" style="margin-bottom:16px">帳號設定</div>
           <div class="fg"><label>姓名</label><input type="text" id="sset-name"></div>
-          <div class="fg"><label>登入 Email</label><input type="email" id="sset-email"></div>
+          <div class="fg"><label>登入 Email</label><input type="email" id="sset-email" readonly style="opacity:.6;cursor:default"></div>
           <div class="fg"><label>新密碼（留空則不變更）</label><input type="password" id="sset-pwd" placeholder="留空則不修改"></div>
           <div class="fg"><label>確認新密碼</label><input type="password" id="sset-pwd2" placeholder="再輸入一次"></div>
           <button class="btn bp" style="width:100%;justify-content:center" onclick="saveStSettings()">儲存設定</button>
@@ -1234,7 +1234,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="fg"><label>部門</label><input type="text" id="u-dept" placeholder="例：行政部、財務部"></div>
     </div>
     <div class="fg"><label>電子郵件</label><input type="email" id="u-email" placeholder="staff@company.com"></div>
-    <div class="fg"><label>密碼（至少 6 碼）</label><input type="password" id="u-pwd" placeholder="••••••••"></div>
+    <div class="fg" id="u-pwd-note" style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:10px;font-size:12px;color:#fbbf24;display:none">
+      ⚠️ 新增帳號後，請至 Supabase 後台同步建立登入帳號並設定密碼（Authentication → Users → Add user）
+    </div>
     <div class="fg"><label>角色權限</label>
       <select id="u-role" onchange="onRoleChange()">
         <option value="staff">👤 一般同仁（僅可輸入，限定公司）</option>
@@ -1439,15 +1441,31 @@ function getCats(co,type){
 const SB_URL = "https://dqxdgxbebumxtbyvbxkn.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxeGRneGJlYnVteHRieXZieGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDEwMzMsImV4cCI6MjA5MTUxNzAzM30.PF-nVLU6oFcsArQveJF6jhdrN4LnYfzug3-SgCa0n5o";
 
+let _authToken = null, _refreshToken = null;
+
+// 每 45 分鐘更新 access token
+setInterval(async()=>{
+  if(!_refreshToken) return;
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({refresh_token:_refreshToken})
+    });
+    if(r.ok){const d=await r.json();_authToken=d.access_token;_refreshToken=d.refresh_token;}
+  }catch(e){console.warn('Token refresh failed',e);}
+},45*60*1000);
+
 async function sbFetch(path, method='GET', body=null){
   const ctrl = new AbortController();
   const tid = setTimeout(()=>ctrl.abort(), 6000);
+  const token = _authToken || SB_KEY;
   const opts = {
     method,
     signal: ctrl.signal,
     headers: {
       'apikey': SB_KEY,
-      'Authorization': 'Bearer ' + SB_KEY,
+      'Authorization': 'Bearer ' + token,
       'Content-Type': 'application/json',
       'Prefer': (method==='POST'||method==='PATCH') ? 'return=representation' : ''
     }
@@ -1467,62 +1485,32 @@ async function sbFetch(path, method='GET', body=null){
 // ═══════════════════════════════════════════
 let USERS = [];
 
-const DEFAULT_USERS = [
-  {id:1, name:'Mark',      email:'mark01025168'+'@gmail.com',  pwd:'love5168', role:'gm',     co:'all',              dept:'總管理處'},
-  {id:2, name:'Debbie',    email:'debbieju2002'+'@gmail.com',  pwd:'88888888', role:'viewer', co:'all',              dept:'管理層'},
-  {id:3, name:'Rich',      email:'richliaojob'+'@yahoo.com.tw',pwd:'88888888', role:'viewer', co:'all',              dept:'管理層'},
-  {id:4, name:'Vegiwell',  email:'vegiwell802'+'@gmail.com',   pwd:'88888888', role:'staff',  co:'shixin',           dept:'蒔心田'},
-  {id:5, name:'RichDaily', email:'richdaily888'+'@gmail.com',  pwd:'88888888', role:'staff',  co:'xiaori,xiangyue',  dept:'小日常/翔悅'},
-];
-
 async function loadUsers(){
   try{
-    const rows = await sbFetch('users?select=*&order=id.asc');
-    if(rows.length > 0){
-      USERS = rows.map(dbUserToLocal);
-    } else {
-      // DB 空白：先用預設帳號讓系統可以正常登入，同時背景寫入 DB
-      USERS = DEFAULT_USERS.map(u=>({...u}));
-      seedDefaultUsers().catch(e=>console.error('寫入預設使用者失敗:',e));
-    }
-  } catch(e){
+    const rows = await sbFetch('users?select=id,name,email,role,co,dept&order=id.asc');
+    USERS = rows.map(r=>({id:r.id,name:r.name,email:r.email,role:r.role,co:r.co,dept:r.dept||'—'}));
+  }catch(e){
     console.error('載入使用者失敗:', e);
-    // 連線異常時仍用預設帳號，確保可以登入
-    USERS = DEFAULT_USERS.map(u=>({...u}));
+    USERS = [];
   }
-}
-
-function dbUserToLocal(r){
-  return {id:r.id,name:r.name,email:r.email,pwd:r.pwd,role:r.role,co:r.co,dept:r.dept||'—'};
-}
-
-async function seedDefaultUsers(){
-  const defaults = [
-    {name:'Mark',      email:'mark01025168'+'@gmail.com',  pwd:'love5168',role:'gm',    co:'all',              dept:'總管理處'},
-    {name:'Debbie',    email:'debbieju2002'+'@gmail.com',  pwd:'88888888',role:'viewer',co:'all',              dept:'管理層'},
-    {name:'Rich',      email:'richliaojob'+'@yahoo.com.tw',pwd:'88888888',role:'viewer',co:'all',              dept:'管理層'},
-    {name:'Vegiwell',  email:'vegiwell802'+'@gmail.com',   pwd:'88888888',role:'staff', co:'shixin',           dept:'蒔心田'},
-    {name:'RichDaily', email:'richdaily888'+'@gmail.com',  pwd:'88888888',role:'staff', co:'xiaori,xiangyue',  dept:'小日常/翔悅'},
-  ];
-  try{
-    const rows = await sbFetch('users','POST',defaults);
-    USERS = rows.map(dbUserToLocal);
-  }catch(e){console.error('寫入預設使用者失敗:',e);}
 }
 
 async function saveU(){
   try{
     for(const u of USERS){
-      await sbFetch(`users?id=eq.${u.id}`,'PATCH',
-        {name:u.name,email:u.email,pwd:u.pwd,role:u.role,co:u.co,dept:u.dept});
+      await sbFetch(`users?id=eq.${u.id}`,'PATCH',{name:u.name,role:u.role,co:u.co,dept:u.dept});
     }
   }catch(e){toast('儲存使用者失敗，請重試',false);console.error(e);}
 }
 
 async function addUserToDb(u){
   try{
-    const rows=await sbFetch('users','POST',[{name:u.name,email:u.email,pwd:u.pwd,role:u.role,co:u.co,dept:u.dept||'—'}]);
-    if(rows.length){USERS.push(dbUserToLocal(rows[0]));return rows[0].id;}
+    const rows=await sbFetch('users','POST',[{name:u.name,email:u.email,role:u.role,co:u.co,dept:u.dept||'—'}]);
+    if(rows.length){
+      const r=rows[0];
+      USERS.push({id:r.id,name:r.name,email:r.email,role:r.role,co:r.co,dept:r.dept||'—'});
+      return r.id;
+    }
   }catch(e){console.error('新增使用者失敗:',e);}
   return null;
 }
@@ -1631,35 +1619,24 @@ function showDbError(msg){
 // 啟動序列
 // ═══════════════════════════════════════════
 async function initApp(){
-  // 保底計時器：無論 Supabase 是否回應，8 秒內必定顯示登入畫面
+  // 保底計時器：5 秒內必定顯示登入畫面
   const fallbackTimer = setTimeout(()=>{
     if(document.getElementById('appLoader').style.display!=='none'){
-      USERS = DEFAULT_USERS.map(u=>({...u}));
       document.getElementById('appLoader').style.display='none';
       document.getElementById('loginScreen').style.display='flex';
       updateML();
-      console.warn('initApp: 8 秒保底計時器觸發，以預設帳號啟動');
     }
-  }, 8000);
+  }, 5000);
 
   try{
-    // 1. 載入使用者 + 自訂類別（平行執行）
-    await Promise.all([loadUsers(), loadCustomCats()]);
-
-    // 2. 立刻顯示登入畫面
+    // 只載入自訂類別（登入前不載入使用者資料）
+    await loadCustomCats();
     clearTimeout(fallbackTimer);
     document.getElementById('appLoader').style.display='none';
     document.getElementById('loginScreen').style.display='flex';
     updateML();
-
-    // 3. 背景載入 records
-    Promise.all(['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)))
-      .then(()=>initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e)));
-
   }catch(e){
-    // 即使出錯，仍嘗試顯示登入畫面（使用預設帳號）
     clearTimeout(fallbackTimer);
-    USERS = DEFAULT_USERS.map(u=>({...u}));
     document.getElementById('appLoader').style.display='none';
     document.getElementById('loginScreen').style.display='flex';
     updateML();
@@ -1855,74 +1832,110 @@ function selCo(el){
   document.getElementById('lBtn').className='lb '+c.cls;
 }
 
-function doLogin(){
+async function doLogin(){
   const email=document.getElementById('lEmail').value.trim().toLowerCase();
   const pwd=document.getElementById('lPwd').value.trim();
   const err=document.getElementById('lErr');
+  const btn=document.getElementById('lBtn');
 
-  // 全走 Supabase users 表（已由 loadUsers / 8秒保底 填入 USERS）
-  // 若 USERS 仍空，表示連線異常，以 DEFAULT_USERS 兜底確保登入不中斷
-  const pool = USERS.length > 0 ? USERS : DEFAULT_USERS;
+  if(!email||!pwd){err.textContent='請填寫電子郵件與密碼';return;}
+  btn.disabled=true;btn.textContent='登入中...';err.textContent='';
 
-  const user = pool.find(u=>{
-    if(u.email.toLowerCase() !== email) return false;
-    if(u.pwd !== pwd) return false;
-    if(u.role==='gm'||u.role==='viewer') return true;
-    const allowed=u.co.split(',').map(s=>s.trim());
-    return allowed.includes(loginCo);
-  });
-
-  if(!user){err.textContent='電子郵件或密碼錯誤，或此公司無使用權限';return;}
-  err.textContent='';
-  currentUser=user;
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-
-  if(user.role==='gm'||user.role==='viewer'){
-    activeCo=loginCo;
-    document.getElementById('gmView').style.display='block';
-    document.getElementById('gmNm').textContent=user.name;
-    // viewer: hide admin-only nav items
-    const isViewer=user.role==='viewer';
-    ['nav-users','nav-import','nav-export','nav-approval','nav-monthreport'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el) el.style.display=isViewer?'none':'';
+  try{
+    // Supabase Auth 驗證
+    const authRes=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({email,password:pwd})
     });
-    // viewer: hide ＋收入 ＋支出 buttons on dashboard? No - viewer CAN input
-    applyCoTheme();
-    updateML();
-    render();
-    if(!isViewer) renderUsers();
-    loadGMSettings();
-    initRqDefaults();
-    if(user.role==='gm') updatePendingBadge();
-  } else {
-    // staff: set first allowed company as active
-    const allowed=user.co.split(',').map(s=>s.trim());
-    activeCo=allowed.includes(loginCo)?loginCo:allowed[0];
-    document.getElementById('staffView').style.display='block';
-    applyStaffCoTheme();
-    document.getElementById('stUser').textContent=user.name;
-    document.getElementById('stDept').textContent=user.dept;
-    // Show/hide company switcher tabs for staff with multiple cos
-    renderStaffCoTabs(allowed);
-    populateStaffCats();
-    document.getElementById('si-date').value=today();
-    document.getElementById('se-date').value=today();
-    document.getElementById('si-by').value=user.name;
-    document.getElementById('se-by').value=user.name;
-    const _t=today();
-    const _siDn=document.getElementById('si-docno');if(_siDn) _siDn.textContent=generateDocNo(_t);
-    const _seDn=document.getElementById('se-docno');if(_seDn) _seDn.textContent=generateDocNo(_t);
-    renderStToday();
-    renderStHist();
-    loadStSettings();
-    renderRejectedNotice();
+    if(!authRes.ok){
+      err.textContent='電子郵件或密碼錯誤';
+      btn.disabled=false;btn.textContent='登入系統';
+      return;
+    }
+    const authData=await authRes.json();
+    _authToken=authData.access_token;
+    _refreshToken=authData.refresh_token;
+
+    // 載入使用者資料
+    await loadUsers();
+    const user=USERS.find(u=>u.email.toLowerCase()===email);
+    if(!user){
+      err.textContent='找不到使用者資料，請聯繫管理員';
+      _authToken=null;_refreshToken=null;
+      btn.disabled=false;btn.textContent='登入系統';
+      return;
+    }
+
+    // staff 需確認公司權限
+    if(user.role==='staff'){
+      const allowed=user.co.split(',').map(s=>s.trim());
+      if(!allowed.includes(loginCo)){
+        err.textContent='此帳號無此公司使用權限';
+        _authToken=null;_refreshToken=null;
+        btn.disabled=false;btn.textContent='登入系統';
+        return;
+      }
+    }
+
+    currentUser=user;
+    btn.disabled=false;btn.textContent='登入系統';
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+
+    if(user.role==='gm'||user.role==='viewer'){
+      activeCo=loginCo;
+      document.getElementById('gmView').style.display='block';
+      document.getElementById('gmNm').textContent=user.name;
+      const isViewer=user.role==='viewer';
+      ['nav-users','nav-import','nav-export','nav-approval','nav-monthreport'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.style.display=isViewer?'none':'';
+      });
+      applyCoTheme();updateML();render();
+      if(!isViewer) renderUsers();
+      loadGMSettings();initRqDefaults();
+      if(user.role==='gm') updatePendingBadge();
+    } else {
+      const allowed=user.co.split(',').map(s=>s.trim());
+      activeCo=allowed.includes(loginCo)?loginCo:allowed[0];
+      document.getElementById('staffView').style.display='block';
+      applyStaffCoTheme();
+      document.getElementById('stUser').textContent=user.name;
+      document.getElementById('stDept').textContent=user.dept;
+      renderStaffCoTabs(allowed);
+      populateStaffCats();
+      document.getElementById('si-date').value=today();
+      document.getElementById('se-date').value=today();
+      document.getElementById('si-by').value=user.name;
+      document.getElementById('se-by').value=user.name;
+      const _t=today();
+      const _siDn=document.getElementById('si-docno');if(_siDn) _siDn.textContent=generateDocNo(_t);
+      const _seDn=document.getElementById('se-docno');if(_seDn) _seDn.textContent=generateDocNo(_t);
+      renderStToday();renderStHist();loadStSettings();renderRejectedNotice();
+    }
+
+    // 背景載入收支記錄
+    Promise.all(['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)))
+      .then(()=>initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e)));
+
+  }catch(e){
+    err.textContent='連線失敗，請稍後再試';
+    console.error('Login error:',e);
+    _authToken=null;_refreshToken=null;
+    btn.disabled=false;btn.textContent='登入系統';
   }
 }
 
 function doLogout(){
-  currentUser=null;
+  if(_authToken){
+    fetch(SB_URL+'/auth/v1/logout',{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+_authToken}
+    }).catch(()=>{});
+    _authToken=null;_refreshToken=null;
+  }
+  currentUser=null;USERS=[];
   document.getElementById('app').style.display='none';
   document.getElementById('gmView').style.display='none';
   document.getElementById('staffView').style.display='none';
@@ -2445,20 +2458,25 @@ function onRoleChange(){
 function openUserMo(){
   editUID=null;
   document.getElementById('uMoTitle').textContent='新增帳號';
-  ['u-name','u-email','u-pwd'].forEach(id=>document.getElementById(id).value='');
+  ['u-name','u-email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('u-email').readOnly=false;
   document.getElementById('u-role').value='staff';
   ['uco-xiaori','uco-xiangyue','uco-shixin'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.checked=false;
   });
   document.getElementById('uco-'+activeCo).checked=true;
+  document.getElementById('u-pwd-note').style.display='block';
   onRoleChange();
   document.getElementById('userMo').classList.add('open');
 }
 function editUser(id){
   const u=USERS.find(u=>u.id===id);if(!u) return;
   editUID=id;document.getElementById('uMoTitle').textContent='編輯帳號';
-  document.getElementById('u-name').value=u.name;document.getElementById('u-email').value=u.email;
-  document.getElementById('u-pwd').value=u.pwd;document.getElementById('u-role').value=u.role;
+  document.getElementById('u-name').value=u.name;
+  document.getElementById('u-email').value=u.email;
+  document.getElementById('u-email').readOnly=true;
+  document.getElementById('u-role').value=u.role;
+  document.getElementById('u-pwd-note').style.display='none';
   // Set checkboxes
   ['xiaori','xiangyue','shixin','gaoshu'].forEach(co=>{
     const el=document.getElementById('uco-'+co);
@@ -2472,7 +2490,6 @@ function closeUserMo(){document.getElementById('userMo').classList.remove('open'
 async function saveUser(){
   const name=document.getElementById('u-name').value.trim();
   const email=document.getElementById('u-email').value.trim().toLowerCase();
-  const pwd=document.getElementById('u-pwd').value;
   const role=document.getElementById('u-role').value;
   const dept=document.getElementById('u-dept').value.trim()||'—';
   let co='all';
@@ -2481,17 +2498,17 @@ async function saveUser(){
     if(!checked.length){toast('請至少選擇一個公司',false);return;}
     co=checked.join(',');
   }
-  if(!name||!email||(!editUID&&!pwd)){toast('請填寫所有欄位',false);return;}
-  if(pwd&&pwd.length<6){toast('密碼至少 6 碼',false);return;}
+  if(!name||!email){toast('請填寫所有欄位',false);return;}
   if(USERS.find(u=>u.email===email&&u.id!==editUID)){toast('此 Email 已存在',false);return;}
   if(editUID){
     const i=USERS.findIndex(u=>u.id===editUID);
-    USERS[i]={...USERS[i],name,email,role,co,dept,...(pwd?{pwd}:{})};
-    await saveU(); toast('帳號已更新');
+    USERS[i]={...USERS[i],name,role,co,dept};
+    await sbFetch(`users?id=eq.${editUID}`,'PATCH',{name,role,co,dept});
+    toast('帳號已更新');
   } else {
-    const newId=await addUserToDb({name,email,pwd,role,co,dept});
+    const newId=await addUserToDb({name,email,role,co,dept});
     if(!newId){toast('新增失敗，請重試',false);return;}
-    toast('帳號已新增');
+    toast('帳號已新增（請至 Supabase 後台為此帳號建立登入密碼）');
   }
   closeUserMo();renderUsers();
 }
@@ -2665,17 +2682,26 @@ async function deleteCustomCat(co,type,name){
 
 async function saveGMSettings(){
   const name=document.getElementById('gset-name').value.trim();
-  const email=document.getElementById('gset-email').value.trim().toLowerCase();
   const pwd=document.getElementById('gset-pwd').value;
   const pwd2=document.getElementById('gset-pwd2').value;
-  if(!name||!email){toast('請填寫姓名與 Email',false);return;}
+  if(!name){toast('請填寫姓名',false);return;}
   if(pwd&&pwd!==pwd2){toast('兩次密碼不一致',false);return;}
   if(pwd&&pwd.length<6){toast('密碼至少 6 碼',false);return;}
-  if(USERS.find(u=>u.email===email&&u.id!==currentUser.id)){toast('此 Email 已被使用',false);return;}
   const idx=USERS.findIndex(u=>u.id===currentUser.id);
-  USERS[idx]={...USERS[idx],name,email,...(pwd?{pwd}:{})};
-  currentUser=USERS[idx];await saveU();
+  USERS[idx]={...USERS[idx],name};
+  currentUser=USERS[idx];
+  await sbFetch(`users?id=eq.${currentUser.id}`,'PATCH',{name});
+  if(pwd){
+    const r=await fetch(SB_URL+'/auth/v1/user',{
+      method:'PUT',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+_authToken,'Content-Type':'application/json'},
+      body:JSON.stringify({password:pwd})
+    });
+    if(!r.ok){toast('密碼更新失敗，請重試',false);return;}
+  }
   document.getElementById('gmNm').textContent=name;
+  document.getElementById('gset-pwd').value='';
+  document.getElementById('gset-pwd2').value='';
   toast('設定已儲存');
 }
 
@@ -2820,19 +2846,28 @@ function loadStSettings(){
 }
 async function saveStSettings(){
   const name=document.getElementById('sset-name').value.trim();
-  const email=document.getElementById('sset-email').value.trim().toLowerCase();
   const pwd=document.getElementById('sset-pwd').value;
   const pwd2=document.getElementById('sset-pwd2').value;
-  if(!name||!email){toast('請填寫姓名與 Email',false);return;}
+  if(!name){toast('請填寫姓名',false);return;}
   if(pwd&&pwd!==pwd2){toast('兩次密碼不一致',false);return;}
   if(pwd&&pwd.length<6){toast('密碼至少 6 碼',false);return;}
-  if(USERS.find(u=>u.email===email&&u.id!==currentUser.id)){toast('此 Email 已被使用',false);return;}
   const idx=USERS.findIndex(u=>u.id===currentUser.id);
-  USERS[idx]={...USERS[idx],name,email,...(pwd?{pwd}:{})};
-  currentUser=USERS[idx];await saveU();
+  USERS[idx]={...USERS[idx],name};
+  currentUser=USERS[idx];
+  await sbFetch(`users?id=eq.${currentUser.id}`,'PATCH',{name});
+  if(pwd){
+    const r=await fetch(SB_URL+'/auth/v1/user',{
+      method:'PUT',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+_authToken,'Content-Type':'application/json'},
+      body:JSON.stringify({password:pwd})
+    });
+    if(!r.ok){toast('密碼更新失敗，請重試',false);return;}
+  }
   document.getElementById('stUser').textContent=name;
   document.getElementById('si-by').value=name;
   document.getElementById('se-by').value=name;
+  document.getElementById('sset-pwd').value='';
+  document.getElementById('sset-pwd2').value='';
   toast('設定已儲存');
 }
 
