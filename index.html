@@ -2578,7 +2578,7 @@ function setMoType(t){
   document.getElementById('m-title').placeholder=t==='income'?'請輸入收入名稱（必填）':'請輸入支出名稱（必填）';
   document.getElementById('m-cp').placeholder=t==='income'?'請輸入來源公司或對象（必填）':'請輸入支出對象或公司名稱（必填）';
 }
-function submitTxMo(){
+async function submitTxMo(){
   const amt=parseFloat(document.getElementById('m-amt').value);
   const cat=document.getElementById('m-cat').value;
   const date=document.getElementById('m-date').value;
@@ -2588,28 +2588,29 @@ function submitTxMo(){
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
-  const recs=getRecs(activeCo);
-  const isGM=currentUser.role==='gm';
-  const status=isGM?'approved':'pending';
+  const isGMorViewer=currentUser.role==='gm'||currentUser.role==='viewer';
+  const status=isGMorViewer?'approved':'pending';
   const attachments=_moAttFiles.length>0?[..._moAttFiles]:null;
   const docNo=generateDocNo(date);
-  recs.push({id:Date.now(),type:moType,category:cat,amount:amt,date,note,title,counterparty,
+  const newRec={type:moType,category:cat,amount:amt,date,note,title,counterparty,
     by:currentUser.name, status, attachments, docNo,
-    submittedAt: isGM ? null : new Date().toISOString()
-  });
-  setRecs(activeCo,recs);
-  document.getElementById('m-amt').value='';
-  document.getElementById('m-note').value='';
-  document.getElementById('m-title').value='';
-  document.getElementById('m-cp').value='';
-  _moAttFiles=[];renderMoAttList();
-  closeTxMo();
-  if(isGM){
+    submittedAt: isGMorViewer ? null : new Date().toISOString()
+  };
+  try{
+    const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
+    const realId=inserted[0].id;
+    getRecs(activeCo).push({...newRec,id:realId,localId:realId});
+    document.getElementById('m-amt').value='';
+    document.getElementById('m-note').value='';
+    document.getElementById('m-title').value='';
+    document.getElementById('m-cp').value='';
+    _moAttFiles=[];renderMoAttList();
+    closeTxMo();
     toast(moType==='income'?`已新增收入 ${fmt(amt)}`:`已新增支出 ${fmt(amt)}`);
-    render();
-  } else {
-    toast('已送出，等待主管核簽 ⏳');
-    updatePendingBadge();
+    render(); renderRecs();
+  }catch(e){
+    toast('新增失敗，請確認網路後重試 ⚠️',false);
+    console.error(e);
   }
 }
 setMoType('income');
@@ -5344,7 +5345,7 @@ function closeGmEditMo(){
   _gmEditId=null; _gmEditCo=null;
 }
 
-function submitGmEdit(){
+async function submitGmEdit(){
   if(!_gmEditId||!_gmEditCo) return;
   const title=document.getElementById('ge-title').value.trim();
   const counterparty=document.getElementById('ge-cp').value.trim();
@@ -5355,14 +5356,21 @@ function submitGmEdit(){
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
-  const recs=getRecs(_gmEditCo);
-  const idx=recs.findIndex(r=>r.id===_gmEditId);
-  if(idx<0){toast('找不到記錄',false);return;}
-  recs[idx]={...recs[idx], category:cat, title, counterparty, amount:amt, date, note};
-  setRecs(_gmEditCo, recs);
-  closeGmEditMo();
-  render(); renderRecs();
-  toast('記錄已更新 ✅');
+  try{
+    await sbFetch(`records?id=eq.${_gmEditId}`,'PATCH',{
+      category:cat, title, counterparty, amount:amt, date, note
+    });
+    const recs=getRecs(_gmEditCo);
+    const idx=recs.findIndex(r=>r.id===_gmEditId);
+    if(idx>=0) recs[idx]={...recs[idx], category:cat, title, counterparty, amount:amt, date, note};
+    _cache[_gmEditCo]=recs;
+    closeGmEditMo();
+    render(); renderRecs();
+    toast('記錄已更新 ✅');
+  }catch(e){
+    toast('更新失敗，請重試 ⚠️',false);
+    console.error(e);
+  }
 }
 
 // Staff: edit rejected record and resubmit
