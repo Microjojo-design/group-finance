@@ -281,6 +281,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 
 /* Reject modal */
 #rejectMo .mo-box{max-width:440px}
+/* Staff edit modal — scrollable body, fixed header/footer */
+#stEditMo .mo-box{max-height:90vh;display:flex;flex-direction:column}
+#stEditMo .mb{flex:1;overflow-y:auto;min-height:0;padding-right:4px}
 .reject-textarea{width:100%;min-height:90px;resize:vertical;border:1px solid var(--bdr);border-radius:8px;padding:10px;font-size:14px;color:var(--txt1);background:var(--sur);font-family:inherit}
 .reject-textarea:focus{outline:none;border-color:var(--co)}
 .dpt{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;background:var(--sur2);color:var(--txt2);border:1px solid var(--bdr)}
