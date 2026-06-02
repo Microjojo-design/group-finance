@@ -4262,7 +4262,11 @@ async function parseImportSXRagicFiles(files){
   sxRagicStaging=null; updateSXMergeState();
   try{
     const buffers=await Promise.all(files.map(f=>readFileAsArrayBuffer(f)));
-    const allRecs=[]; const fileLog=[];
+    const allNormal=[];    // 屬於檔案主月份的記錄
+    const allCrossOk=[];   // 跨月且無重複 → 納入匯入
+    const allCrossWarn=[]; // 跨月且在目標月份已有相同類別+金額 → 警告、不納入
+    const fileLog=[];
+
     for(let i=0;i<files.length;i++){
       try{
         const wb=XLSX.read(buffers[i],{type:'array'});
@@ -4277,7 +4281,9 @@ async function parseImportSXRagicFiles(files){
         const COL={date:colOf('日期'),inout:colOf('收入/支出'),main:colOf('主分類'),sub:colOf('次分類'),co:colOf('公司名稱'),amt:colOf('總金額')};
         const missing=Object.entries(COL).filter(([,v])=>v<0).map(([k])=>k);
         if(missing.length){ fileLog.push(`${files[i].name}: ❌ 缺少欄位 ${missing.join(',')}`); continue; }
-        let cnt=0;
+
+        // 先收集所有蒔心田記錄
+        const fileRecs=[];
         for(let r=hRow+1;r<raw.length;r++){
           const row=raw[r]; if(!row) continue;
           const coName=row[COL.co]?String(row[COL.co]).trim():'';
@@ -4290,24 +4296,78 @@ async function parseImportSXRagicFiles(files){
           if(isNaN(amt)||amt<=0) continue;
           const date=parseSXDate(row[COL.date],null);
           if(!date) continue;
-          allRecs.push({type,category:mapSXCatAll(type,mainCat,subCat,''),amount:amt,date,ym:date.substring(0,7),note:'Ragic匯入'});
-          cnt++;
+          fileRecs.push({type,category:mapSXCatAll(type,mainCat,subCat,''),amount:amt,date,ym:date.substring(0,7),note:'Ragic匯入'});
         }
-        fileLog.push(`${files[i].name}: ✅ ${cnt} 筆（蒔心田）`);
+
+        // 判定本檔主月份（出現次數最多的 ym）
+        const mCnt={};
+        fileRecs.forEach(r=>{ mCnt[r.ym]=(mCnt[r.ym]||0)+1; });
+        const primaryYm=Object.keys(mCnt).length
+          ? Object.entries(mCnt).reduce((a,b)=>b[1]>a[1]?b:a)[0] : null;
+
+        let cntNormal=0, cntOk=0, cntWarn=0;
+        for(const rec of fileRecs){
+          if(!primaryYm||rec.ym===primaryYm){
+            allNormal.push(rec); cntNormal++;
+          } else {
+            // 跨月：比對 cache 中是否已有同類別+同金額
+            const dup=getRecs('shixin').find(e=>
+              e.date.substring(0,7)===rec.ym &&
+              e.category===rec.category &&
+              Math.abs(Number(e.amount)-rec.amount)<0.01
+            );
+            if(dup){ allCrossWarn.push({...rec,_dup:dup}); cntWarn++; }
+            else    { allCrossOk.push(rec); cntOk++; }
+          }
+        }
+        let msg=`${files[i].name}: ✅ ${cntNormal} 筆`;
+        if(cntOk)   msg+=` ＋ ${cntOk} 筆跨月補入`;
+        if(cntWarn) msg+=` ＋ ⚠️ ${cntWarn} 筆跨月重複`;
+        fileLog.push(msg);
       }catch(err){ fileLog.push(`${files[i].name}: ❌ ${err.message}`); }
     }
-    if(!allRecs.length){
+
+    const allInsert=[...allNormal,...allCrossOk];
+    if(!allInsert.length&&!allCrossWarn.length){
       preview.innerHTML='<div class="imp-err">❌ 未解析到蒔心田記錄，請確認公司名稱欄位含「蒔心田」</div>';
       drop.style.borderColor=''; drop.style.background=''; return;
     }
-    sxRagicStaging=allRecs;
-    const byMonth={};
-    allRecs.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,expense:0,count:0}; byMonth[r.ym][r.type]+=r.amount; byMonth[r.ym].count++; });
-    const months=Object.keys(byMonth).sort();
-    let html=`<div class="imp-success">✅ Ragic 解析成功：${allRecs.length} 筆，${months.length} 個月</div>`;
-    html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">筆數</th></tr></thead><tbody>';
-    months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); html+=`<tr><td>${+y-1911}年${+m}月</td><td class="r">${fmt(d.income)}</td><td class="r">${fmt(d.expense)}</td><td class="r">${d.count}</td></tr>`; });
-    html+='</tbody></table></div>';
+
+    sxRagicStaging=allInsert.length?allInsert:null;
+
+    // 建立預覽
+    let html='';
+
+    // 主表格（月份摘要）
+    if(allInsert.length){
+      const byMonth={};
+      allInsert.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,expense:0,count:0,cross:false}; byMonth[r.ym][r.type]+=r.amount; byMonth[r.ym].count++; });
+      allCrossOk.forEach(r=>{ if(byMonth[r.ym]) byMonth[r.ym].cross=true; });
+      const months=Object.keys(byMonth).sort();
+      html+=`<div class="imp-success">✅ Ragic 解析成功：${allInsert.length} 筆，${months.length} 個月</div>`;
+      html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">筆數</th></tr></thead><tbody>';
+      months.forEach(ym=>{
+        const d=byMonth[ym],[y,m]=ym.split('-');
+        const tag=d.cross?` <span style="font-size:10px;color:#0d9488">（跨月補入）</span>`:'';
+        html+=`<tr><td>${+y-1911}年${+m}月${tag}</td><td class="r">${fmt(d.income)}</td><td class="r">${fmt(d.expense)}</td><td class="r">${d.count}</td></tr>`;
+      });
+      html+='</tbody></table></div>';
+    }
+
+    // 跨月重複警告表格
+    if(allCrossWarn.length){
+      html+=`<div style="margin-top:10px;padding:8px 10px;background:rgba(234,179,8,.12);border:1px solid #ca8a04;border-radius:6px;font-size:12px">`;
+      html+=`<div style="font-weight:600;color:#92400e;margin-bottom:6px">⚠️ ${allCrossWarn.length} 筆跨月記錄在目標月份已有相同類別及金額，不納入匯入，請人工確認</div>`;
+      html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>日期</th><th>類別</th><th>收/支</th><th class="r">金額</th><th>已比對到</th></tr></thead><tbody>';
+      allCrossWarn.forEach(r=>{
+        const [y,m,d]=r.date.split('-');
+        const dup=r._dup;
+        const dupTxt=dup?`${dup.date} ${dup.category} ${fmt(dup.amount)}`:'';
+        html+=`<tr style="color:#92400e"><td>${+y-1911}/${m}/${d}</td><td>${r.category}</td><td>${r.type==='income'?'收入':'支出'}</td><td class="r">${fmt(r.amount)}</td><td style="font-size:11px">${dupTxt}</td></tr>`;
+      });
+      html+='</tbody></table></div></div>';
+    }
+
     if(files.length>1) html+=`<div style="font-size:11px;color:var(--txt3);margin-top:4px">${fileLog.join('<br>')}</div>`;
     preview.innerHTML=html;
     drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
