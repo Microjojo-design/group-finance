@@ -6413,6 +6413,7 @@ let _moAttFiles  = [];  // GM modal
 let _siAttFiles  = [];  // Staff 收入
 let _seAttFiles  = [];  // Staff 支出
 let _steAttFiles = [];  // Staff 編輯 Modal
+let _apdWorkAtts = [];  // GM 核簽明細 Modal 附件編輯（工作副本）
 
 // ── 判斷 Client ID 是否已設定 ────────────────
 function _gClientReady(){ return GDRIVE_CLIENT_ID && GDRIVE_CLIENT_ID.length > 10; }
@@ -6442,7 +6443,7 @@ function gDriveAuth(onSuccess){
 }
 
 function renderAllAuthAreas(){
-  ['mo-att-auth-area','si-att-auth-area','se-att-auth-area','ste-att-auth-area'].forEach(id=>{
+  ['mo-att-auth-area','si-att-auth-area','se-att-auth-area','ste-att-auth-area','apd-att-auth-area'].forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
     if(_gToken){
@@ -6860,25 +6861,53 @@ function openApDetail(id, co){
       <td style="font-size:13px;padding:8px 0">${val}</td>
     </tr>`).join('');
 
-  const attHtml=rec.attachments&&rec.attachments.length>0
-    ?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bdr)">
-        <div style="font-size:11px;color:var(--txt2);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📎 附件（${rec.attachments.length} 個）</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${rec.attachments.map(att=>`
-            <a href="${att.url}" target="_blank" rel="noopener"
-              style="display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;text-decoration:none;color:var(--acc);font-size:13px;font-weight:500;transition:background .15s"
-              onmouseover="this.style.background='#eff4ff'" onmouseout="this.style.background='var(--sur2)'">
-              <span style="font-size:20px;flex-shrink:0">${_attIcon(att.name)}</span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${att.name}</span>
-              <span style="color:var(--txt3);font-size:11px;flex-shrink:0">${_fmtSize(att.size||0)}</span>
-              <span style="flex-shrink:0;font-size:12px">↗</span>
-            </a>`).join('')}
+  const isGM = currentUser && currentUser.role === 'gm';
+
+  // GM：初始化工作副本
+  if(isGM) _apdWorkAtts = JSON.parse(JSON.stringify(rec.attachments || []));
+
+  // 附件區塊
+  const attHtml = isGM
+    // GM：可增刪附件
+    ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bdr)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-size:11px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em">📎 附件管理</span>
+          <button id="apd-att-btn" type="button" class="att-upload-btn" onclick="apdAttPick()">＋ 新增附件</button>
         </div>
+        <div id="apd-att-auth-area"></div>
+        <div class="att-list" id="apd-att-list"></div>
+        <div class="att-hint" id="apd-att-hint" style="display:none"></div>
+        <button id="apd-save-att-btn" onclick="saveApdAtts()"
+          style="display:none;margin-top:10px;width:100%;padding:9px;background:var(--co);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
+          💾 儲存附件
+        </button>
       </div>`
-    :'';
+    // 非 GM：唯讀
+    : rec.attachments && rec.attachments.length > 0
+      ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bdr)">
+          <div style="font-size:11px;color:var(--txt2);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📎 附件（${rec.attachments.length} 個）</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${rec.attachments.map(att=>`
+              <a href="${att.url}" target="_blank" rel="noopener"
+                style="display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;text-decoration:none;color:var(--acc);font-size:13px;font-weight:500;transition:background .15s"
+                onmouseover="this.style.background='#eff4ff'" onmouseout="this.style.background='var(--sur2)'">
+                <span style="font-size:20px;flex-shrink:0">${_attIcon(att.name)}</span>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${att.name}</span>
+                <span style="color:var(--txt3);font-size:11px;flex-shrink:0">${_fmtSize(att.size||0)}</span>
+                <span style="flex-shrink:0;font-size:12px">↗</span>
+              </a>`).join('')}
+          </div>
+        </div>`
+      : '';
 
   document.getElementById('apd-body').innerHTML=
     `<table style="width:100%;border-collapse:collapse">${tableHtml}</table>${attHtml}`;
+
+  // GM：渲染附件列表與 Drive 授權狀態
+  if(isGM){
+    renderApdAttList();
+    renderAllAuthAreas();
+  }
 
   const actEl=document.getElementById('apd-actions');
   if(st==='pending'){
@@ -6895,7 +6924,70 @@ function openApDetail(id, co){
 
 function closeApDetail(){
   document.getElementById('apDetailMo').classList.remove('open');
-  _apdId=null; _apdCo=null;
+  _apdId=null; _apdCo=null; _apdWorkAtts=[];
+}
+
+function apdAttPick(){
+  if(!_gToken){ gDriveAuth(()=>{ renderApdAttList(); renderAllAuthAreas(); }); return; }
+  const input=document.createElement('input');
+  input.type='file'; input.multiple=true;
+  input.onchange=async e=>{
+    const files=[...e.target.files]; if(!files.length) return;
+    if(_apdWorkAtts.length>=8){ toast('最多 8 個附件',false); return; }
+    const btn=document.getElementById('apd-att-btn');
+    if(btn){ btn.disabled=true; btn.textContent='上傳中…'; }
+    const rec=getRecs(_apdCo).find(r=>r.id===_apdId);
+    const yyyymm=(rec?.date||new Date().toISOString().substring(0,7)).substring(0,7);
+    for(const f of files){
+      if(_apdWorkAtts.length>=8) break;
+      try{ const att=await driveUploadFile(f,_apdCo,yyyymm); _apdWorkAtts.push(att); }
+      catch(){ toast('上傳失敗：'+f.name,false); }
+    }
+    if(btn){ btn.disabled=false; btn.textContent='＋ 新增附件'; }
+    renderApdAttList();
+  };
+  input.click();
+}
+
+function renderApdAttList(){
+  const el=document.getElementById('apd-att-list');
+  const hintEl=document.getElementById('apd-att-hint');
+  const saveBtn=document.getElementById('apd-save-att-btn');
+  if(!el) return;
+  el.innerHTML=_apdWorkAtts.map((att,i)=>`
+    <div class="att-item">
+      <span class="att-item-icon">${_attIcon(att.name)}</span>
+      <a href="${att.url}" target="_blank" rel="noopener" class="att-item-name">${att.name}</a>
+      <div class="att-item-size">${_fmtSize(att.size||0)}</div>
+      <button type="button" class="att-del" onclick="_apdAttRemove(${i})">✕</button>
+    </div>`).join('');
+  if(hintEl){ hintEl.textContent=`已附加 ${_apdWorkAtts.length} / 8 個檔案`; hintEl.style.display=_apdWorkAtts.length?'block':'none'; }
+  if(saveBtn) saveBtn.style.display=_apdWorkAtts.length?'':'none';
+}
+
+function _apdAttRemove(i){
+  const att=_apdWorkAtts[i];
+  if(att?.fileId&&_gToken) driveDeleteFile(att.fileId).catch(()=>{});
+  _apdWorkAtts.splice(i,1);
+  renderApdAttList();
+}
+
+async function saveApdAtts(){
+  if(!_apdId||!_apdCo) return;
+  const btn=document.getElementById('apd-save-att-btn');
+  if(btn){ btn.disabled=true; btn.textContent='儲存中…'; }
+  try{
+    await sbFetch(`records?id=eq.${_apdId}`,'PATCH',{attachments:_apdWorkAtts});
+    const recs=getRecs(_apdCo);
+    const idx=recs.findIndex(r=>r.id===_apdId);
+    if(idx>=0) recs[idx].attachments=[..._apdWorkAtts];
+    toast('附件已儲存 ✅');
+    if(btn){ btn.disabled=false; btn.textContent='💾 儲存附件'; }
+  }catch(e){
+    toast('儲存失敗，請重試 ⚠️',false);
+    if(btn){ btn.disabled=false; btn.textContent='💾 儲存附件'; }
+    console.error(e);
+  }
 }
 
 function approveFromDetail(){
