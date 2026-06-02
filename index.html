@@ -885,20 +885,52 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         </div>
       </div>
 
-      <!-- 蒔心田 -->
+      <!-- 蒔心田 歷史彙整表 (～2025/11) -->
       <div class="card" style="margin-top:16px">
-        <div class="chd"><div class="ct">🌿 蒔心田生醫 收支明細表</div><div class="cbadge" id="imp-sx-badge">尚未匯入</div></div>
-        <div id="imp-sx-drop" class="imp-drop" onclick="document.getElementById('imp-sx-file').click()" ondragover="impDragOver(event)" ondrop="impDropSX(event)">
+        <div class="chd"><div class="ct">🌿 蒔心田生醫 歷史彙整表（～2025年11月）</div><div class="cbadge" id="imp-sx-hist-badge">尚未匯入</div></div>
+        <div id="imp-sx-hist-drop" class="imp-drop" onclick="document.getElementById('imp-sx-hist-file').click()" ondragover="impDragOver(event)" ondrop="impDropSXHist(event)">
           <div class="imp-drop-ico">📄</div>
           <div class="imp-drop-txt">點擊或拖曳上傳 Excel 檔案</div>
-          <div class="imp-drop-sub">蒔心田每月收入支出表.xlsx（每個工作表一個月）</div>
+          <div class="imp-drop-sub">114年度蒔心田收入支出彙整表.xlsx（多月合併，每月一段）</div>
         </div>
-        <input type="file" id="imp-sx-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportSX(event)">
-        <div class="imp-preview" id="imp-sx-preview"></div>
-        <div class="imp-actions" id="imp-sx-actions" style="display:none">
-          <button class="btn bp" style="width:100%;justify-content:center" onclick="confirmImportSX()">✅ 確認匯入，更新資料</button>
-          <button class="btn" style="width:100%;justify-content:center;margin-top:6px" onclick="cancelImportSX()">取消</button>
+        <input type="file" id="imp-sx-hist-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportSXHist(event)">
+        <div class="imp-preview" id="imp-sx-hist-preview"></div>
+        <div class="imp-actions" id="imp-sx-hist-actions" style="display:none">
+          <button class="btn bp" style="width:100%;justify-content:center" onclick="confirmImportSXHist()">✅ 確認匯入，更新歷史資料</button>
+          <button class="btn" style="width:100%;justify-content:center;margin-top:6px" onclick="cancelImportSXHist()">取消</button>
         </div>
+      </div>
+
+      <!-- 蒔心田 Ragic + Shopline 合併 (2025/12～2026/04) -->
+      <div class="card" style="margin-top:16px">
+        <div class="chd"><div class="ct">🌿 蒔心田生醫 Ragic ＋ Shopline 合併（2025年12月～2026年4月）</div><div class="cbadge" id="imp-sx-merge-badge">尚未匯入</div></div>
+        <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--txt2)">📋 Ragic 每月收入支出表（可多選月份）</div>
+        <div id="imp-sx-ragic-drop" class="imp-drop" onclick="document.getElementById('imp-sx-ragic-file').click()" ondragover="impDragOver(event)" ondrop="impDropSXRagic(event)" style="margin-top:6px">
+          <div class="imp-drop-ico">📄</div>
+          <div class="imp-drop-txt">點擊或拖曳上傳 Ragic 每月收入支出表原始資料</div>
+          <div class="imp-drop-sub">可多選：114年12月、115年01～04月 每月收入支出表原始資料.xlsx</div>
+        </div>
+        <input type="file" id="imp-sx-ragic-file" accept=".xlsx,.xls" multiple style="display:none" onchange="handleImportSXRagic(event)">
+        <div class="imp-preview" id="imp-sx-ragic-preview"></div>
+        <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--txt2)">🛍 Shopline 月匯出總表（可多選月份）</div>
+        <div id="imp-sx-shopline-drop" class="imp-drop" onclick="document.getElementById('imp-sx-shopline-file').click()" ondragover="impDragOver(event)" ondrop="impDropSXShopline(event)" style="margin-top:6px">
+          <div class="imp-drop-ico">📄</div>
+          <div class="imp-drop-txt">點擊或拖曳上傳 Shopline 月匯出總表</div>
+          <div class="imp-drop-sub">可多選：12月匯出總表.xlsx、2026年1月匯出總表.xlsx ...</div>
+        </div>
+        <input type="file" id="imp-sx-shopline-file" accept=".xlsx,.xls" multiple style="display:none" onchange="handleImportSXShopline(event)">
+        <div class="imp-preview" id="imp-sx-shopline-preview"></div>
+        <div class="imp-actions" id="imp-sx-merge-actions" style="display:none">
+          <div id="imp-sx-merge-preview"></div>
+          <button class="btn bp" style="width:100%;justify-content:center" onclick="confirmImportSXMerge()">✅ 確認合併匯入（Ragic ＋ Shopline）</button>
+          <button class="btn" style="width:100%;justify-content:center;margin-top:6px" onclick="cancelImportSXMerge()">取消</button>
+        </div>
+      </div>
+
+      <!-- 蒔心田 2026/05 起 -->
+      <div class="card" style="margin-top:16px">
+        <div class="chd"><div class="ct">🌿 蒔心田生醫 2026年5月起</div></div>
+        <div style="padding:12px 0;color:var(--txt3);font-size:13px">ℹ️ 此期間資料已在系統內統一記錄，無需匯入。</div>
       </div>
 
       <!-- 高速駕訓班 -->
@@ -981,7 +1013,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div style="font-size:13px;color:var(--txt2);line-height:2">
           <p>• <strong>Ragic 當月報表：</strong>上傳 Ragic 匯出的每月報表，自動拆分小日常 ＋ 翔悅兩公司資料</p>
           <p>• <strong>小日常 / 翔悅建設（舊式）：</strong>上傳彙總報表 Excel（橫式，各月為欄）</p>
-          <p>• <strong>蒔心田生醫：</strong>上傳逐筆明細彙整 Excel（多月堆疊，含收入/支出明細行）</p>
+          <p>• <strong>蒔心田生醫（歷史）：</strong>上傳 114年度彙整表（～2025/11），多月合併格式</p>
+          <p>• <strong>蒔心田生醫（Ragic+Shopline）：</strong>Ragic 收入支出（2025/12～2026/04）＋ Shopline 入帳確認，可多選月份分別上傳後合併匯入</p>
           <p>• <strong>高速駕訓班-彙整表：</strong>上傳每月收支彙整表（橫式，多月格式）</p>
           <p>• <strong>高速駕訓班-當月報表：</strong>上傳櫃檯單月 XLS，自動歸類並更新該月資料</p>
           <p>• 匯入後會自動更新對應月份的資料（<strong>不會刪除同仁手動輸入的記錄</strong>）</p>
@@ -3698,10 +3731,17 @@ function impDrop(e, co){
   const file = e.dataTransfer.files[0];
   if(file) parseImportFile(file, co);
 }
-function impDropSX(e){
+function impDropSXHist(e){
   e.preventDefault(); e.currentTarget.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if(file) parseImportSX(file);
+  const file=e.dataTransfer.files[0]; if(file) parseImportSXHist(file);
+}
+function impDropSXRagic(e){
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const files=Array.from(e.dataTransfer.files); if(files.length) parseImportSXRagicFiles(files);
+}
+function impDropSXShopline(e){
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const files=Array.from(e.dataTransfer.files); if(files.length) parseImportSXShoplineFiles(files);
 }
 function handleImport(e, co){ const file=e.target.files[0]; if(file) parseImportFile(file,co); e.target.value=''; }
 
@@ -4049,250 +4089,341 @@ function setRqChart(t,btn){
 }
 
 // ═══════════════════════════════════════════
-// 蒔心田 IMPORT（逐筆明細格式）
+// 蒔心田生醫 (SHIXIN) IMPORT
 // ═══════════════════════════════════════════
 
-// 次分類 → 蒔心田系統類別 對應表
-const SX_CAT_MAP = {
-  // 收入 → 對應系統類別
-  '親友': '蒔-親友團購', '親友小計': '蒔-親友團購',
-  '官網': '蒔-官網', 'shopline': '蒔-官網', 'Shopline': '蒔-官網',
-  '蝦皮': '蒔-蝦皮',
-  '酷朋': '蒔-酷朋',
-  '福報購': '蒔-其他電商', '素易購': '蒔-其他電商', '其他通路': '蒔-其他電商',
-  '團購': '蒔-團購', '樂膳素食': '蒔-團購',
-  '退貨': '蒔-退貨、折讓', '折讓': '蒔-退貨、折讓',
-  // 支出 → 對應系統類別
-  '薪資': '蒔-人事薪資', '勞保費': '蒔-人事薪資', '健保費': '蒔-人事薪資',
-  '勞保退休金': '蒔-人事薪資', '端午節獎金': '蒔-人事薪資',
-  '運費': '蒔-物流-黑貓',
-  '黑貓': '蒔-物流-黑貓', '全家': '蒔-物流-全家',
-  '7-11': '蒔-物流-7-11', '郵局': '蒔-物流-郵局',
-  '手續費': '蒔-金流-官網手續費', '資訊系統': '蒔-系統軟體',
-  'linepay': '蒔-金流-Line Pay手續費', 'line pay': '蒔-金流-Line Pay手續費',
-  '官方line': '蒔-系統軟體', '官方Line': '蒔-系統軟體',
-  'chatgpt': '蒔-系統軟體', 'open ai': '蒔-系統軟體', 'AI工具': '蒔-系統軟體',
-  'NOTION': '蒔-系統軟體', 'notion': '蒔-系統軟體',
-  'FB廣告': '蒔-數位廣告投放-Meta', '廣告': '蒔-數位廣告投放-Meta',
-  '廣告代操': '蒔-數位廣告投放-Meta', '廣告工具': '蒔-數位廣告投放-Meta',
-  'google廣告': '蒔-數位廣告投放-Google',
-  '影音剪輯費': '蒔-行銷製作-影片拍攝剪輯', '道具': '蒔-行銷製作-影片拍攝剪輯',
-  '口碑行銷': '蒔-網紅/KOL酬勞',
-  '文宣平面設計': '蒔-文宣設計', '設計費': '蒔-文宣設計',
-  '包裝費': '蒔-包材費用', '包材': '蒔-包材費用',
-  '代工': '蒔-銷貨成本-代工原料', '原料': '蒔-銷貨成本-代工原料',
-  '行銷費用': '蒔-銷售佣金、分潤',
-  '佈施': '蒔-雜項與其他', '綜所稅': '蒔-雜項與其他', '會計師費用': '蒔-雜項與其他',
-  '電信費': '蒔-雜項與其他', '電話費': '蒔-雜項與其他',
-  '設備': '蒔-雜項與其他', '辦公用品': '蒔-雜項與其他',
-  '認證費': '蒔-雜項與其他', '雜項': '蒔-雜項與其他',
-};
+let sxHistoryStaging = null;
+let sxRagicStaging   = null;
+let sxShoplineStaging = null;
 
-function mapSXCat(type, subCat) {
-  if (!subCat) return type === 'income' ? '蒔-親友團購' : '蒔-雜項與其他';
-  const key = subCat.trim();
-  for (const [k, v] of Object.entries(SX_CAT_MAP)) {
-    if (key === k || key.includes(k) || k.includes(key)) return v;
+function readFileAsArrayBuffer(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader(); r.onload=e=>resolve(e.target.result); r.onerror=reject; r.readAsArrayBuffer(file);
+  });
+}
+
+function parseSXDate(dateVal, fallbackYm){
+  if(dateVal==null) return fallbackYm?fallbackYm+'-15':null;
+  if(typeof dateVal==='number'){
+    const d=new Date(Math.round((dateVal-25569)*86400*1000));
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
-  return type === 'income' ? '蒔-親友團購' : '蒔-雜項與其他';
+  const s=String(dateVal).trim();
+  const isoM=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(isoM) return `${isoM[1]}-${isoM[2].padStart(2,'0')}-${isoM[3].padStart(2,'0')}`;
+  const chiM=s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if(chiM) return `${chiM[1]}-${chiM[2].padStart(2,'0')}-${chiM[3].padStart(2,'0')}`;
+  const rocM=s.match(/^(\d{2,3})\/(\d{1,2})\/(\d{1,2})$/);
+  if(rocM) return `${+rocM[1]+1911}-${rocM[2].padStart(2,'0')}-${rocM[3].padStart(2,'0')}`;
+  return fallbackYm?fallbackYm+'-15':null;
 }
 
-let sxStaging = null;
-
-function handleImportSX(e) {
-  const file = e.target.files[0];
-  if (file) parseImportSX(file);
-  e.target.value = '';
+function mapSXCatAll(type, mainCat, subCat, detail){
+  const sub=(subCat||'').trim(), main=(mainCat||'').trim();
+  const key=(main+' '+sub+' '+(detail||'')).toLowerCase();
+  if(type==='income'){
+    if(SX_INC.includes(sub)) return sub;
+    if(SX_INC.includes(main)) return main;
+    if(key.includes('蝦皮')) return '蒔-蝦皮';
+    if(key.includes('酷朋')) return '蒔-酷朋';
+    if(key.includes('官網')||key.includes('shopline')) return '蒔-官網';
+    if(key.includes('福報')||key.includes('素易')||key.includes('其他電商')) return '蒔-其他電商';
+    if(sub==='團購'||key.includes('團購')) return '蒔-團購';
+    if(key.includes('退貨')||key.includes('折讓')) return '蒔-退貨、折讓';
+    return '蒔-親友團購';
+  }
+  if(SX_EXP.includes(sub)) return sub;
+  if(SX_EXP.includes(main)) return main;
+  if(['薪資','健保費','勞保費','勞保退休金','二代健保','端午節獎金'].some(k=>key.includes(k))) return '蒔-人事薪資';
+  if(['膠原蛋白','益菌盾','優兒護','穀胱甘肽','蒔-藻油','代工','原料'].some(k=>(sub+main).includes(k))) return '蒔-銷貨成本-代工原料';
+  if(key.includes('紙盒')) return '蒔-銷貨成本-紙盒';
+  if(key.includes('鋁袋')) return '蒔-銷貨成本-鋁袋';
+  if(key.includes('包材')||key.includes('包裝')) return '蒔-包材費用';
+  if(sub==='蒔-蝦皮'||(key.includes('蝦皮')&&key.includes('費'))) return '蒔-物流-蝦皮';
+  if(key.includes('黑貓')||key.includes('運費')) return '蒔-物流-黑貓';
+  if(key.includes('全家')) return '蒔-物流-全家';
+  if(key.includes('7-11')||key.includes('711')) return '蒔-物流-7-11';
+  if(key.includes('郵局')) return '蒔-物流-郵局';
+  if(key.includes('line pay')||key.includes('linepay')) return '蒔-金流-Line Pay手續費';
+  if(key.includes('刷卡')) return '蒔-金流-刷卡手續費';
+  if(key.includes('簡訊')) return '蒔-金流-簡訊費';
+  if(key.includes('手續費')||key.includes('金流')) return '蒔-金流-官網手續費';
+  if(key.includes('meta')||(key.includes('廣告')&&!key.includes('google'))) return '蒔-數位廣告投放-Meta';
+  if(key.includes('google')) return '蒔-數位廣告投放-Google';
+  if(key.includes('影音')||key.includes('剪輯')||key.includes('拍攝')) return '蒔-行銷製作-影片拍攝剪輯';
+  if(key.includes('kol')||key.includes('網紅')||key.includes('口碑')||key.includes('部落客')) return '蒔-網紅/KOL酬勞';
+  if(key.includes('設計')||key.includes('文宣')) return '蒔-文宣設計';
+  if(key.includes('seo')) return '蒔-SEO';
+  if(key.includes('新聞')) return '蒔-新聞上刊';
+  if(key.includes('佣金')||key.includes('分潤')) return '蒔-銷售佣金、分潤';
+  if(key.includes('系統')||key.includes('notion')||key.includes('chatgpt')||key.includes('canva')||key.includes('軟體')||key.includes('資訊')) return '蒔-系統軟體';
+  return '蒔-雜項與其他';
 }
 
-function parseImportSX(file) {
-  const badge = document.getElementById('imp-sx-badge');
-  const preview = document.getElementById('imp-sx-preview');
-  const actions = document.getElementById('imp-sx-actions');
-  const drop = document.getElementById('imp-sx-drop');
-  preview.innerHTML = '<div style="color:var(--txt3);font-size:12px;padding:8px 0">解析中…</div>';
-  actions.style.display = 'none';
-  sxStaging = null;
+// ─ File A: 歷史彙整表 (～2025/11) ─
 
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    try {
-      const wb = XLSX.read(ev.target.result, {type:'array'});
-      const parsed = [];
+function handleImportSXHist(e){ const file=e.target.files[0]; if(file) parseImportSXHist(file); e.target.value=''; }
 
-      for (const sheetName of wb.SheetNames) {
-        // Extract ROC year/month from sheet name e.g. "11502蒔心田" → 2026-02
-        const sm = sheetName.match(/^(\d{3})(\d{2})/);
-        if (!sm) continue;
-        const ym = `${parseInt(sm[1])+1911}-${sm[2]}`;
-
-        const ws = wb.Sheets[sheetName];
-        const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
-
-        // Detect column layout: find header row with '主分類'
-        let catCol = 3, amtCol = 6;
-        for (let i = 0; i < Math.min(10, raw.length); i++) {
-          const row = raw[i];
-          if (!row) continue;
-          const cells = row.map(v => v != null ? String(v).trim() : '');
-          if (cells.includes('主分類')) {
-            const mainIdx = cells.indexOf('主分類');
-            const subIdx = cells.indexOf('次分類');
-            const amtIdx = cells.findIndex(v => v.includes('金額'));
-            catCol = subIdx >= 0 ? subIdx : mainIdx;
-            if (amtIdx >= 0) amtCol = amtIdx;
-            break;
-          }
-        }
-
-        let currentType = null;
-        // 用 startsWith 比對，避免「收入合計　（商城：...）」帶額外文字時漏掉
-        const SKIP_KEYS = ['支出合計','收入合計','當月損益','損益率','本期累計結餘',
-          '上期結餘','幣別：新台幣 元','本期結餘','累計結餘','親友小計','小計','合計',
-          '【 網路商城訂單（入帳確認）】','【 原始資料（親友 / 其他收入）】'];
-        const shouldSkip = v => SKIP_KEYS.some(k => v === k || v.startsWith(k));
-
-        for (const row of raw) {
-          if (!row) continue;
-          const v0 = row[0] != null ? String(row[0]).trim() : '';
-          if (!v0) continue;
-          if (shouldSkip(v0)) continue;
-          if (v0.includes('蒔心田') || v0.includes('製表日期') || v0.includes('幣別')) continue;
-
-          // Type switch — ▶  收  入 / ▶  支  出
-          if (v0 === '收入' || (v0.includes('▶') && v0.includes('收'))) { currentType = 'income'; continue; }
-          if (v0 === '支出' || (v0.includes('▶') && v0.includes('支'))) { currentType = 'expense'; continue; }
-          if (!currentType) continue;
-
-          // Amount
-          const rawAmt = row[amtCol];
-          const amt = parseFloat(rawAmt);
-          if (isNaN(amt) || amt <= 0) continue;
-
-          // Category: prefer 次分類, then 主分類
-          const catVal = row[catCol] != null ? String(row[catCol]).trim() : '';
-          const mainVal = row[2] != null ? String(row[2]).trim() : '';
-
-          let cat = '';
-          if (catVal.startsWith('蒔-')) cat = catVal;
-          else if (mainVal.startsWith('蒔-')) cat = mainVal;
-          else {
-            // Map old-format categories to new system categories
-            const key = (catVal + ' ' + mainVal).toLowerCase();
-            if (currentType === 'income') {
-              if (key.includes('shopline') || key.includes('官網') || key.includes('網路商城')) cat = '蒔-官網';
-              else if (key.includes('蝦皮')) cat = '蒔-蝦皮';
-              else if (key.includes('酷朋')) cat = '蒔-酷朋';
-              else if (key.includes('退貨') || key.includes('折讓')) cat = '蒔-退貨、折讓';
-              else if (key.includes('團購')) cat = '蒔-團購';
-              else if (key.includes('福報') || key.includes('素易') || key.includes('其他通路')) cat = '蒔-其他電商';
-              else cat = '蒔-親友團購';
-            } else {
-              if (key.includes('薪資') || key.includes('勞保') || key.includes('健保') || key.includes('退休')) cat = '蒔-人事薪資';
-              else if (key.includes('黑貓')) cat = '蒔-物流-黑貓';
-              else if (key.includes('全家')) cat = '蒔-物流-全家';
-              else if (key.includes('7-11') || key.includes('711')) cat = '蒔-物流-7-11';
-              else if (key.includes('郵局')) cat = '蒔-物流-郵局';
-              else if (key.includes('蝦皮') && key.includes('費')) cat = '蒔-物流-蝦皮';
-              else if (key.includes('meta') || key.includes('fb') || key.includes('廣告')) cat = '蒔-數位廣告投放-Meta';
-              else if (key.includes('google')) cat = '蒔-數位廣告投放-Google';
-              else if (key.includes('影音') || key.includes('剪輯') || key.includes('拍攝')) cat = '蒔-行銷製作-影片拍攝剪輯';
-              else if (key.includes('設計') || key.includes('文宣')) cat = '蒔-文宣設計';
-              else if (key.includes('kol') || key.includes('網紅') || key.includes('部落客') || key.includes('口碑')) cat = '蒔-網紅/KOL酬勞';
-              else if (key.includes('新聞')) cat = '蒔-新聞上刊';
-              else if (key.includes('seo')) cat = '蒔-SEO';
-              else if (key.includes('system') || key.includes('系統') || key.includes('shopline') || key.includes('notion') || key.includes('canva') || key.includes('line')) cat = '蒔-系統軟體';
-              else if (key.includes('手續費') || key.includes('金流')) cat = '蒔-金流-官網手續費';
-              else if (key.includes('包材') || key.includes('包裝') || key.includes('紙盒')) cat = '蒔-包材費用';
-              else if (key.includes('代工') || key.includes('原料')) cat = '蒔-銷貨成本-代工原料';
-              else cat = '蒔-雜項與其他';
-            }
-          }
-
-          parsed.push({type: currentType, category: cat, ym, amount: amt});
-        }
+function parseImportSXHist(file){
+  const badge=document.getElementById('imp-sx-hist-badge');
+  const preview=document.getElementById('imp-sx-hist-preview');
+  const actions=document.getElementById('imp-sx-hist-actions');
+  const drop=document.getElementById('imp-sx-hist-drop');
+  preview.innerHTML='<div style="color:var(--txt3);font-size:12px;padding:8px 0">解析中…</div>';
+  actions.style.display='none'; sxHistoryStaging=null;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      const parsed=[]; let currentYm=null, currentSection=null;
+      for(const row of raw){
+        if(!row) continue;
+        const v0=row[0]!=null?String(row[0]).trim():'';
+        if(!v0) continue;
+        const monthM=v0.match(/^(\d{3})年(\d{1,2})月/);
+        if(monthM){ currentYm=`${parseInt(monthM[1])+1911}-${monthM[2].padStart(2,'0')}`; currentSection=null; continue; }
+        if(!currentYm) continue;
+        if(v0==='收入'){ currentSection='income'; continue; }
+        if(v0==='支出'){ currentSection='expense'; continue; }
+        if(v0.startsWith('小計')||v0.startsWith('合計')){ currentSection=null; continue; }
+        if(!currentSection) continue;
+        const rawAmt=row[6]; const amt=typeof rawAmt==='number'?rawAmt:parseFloat(rawAmt);
+        if(isNaN(amt)||amt<=0) continue;
+        const date=parseSXDate(row[1],currentYm);
+        const mainCat=row[3]?String(row[3]).trim():'';
+        const subCat =row[4]?String(row[4]).trim():'';
+        const detail =row[5]?String(row[5]).trim():'';
+        parsed.push({type:currentSection,category:mapSXCatAll(currentSection,mainCat,subCat,detail),amount:amt,date,ym:currentYm});
       }
-
-      if (!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
-
-      // Aggregate by month for preview
-      const byMonth = {};
-      parsed.forEach(p => {
-        if (!byMonth[p.ym]) byMonth[p.ym] = {income:0, expense:0};
-        byMonth[p.ym][p.type] += p.amount;
-      });
-      const months = Object.keys(byMonth).sort();
-
-      let html = `<div class="imp-success">✅ 解析成功：${wb.SheetNames.length} 個工作表，${parsed.length} 筆明細，共 ${months.length} 個月份</div>`;
-      html += `<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">結餘</th></tr></thead><tbody>`;
-      months.forEach(ym => {
-        const inc = byMonth[ym].income, exp = byMonth[ym].expense, net = inc - exp;
-        const [y, m] = ym.split('-');
-        const lbl = `${parseInt(y)-1911}年${parseInt(m)}月`;
-        html += `<tr class="${net>=0?'pos':'neg'}"><td>${lbl}</td><td class="r">${fmt(inc)}</td><td class="r">${fmt(exp)}</td><td class="r">${fmt(net)}</td></tr>`;
-      });
-      html += '</tbody></table></div>';
-
-      preview.innerHTML = html;
-      sxStaging = parsed;
-      actions.style.display = 'block';
-      badge.textContent = `已解析 ${months.length} 個月`;
-      badge.style.cssText = 'background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
-      drop.style.borderColor = '#0d9488';
-      drop.style.background = '#f0fdfa';
-
-    } catch(err) {
-      preview.innerHTML = `<div class="imp-err">❌ 解析失敗：${err.message}</div>`;
-      badge.textContent = '解析失敗';
-      actions.style.display = 'none';
+      if(!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
+      const byMonth={};
+      parsed.forEach(p=>{ if(!byMonth[p.ym]) byMonth[p.ym]={income:0,expense:0,count:0}; byMonth[p.ym][p.type]+=p.amount; byMonth[p.ym].count++; });
+      const months=Object.keys(byMonth).sort();
+      let html=`<div class="imp-success">✅ 解析成功：${parsed.length} 筆，${months.length} 個月</div>`;
+      html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">筆數</th></tr></thead><tbody>';
+      months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); html+=`<tr><td>${+y-1911}年${+m}月</td><td class="r">${fmt(d.income)}</td><td class="r">${fmt(d.expense)}</td><td class="r">${d.count}</td></tr>`; });
+      html+='</tbody></table></div>';
+      sxHistoryStaging=parsed;
+      preview.innerHTML=html; actions.style.display='block';
+      badge.textContent=`已解析 ${months.length} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
+      drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
+    }catch(err){
+      preview.innerHTML=`<div class="imp-err">❌ 解析失敗：${err.message}</div>`;
+      badge.textContent='解析失敗'; badge.style.cssText=''; actions.style.display='none';
     }
   };
   reader.readAsArrayBuffer(file);
 }
-function confirmImportSX() {
-  if (!sxStaging || !sxStaging.length) { toast('無資料可匯入', false); return; }
-  const affected = [...new Set(sxStaging.map(d => d.ym))];
 
-  // 清除受影響月份的所有蒔心田資料（不論 by 來源），避免重複計算
-  let existing = getRecs('shixin').filter(r => {
-    const ym = r.date.substring(0, 7);
-    return !affected.includes(ym); // 整月清除，無論來源
-  });
-
-  let id = Date.now();
-  const newRecs = sxStaging.map(d => ({
-    id: id++,
-    type: d.type,
-    category: d.category,
-    amount: d.amount,
-    date: d.ym + '-15',
-    note: '收支明細匯入',
-    by: '匯入'
-  }));
-
-  setRecs('shixin', [...existing, ...newRecs]);
-
-  document.getElementById('imp-sx-badge').textContent = `已匯入 ${affected.length} 個月`;
-  document.getElementById('imp-sx-actions').style.display = 'none';
-  document.getElementById('imp-sx-preview').innerHTML =
-    `<div class="imp-success">✅ 匯入完成！已更新 ${affected.length} 個月共 ${sxStaging.length} 筆記錄。</div>`;
-  const drop = document.getElementById('imp-sx-drop');
-  drop.style.borderColor = ''; drop.style.background = '';
-  sxStaging = null;
-
-  toast(`蒔心田生醫匯入完成，共 ${newRecs.length} 筆`);
-  if (activeCo === 'shixin') { render(); renderRecs(); renderReport(); renderAICharts(); }
+async function confirmImportSXHist(){
+  if(!sxHistoryStaging||!sxHistoryStaging.length){ toast('無資料可匯入',false); return; }
+  const yms=sxHistoryStaging.map(r=>r.date.substring(0,7));
+  const minYm=yms.reduce((a,b)=>a<b?a:b);
+  const maxYm=yms.reduce((a,b)=>a>b?a:b);
+  const [maxY,maxM]=maxYm.split('-').map(Number);
+  const nd=new Date(maxY,maxM,1);
+  const nextYm=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  const uniqueMonths=[...new Set(yms)].length;
+  try{
+    await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${minYm}-01&date=lt.${nextYm}-01`,'DELETE');
+    const toInsert=sxHistoryStaging.map(r=>({co:'shixin',type:r.type,category:r.category,amount:r.amount,date:r.date,note:'歷史彙整匯入',by:'匯入',status:'approved'}));
+    const inserted=await sbFetch('records','POST',toInsert);
+    const newRecs=inserted.map(r=>({id:r.id,type:r.type,category:r.category,amount:Number(r.amount),date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'}));
+    _cache['shixin']=[...getRecs('shixin').filter(r=>!(r.date>=`${minYm}-01`&&r.date<`${nextYm}-01`&&r.by==='匯入')),...newRecs];
+    const badge=document.getElementById('imp-sx-hist-badge');
+    badge.textContent=`已匯入 ${uniqueMonths} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
+    document.getElementById('imp-sx-hist-actions').style.display='none';
+    document.getElementById('imp-sx-hist-preview').innerHTML=`<div class="imp-success">✅ 匯入完成！共 ${newRecs.length} 筆記錄。</div>`;
+    const drop=document.getElementById('imp-sx-hist-drop'); drop.style.borderColor=''; drop.style.background='';
+    sxHistoryStaging=null;
+    toast(`蒔心田生醫歷史資料匯入完成，共 ${newRecs.length} 筆`);
+    if(activeCo==='shixin'){ render(); renderRecs(); renderReport(); renderAICharts(); }
+  }catch(e){ toast('匯入失敗，請確認網路後重試 ⚠️',false); console.error(e); }
 }
 
-function cancelImportSX() {
-  sxStaging = null;
-  document.getElementById('imp-sx-actions').style.display = 'none';
-  document.getElementById('imp-sx-preview').innerHTML = '';
-  const badge = document.getElementById('imp-sx-badge');
-  badge.textContent = '尚未匯入'; badge.style.cssText = '';
-  const drop = document.getElementById('imp-sx-drop');
-  drop.style.borderColor = ''; drop.style.background = '';
+function cancelImportSXHist(){
+  sxHistoryStaging=null;
+  document.getElementById('imp-sx-hist-actions').style.display='none';
+  document.getElementById('imp-sx-hist-preview').innerHTML='';
+  const badge=document.getElementById('imp-sx-hist-badge'); badge.textContent='尚未匯入'; badge.style.cssText='';
+  const drop=document.getElementById('imp-sx-hist-drop'); drop.style.borderColor=''; drop.style.background='';
 }
+
+// ─ File B: Ragic 多檔 (2025/12～2026/04) ─
+
+function handleImportSXRagic(e){ const files=Array.from(e.target.files); if(files.length) parseImportSXRagicFiles(files); e.target.value=''; }
+
+async function parseImportSXRagicFiles(files){
+  const preview=document.getElementById('imp-sx-ragic-preview');
+  const drop=document.getElementById('imp-sx-ragic-drop');
+  preview.innerHTML='<div style="color:var(--txt3);font-size:12px;padding:8px 0">解析中…</div>';
+  sxRagicStaging=null; updateSXMergeState();
+  try{
+    const buffers=await Promise.all(files.map(f=>readFileAsArrayBuffer(f)));
+    const allRecs=[]; const fileLog=[];
+    for(let i=0;i<files.length;i++){
+      try{
+        const wb=XLSX.read(buffers[i],{type:'array'});
+        const sheetName=wb.SheetNames.find(s=>s.includes('款項'))||wb.SheetNames[0];
+        const ws=wb.Sheets[sheetName];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        let hRow=-1;
+        for(let j=0;j<Math.min(raw.length,5);j++){ if(raw[j]&&raw[j].includes('編號')){ hRow=j; break; } }
+        if(hRow<0){ fileLog.push(`${files[i].name}: ❌ 找不到標題列`); continue; }
+        const headers=raw[hRow].map(h=>h?String(h).trim():'');
+        const colOf=name=>headers.indexOf(name);
+        const COL={date:colOf('日期'),inout:colOf('收入/支出'),main:colOf('主分類'),sub:colOf('次分類'),co:colOf('公司名稱'),amt:colOf('總金額')};
+        const missing=Object.entries(COL).filter(([,v])=>v<0).map(([k])=>k);
+        if(missing.length){ fileLog.push(`${files[i].name}: ❌ 缺少欄位 ${missing.join(',')}`); continue; }
+        let cnt=0;
+        for(let r=hRow+1;r<raw.length;r++){
+          const row=raw[r]; if(!row) continue;
+          const coName=row[COL.co]?String(row[COL.co]).trim():'';
+          if(!coName.includes('蒔心田')) continue;
+          const inout=row[COL.inout]?String(row[COL.inout]).trim():'';
+          const type=inout==='收入'?'income':'expense';
+          const mainCat=row[COL.main]?String(row[COL.main]).trim():'';
+          const subCat =row[COL.sub] ?String(row[COL.sub]).trim() :'';
+          const amt=parseFloat(row[COL.amt]);
+          if(isNaN(amt)||amt<=0) continue;
+          const date=parseSXDate(row[COL.date],null);
+          if(!date) continue;
+          allRecs.push({type,category:mapSXCatAll(type,mainCat,subCat,''),amount:amt,date,ym:date.substring(0,7),note:'Ragic匯入'});
+          cnt++;
+        }
+        fileLog.push(`${files[i].name}: ✅ ${cnt} 筆（蒔心田）`);
+      }catch(err){ fileLog.push(`${files[i].name}: ❌ ${err.message}`); }
+    }
+    if(!allRecs.length){
+      preview.innerHTML='<div class="imp-err">❌ 未解析到蒔心田記錄，請確認公司名稱欄位含「蒔心田」</div>';
+      drop.style.borderColor=''; drop.style.background=''; return;
+    }
+    sxRagicStaging=allRecs;
+    const byMonth={};
+    allRecs.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,expense:0,count:0}; byMonth[r.ym][r.type]+=r.amount; byMonth[r.ym].count++; });
+    const months=Object.keys(byMonth).sort();
+    let html=`<div class="imp-success">✅ Ragic 解析成功：${allRecs.length} 筆，${months.length} 個月</div>`;
+    html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">筆數</th></tr></thead><tbody>';
+    months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); html+=`<tr><td>${+y-1911}年${+m}月</td><td class="r">${fmt(d.income)}</td><td class="r">${fmt(d.expense)}</td><td class="r">${d.count}</td></tr>`; });
+    html+='</tbody></table></div>';
+    if(files.length>1) html+=`<div style="font-size:11px;color:var(--txt3);margin-top:4px">${fileLog.join('<br>')}</div>`;
+    preview.innerHTML=html;
+    drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
+    updateSXMergeState();
+  }catch(e){ preview.innerHTML=`<div class="imp-err">❌ 解析失敗：${e.message}</div>`; drop.style.borderColor=''; drop.style.background=''; }
+}
+
+// ─ File C: Shopline 多檔 (2025/12～2026/04) ─
+
+function handleImportSXShopline(e){ const files=Array.from(e.target.files); if(files.length) parseImportSXShoplineFiles(files); e.target.value=''; }
+
+async function parseImportSXShoplineFiles(files){
+  const preview=document.getElementById('imp-sx-shopline-preview');
+  const drop=document.getElementById('imp-sx-shopline-drop');
+  preview.innerHTML='<div style="color:var(--txt3);font-size:12px;padding:8px 0">解析中…</div>';
+  sxShoplineStaging=null; updateSXMergeState();
+  try{
+    const buffers=await Promise.all(files.map(f=>readFileAsArrayBuffer(f)));
+    const allRecs=[];
+    for(let i=0;i<files.length;i++){
+      const wb=XLSX.read(buffers[i],{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      let hRow=-1;
+      for(let j=0;j<Math.min(raw.length,5);j++){
+        if(raw[j]&&raw[j].some(c=>c&&String(c).includes('訂單號碼'))){ hRow=j; break; }
+      }
+      if(hRow<0) continue;
+      const headers=raw[hRow].map(h=>h?String(h).replace(/\n/g,'').trim():'');
+      const cDate=headers.indexOf('訂單日期');
+      const cAmt =headers.indexOf('入帳確認');
+      if(cDate<0||cAmt<0) continue;
+      for(let r=hRow+1;r<raw.length;r++){
+        const row=raw[r]; if(!row) continue;
+        const amt=parseFloat(row[cAmt]);
+        if(isNaN(amt)||amt<=0) continue;
+        const date=parseSXDate(row[cDate],null);
+        if(!date) continue;
+        allRecs.push({type:'income',category:'蒔-官網',amount:amt,date,ym:date.substring(0,7),note:'Shopline入帳'});
+      }
+    }
+    if(!allRecs.length){
+      preview.innerHTML='<div class="imp-err">❌ 未解析到有效的入帳確認資料</div>';
+      drop.style.borderColor=''; drop.style.background=''; return;
+    }
+    sxShoplineStaging=allRecs;
+    const byMonth={};
+    allRecs.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,count:0}; byMonth[r.ym].income+=r.amount; byMonth[r.ym].count++; });
+    const months=Object.keys(byMonth).sort();
+    let html=`<div class="imp-success">✅ Shopline 解析成功：${allRecs.length} 筆，${months.length} 個月</div>`;
+    html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">官網收入（入帳確認）</th><th class="r">筆數</th></tr></thead><tbody>';
+    months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); html+=`<tr><td>${+y-1911}年${+m}月</td><td class="r">${fmt(d.income)}</td><td class="r">${d.count}</td></tr>`; });
+    html+='</tbody></table></div>';
+    preview.innerHTML=html;
+    drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
+    updateSXMergeState();
+  }catch(e){ preview.innerHTML=`<div class="imp-err">❌ 解析失敗：${e.message}</div>`; drop.style.borderColor=''; drop.style.background=''; }
+}
+
+// ─ 合併預覽 & 確認 ─
+
+function updateSXMergeState(){
+  const actions=document.getElementById('imp-sx-merge-actions');
+  const hasData=(sxRagicStaging&&sxRagicStaging.length)||(sxShoplineStaging&&sxShoplineStaging.length);
+  if(hasData){ actions.style.display='block'; renderSXMergePreview(); }
+  else{ actions.style.display='none'; }
+}
+
+function renderSXMergePreview(){
+  const combined=[...(sxRagicStaging||[]),...(sxShoplineStaging||[])];
+  const byMonth={};
+  combined.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,expense:0,count:0}; byMonth[r.ym][r.type]+=r.amount; byMonth[r.ym].count++; });
+  const months=Object.keys(byMonth).sort();
+  let html=`<div style="font-weight:600;font-size:13px;margin:10px 0 6px;color:var(--txt2)">合併後摘要（${combined.length} 筆，${months.length} 個月）</div>`;
+  html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">收入</th><th class="r">支出</th><th class="r">筆數</th></tr></thead><tbody>';
+  months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); html+=`<tr><td>${+y-1911}年${+m}月</td><td class="r">${fmt(d.income)}</td><td class="r">${fmt(d.expense)}</td><td class="r">${d.count}</td></tr>`; });
+  html+='</tbody></table></div>';
+  document.getElementById('imp-sx-merge-preview').innerHTML=html;
+}
+
+async function confirmImportSXMerge(){
+  const combined=[...(sxRagicStaging||[]),...(sxShoplineStaging||[])];
+  if(!combined.length){ toast('無資料可匯入',false); return; }
+  const yms=combined.map(r=>r.ym);
+  const minYm=yms.reduce((a,b)=>a<b?a:b);
+  const maxYm=yms.reduce((a,b)=>a>b?a:b);
+  const [maxY,maxM]=maxYm.split('-').map(Number);
+  const nd=new Date(maxY,maxM,1);
+  const nextYm=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  const uniqueMonths=[...new Set(yms)].length;
+  try{
+    await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${minYm}-01&date=lt.${nextYm}-01`,'DELETE');
+    const toInsert=combined.map(r=>({co:'shixin',type:r.type,category:r.category,amount:r.amount,date:r.date,note:r.note||'匯入',by:'匯入',status:'approved'}));
+    const inserted=await sbFetch('records','POST',toInsert);
+    const newRecs=inserted.map(r=>({id:r.id,type:r.type,category:r.category,amount:Number(r.amount),date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'}));
+    _cache['shixin']=[...getRecs('shixin').filter(r=>!(r.date>=`${minYm}-01`&&r.date<`${nextYm}-01`&&r.by==='匯入')),...newRecs];
+    const badge=document.getElementById('imp-sx-merge-badge');
+    badge.textContent=`已匯入 ${uniqueMonths} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
+    document.getElementById('imp-sx-merge-actions').style.display='none';
+    document.getElementById('imp-sx-merge-preview').innerHTML=`<div class="imp-success">✅ 合併匯入完成！共 ${newRecs.length} 筆。</div>`;
+    sxRagicStaging=null; sxShoplineStaging=null;
+    toast(`蒔心田生醫合併匯入完成，共 ${newRecs.length} 筆`);
+    if(activeCo==='shixin'){ render(); renderRecs(); renderReport(); renderAICharts(); }
+  }catch(e){ toast('匯入失敗，請確認網路後重試 ⚠️',false); console.error(e); }
+}
+
+function cancelImportSXMerge(){
+  sxRagicStaging=null; sxShoplineStaging=null;
+  document.getElementById('imp-sx-merge-actions').style.display='none';
+  document.getElementById('imp-sx-ragic-preview').innerHTML='';
+  document.getElementById('imp-sx-shopline-preview').innerHTML='';
+  document.getElementById('imp-sx-merge-preview').innerHTML='';
+  const badge=document.getElementById('imp-sx-merge-badge'); badge.textContent='尚未匯入'; badge.style.cssText='';
+  ['imp-sx-ragic-drop','imp-sx-shopline-drop'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.style.borderColor=''; el.style.background=''; } });
+}
+
 
 
 // ═══════════════════════════════════════════
