@@ -1822,6 +1822,7 @@ const getMR=d=>{const k=mk(d);return getRecs(activeCo).filter(r=>r.date.startsWi
 const sumT=(arr,t)=>approvedOnly(arr).filter(r=>r.type===t).reduce((s,r)=>s+r.amount,0);
 // saveU defined above in Supabase section
 function toast(msg,ok=true){const el=document.getElementById('toast');el.textContent=(ok?'✓ ':'✕ ')+msg;el.style.opacity='1';el.style.background=ok?'#0d9488':'#e11d48';setTimeout(()=>el.style.opacity='0',2500);}
+function esc(s){return String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');}
 
 // ═══════════════════════════════════════════
 // LOGIN
@@ -2167,12 +2168,12 @@ function renderTxList(recs,listId,cntId,showDel){
     const rco=r._co||activeCo;
     const isOwn=isViewer&&r.by===currentUser.name;
     const icon=stIcon[st]?`<span title="${st==='pending'?'待審核':'已退回'}" style="margin-left:4px">${stIcon[st]}</span>`:'';
-    const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="event.stopPropagation();showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
-    const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${r.title}</span>`:'';
-    const cpLine=r.counterparty?`<span style="color:var(--txt3);font-size:11px"> · ${r.counterparty}</span>`:'';
-    const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:'';
+    const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="event.stopPropagation();showAttModal(${r.id},'${rco}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
+    const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${esc(r.title)}</span>`:'';
+    const cpLine=r.counterparty?`<span style="color:var(--txt3);font-size:11px"> · ${esc(r.counterparty)}</span>`:'';
+    const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${esc(r.note)}</span>`:'';
     const subLine=titleLine||cpLine?`<div class="txim" style="margin-top:1px">${titleLine}${cpLine}</div>`:'';
-    const docNoLine=r.docNo?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--txt3);margin-left:4px">#${r.docNo}</span>`:'';
+    const docNoLine=r.docNo?`<span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--txt3);margin-left:4px">#${esc(r.docNo)}</span>`:'';
     // viewer 自己的 pending/rejected 記錄顯示操作按鈕
     const viewerPendingBtns=isOwn&&st==='pending'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️</button><button class="txd" onclick="viewerDelPendingRec(${r.id},'${rco}')">✕</button>`:'';
     const viewerRejectedBtns=isOwn&&st==='rejected'?`<button class="txd" style="background:#fee2e2;color:#9f1239;border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️ 重送</button>`:'';
@@ -2180,9 +2181,9 @@ function renderTxList(recs,listId,cntId,showDel){
       <div class="txil" style="cursor:pointer" onclick="openApDetail(${r.id},'${rco}')">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div>
-          <div class="txin">${r.category}${icon}${attIcon}${noteLine}</div>
+          <div class="txin">${esc(r.category)}${icon}${attIcon}${noteLine}</div>
           ${subLine}
-          <div class="txim">${r.date}${r.by?' · '+r.by:''}${docNoLine}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+r._coName+'</span>':''}</div>
+          <div class="txim">${r.date}${r.by?' · '+esc(r.by):''}${docNoLine}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+esc(r._coName)+'</span>':''}</div>
         </div>
       </div>
       <div class="txir" onclick="event.stopPropagation()">
@@ -2878,14 +2879,14 @@ function renderStHist(){
   const stCls  ={approved:'st-approved',pending:'st-pending',rejected:'st-rejected'};
   el.innerHTML=recs.map(r=>{
     const st=r.status||'approved';
-    const rejectBlock=st==='rejected'&&r.rejectReason?`<div class="ap-reject-reason">退回原因：${r.rejectReason}</div>`:'';
+    const rejectBlock=st==='rejected'&&r.rejectReason?`<div class="ap-reject-reason">退回原因：${esc(r.rejectReason)}</div>`:'';
     const _lid=r.localId||r.id;
     const editBtn=(st==='rejected'||st==='pending')?`<div style="display:flex;gap:6px;margin-top:6px" onclick="event.stopPropagation()">${st==='pending'?`<button class="btn bsm bdel" onclick="stDelPendingRec(${_lid})">🗑 刪除</button>`:''}<button class="btn bsm" onclick="openStEditMo(${_lid})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button></div>`:'';
     return`<div class="txi" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" onclick="openApDetail(${r.id},'${activeCo}')">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div style="flex:1">
-          <div class="txin">${r.category}${r.note?` — ${r.note}`:''}</div>
+          <div class="txin">${esc(r.category)}${r.note?` — ${esc(r.note)}`:''}</div>
           <div class="txim">${r.date}</div>
         </div>
         <div style="text-align:right">
@@ -6830,31 +6831,31 @@ window._attBadgeHtml = _attBadgeHtml;
 let _apdId=null, _apdCo=null;
 
 function openApDetail(id, co){
-  _apdId=id; _apdCo=co;
   const coNames={xiaori:'小日常',xiangyue:'翔悅建設',shixin:'蒔心田生醫',gaoshu:'高速駕訓班'};
   const stLabel={approved:'✅ 已核准',pending:'⏳ 待審核',rejected:'↩️ 已退回'};
   const stCls={approved:'st-approved',pending:'st-pending',rejected:'st-rejected'};
 
   const rec=getRecs(co).find(r=>r.id===id);
   if(!rec) return;
+  _apdId=id; _apdCo=co;
   const st=rec.status||'approved';
 
   document.getElementById('apd-title').textContent=
     rec.category+(rec.type==='income'?' 收入明細':' 支出明細');
 
   const rows=[
-    ['公司', coNames[co]||co],
-    ['類別', rec.category],
-    rec.title?['名稱', rec.title]:null,
-    rec.counterparty?[rec.type==='income'?'收入來源':'支出對象', rec.counterparty]:null,
+    ['公司', esc(coNames[co]||co)],
+    ['類別', esc(rec.category)],
+    rec.title?['名稱', esc(rec.title)]:null,
+    rec.counterparty?[rec.type==='income'?'收入來源':'支出對象', esc(rec.counterparty)]:null,
     ['金額', `<strong style="font-size:17px;color:${rec.type==='income'?'var(--inc)':'var(--exp)'}">${rec.type==='income'?'+':'-'}${fmt(rec.amount)}</strong>`],
-    ['日期', rec.date],
-    ['填寫人', rec.by||'—'],
-    ['狀態', `<span class="st-badge ${stCls[st]}">${stLabel[st]}</span>`],
-    rec.note?['備註', `<span style="color:var(--txt2)">${rec.note}</span>`]:null,
-    rec.submittedAt?['送審時間', rec.submittedAt.substring(0,10)]:null,
-    rec.approvedBy?['核准人', `${rec.approvedBy}${rec.approvedAt?' · '+rec.approvedAt.substring(0,10):''}`]:null,
-    rec.rejectReason?['退回原因', `<span style="color:#9f1239">${rec.rejectReason}</span>`]:null,
+    ['日期', esc(rec.date)],
+    ['填寫人', esc(rec.by||'—')],
+    ['狀態', `<span class="st-badge ${stCls[st]||''}">${stLabel[st]||esc(st)}</span>`],
+    rec.note?['備註', `<span style="color:var(--txt2)">${esc(rec.note)}</span>`]:null,
+    rec.submittedAt?['送審時間', esc(rec.submittedAt.substring(0,10))]:null,
+    rec.approvedBy?['核准人', `${esc(rec.approvedBy)}${rec.approvedAt?' · '+esc(rec.approvedAt.substring(0,10)):''}`]:null,
+    rec.rejectReason?['退回原因', `<span style="color:#9f1239">${esc(rec.rejectReason)}</span>`]:null,
   ].filter(Boolean);
 
   const tableHtml=rows.map(([lbl,val])=>
@@ -6889,15 +6890,15 @@ function openApDetail(id, co){
       ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bdr)">
           <div style="font-size:11px;color:var(--txt2);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">📎 附件（${rec.attachments.length} 個）</div>
           <div style="display:flex;flex-direction:column;gap:6px">
-            ${rec.attachments.map(att=>`
-              <a href="${att.url}" target="_blank" rel="noopener"
+            ${rec.attachments.map(att=>{const safeUrl=(att.url&&att.url.startsWith('https://'))?att.url:'#';return`
+              <a href="${safeUrl}" target="_blank" rel="noopener"
                 style="display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--sur2);border:1px solid var(--bdr);border-radius:9px;text-decoration:none;color:var(--acc);font-size:13px;font-weight:500;transition:background .15s"
                 onmouseover="this.style.background='#eff4ff'" onmouseout="this.style.background='var(--sur2)'">
                 <span style="font-size:20px;flex-shrink:0">${_attIcon(att.name)}</span>
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${att.name}</span>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(att.name)}</span>
                 <span style="color:var(--txt3);font-size:11px;flex-shrink:0">${_fmtSize(att.size||0)}</span>
                 <span style="flex-shrink:0;font-size:12px">↗</span>
-              </a>`).join('')}
+              </a>`}).join('')}
           </div>
         </div>`
       : '';
