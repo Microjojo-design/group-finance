@@ -2167,7 +2167,7 @@ function renderTxList(recs,listId,cntId,showDel){
     const rco=r._co||activeCo;
     const isOwn=isViewer&&r.by===currentUser.name;
     const icon=stIcon[st]?`<span title="${st==='pending'?'待審核':'已退回'}" style="margin-left:4px">${stIcon[st]}</span>`:'';
-    const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
+    const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="event.stopPropagation();showAttModal(${r.id},'${activeCo}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
     const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${r.title}</span>`:'';
     const cpLine=r.counterparty?`<span style="color:var(--txt3);font-size:11px"> · ${r.counterparty}</span>`:'';
     const noteLine=r.note?` <span style="font-weight:400;color:var(--txt3)">— ${r.note}</span>`:'';
@@ -2177,7 +2177,7 @@ function renderTxList(recs,listId,cntId,showDel){
     const viewerPendingBtns=isOwn&&st==='pending'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️</button><button class="txd" onclick="viewerDelPendingRec(${r.id},'${rco}')">✕</button>`:'';
     const viewerRejectedBtns=isOwn&&st==='rejected'?`<button class="txd" style="background:#fee2e2;color:#9f1239;border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer" onclick="openStEditMoFromCo(${r.id},'${rco}')">✏️ 重送</button>`:'';
     return`<div class="txi">
-      <div class="txil">
+      <div class="txil" style="cursor:pointer" onclick="openApDetail(${r.id},'${rco}')">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div>
           <div class="txin">${r.category}${icon}${attIcon}${noteLine}</div>
@@ -2185,7 +2185,7 @@ function renderTxList(recs,listId,cntId,showDel){
           <div class="txim">${r.date}${r.by?' · '+r.by:''}${docNoLine}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+r._coName+'</span>':''}</div>
         </div>
       </div>
-      <div class="txir">
+      <div class="txir" onclick="event.stopPropagation()">
         <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
         ${viewerPendingBtns}${viewerRejectedBtns}
         ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
@@ -2880,8 +2880,8 @@ function renderStHist(){
     const st=r.status||'approved';
     const rejectBlock=st==='rejected'&&r.rejectReason?`<div class="ap-reject-reason">退回原因：${r.rejectReason}</div>`:'';
     const _lid=r.localId||r.id;
-    const editBtn=(st==='rejected'||st==='pending')?`<div style="display:flex;gap:6px;margin-top:6px">${st==='pending'?`<button class="btn bsm bdel" onclick="stDelPendingRec(${_lid})">🗑 刪除</button>`:''}<button class="btn bsm" onclick="openStEditMo(${_lid})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button></div>`:'';
-    return`<div class="txi" style="flex-direction:column;align-items:stretch;gap:6px">
+    const editBtn=(st==='rejected'||st==='pending')?`<div style="display:flex;gap:6px;margin-top:6px" onclick="event.stopPropagation()">${st==='pending'?`<button class="btn bsm bdel" onclick="stDelPendingRec(${_lid})">🗑 刪除</button>`:''}<button class="btn bsm" onclick="openStEditMo(${_lid})">✏️ ${st==='pending'?'修改待審記錄':'修改後重新送出'}</button></div>`:'';
+    return`<div class="txi" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer" onclick="openApDetail(${r.id},'${activeCo}')">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
         <div style="flex:1">
@@ -6912,7 +6912,7 @@ function openApDetail(id, co){
   }
 
   const actEl=document.getElementById('apd-actions');
-  if(st==='pending'){
+  if(isGM && st==='pending'){
     actEl.innerHTML=`
       <button class="btn-approve" style="flex:1;padding:10px;font-size:14px" onclick="approveFromDetail()">✅ 核准</button>
       <button class="btn-reject" style="flex:1;padding:10px;font-size:14px" onclick="rejectFromDetail()">↩️ 退回</button>
