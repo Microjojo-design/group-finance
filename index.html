@@ -6941,7 +6941,7 @@ function apdAttPick(){
     for(const f of files){
       if(_apdWorkAtts.length>=8) break;
       try{ const att=await driveUploadFile(f,_apdCo,yyyymm); _apdWorkAtts.push(att); }
-      catch(){ toast('上傳失敗：'+f.name,false); }
+      catch(e){ toast('上傳失敗：'+f.name,false); }
     }
     if(btn){ btn.disabled=false; btn.textContent='＋ 新增附件'; }
     renderApdAttList();
