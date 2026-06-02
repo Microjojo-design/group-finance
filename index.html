@@ -4317,7 +4317,7 @@ async function parseImportSXRagicFiles(files){
               Math.abs(Number(e.amount)-rec.amount)<0.01
             );
             if(dup){ allCrossWarn.push({...rec,_dup:dup}); cntWarn++; }
-            else    { allCrossOk.push(rec); cntOk++; }
+            else    { allCrossOk.push({...rec,crossMonth:true}); cntOk++; }
           }
         }
         let msg=`${files[i].name}: ✅ ${cntNormal} 筆`;
@@ -4451,19 +4451,28 @@ function renderSXMergePreview(){
 async function confirmImportSXMerge(){
   const combined=[...(sxRagicStaging||[]),...(sxShoplineStaging||[])];
   if(!combined.length){ toast('無資料可匯入',false); return; }
-  const yms=combined.map(r=>r.ym);
-  const minYm=yms.reduce((a,b)=>a<b?a:b);
-  const maxYm=yms.reduce((a,b)=>a>b?a:b);
-  const [maxY,maxM]=maxYm.split('-').map(Number);
-  const nd=new Date(maxY,maxM,1);
-  const nextYm=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
-  const uniqueMonths=[...new Set(yms)].length;
+
+  // 主月份記錄（非跨月補入）用來決定 DELETE 範圍；跨月補入只做 INSERT 不刪舊資料
+  const mainRecs=combined.filter(r=>!r.crossMonth);
+  const uniqueMonths=[...new Set(combined.map(r=>r.ym))].length;
+
   try{
-    await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${minYm}-01&date=lt.${nextYm}-01`,'DELETE');
+    if(mainRecs.length){
+      const yms=mainRecs.map(r=>r.ym);
+      const minYm=yms.reduce((a,b)=>a<b?a:b);
+      const maxYm=yms.reduce((a,b)=>a>b?a:b);
+      const [maxY,maxM]=maxYm.split('-').map(Number);
+      const nd=new Date(maxY,maxM,1);
+      const nextYm=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+      await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${minYm}-01&date=lt.${nextYm}-01`,'DELETE');
+      // cache 同步移除主月份範圍的舊匯入記錄
+      _cache['shixin']=getRecs('shixin').filter(r=>!(r.date>=`${minYm}-01`&&r.date<`${nextYm}-01`&&r.by==='匯入'));
+    }
+    // INSERT 全部（含跨月補入），跨月月份的舊資料保持不動
     const toInsert=combined.map(r=>({co:'shixin',type:r.type,category:r.category,amount:r.amount,date:r.date,note:r.note||'匯入',by:'匯入',status:'approved'}));
     const inserted=await sbFetch('records','POST',toInsert);
     const newRecs=inserted.map(r=>({id:r.id,type:r.type,category:r.category,amount:Number(r.amount),date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'}));
-    _cache['shixin']=[...getRecs('shixin').filter(r=>!(r.date>=`${minYm}-01`&&r.date<`${nextYm}-01`&&r.by==='匯入')),...newRecs];
+    _cache['shixin']=[...getRecs('shixin'),...newRecs];
     const badge=document.getElementById('imp-sx-merge-badge');
     badge.textContent=`已匯入 ${uniqueMonths} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
     document.getElementById('imp-sx-merge-actions').style.display='none';
