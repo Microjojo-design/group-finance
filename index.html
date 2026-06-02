@@ -1921,9 +1921,11 @@ async function doLogin(){
       renderStToday();renderStHist();loadStSettings();renderRejectedNotice();
     }
 
-    // 背景載入收支記錄
-    Promise.all(['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)))
-      .then(()=>{
+    // 背景載入收支記錄 + 自訂類別（需 JWT，anon key 被 RLS 擋住）
+    Promise.all([
+      ...['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)),
+      loadCustomCats()
+    ]).then(()=>{
         initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e));
         render(); renderRecs();
         if(currentUser.role==='viewer') renderRejectedNotice();
