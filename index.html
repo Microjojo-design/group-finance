@@ -4131,6 +4131,8 @@ function parseSXDate(dateVal, fallbackYm){
   if(isoM) return `${isoM[1]}-${isoM[2].padStart(2,'0')}-${isoM[3].padStart(2,'0')}`;
   const chiM=s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
   if(chiM) return `${chiM[1]}-${chiM[2].padStart(2,'0')}-${chiM[3].padStart(2,'0')}`;
+  const rocChiM=s.match(/^(\d{2,3})年(\d{1,2})月(\d{1,2})日/);
+  if(rocChiM) return `${+rocChiM[1]+1911}-${rocChiM[2].padStart(2,'0')}-${rocChiM[3].padStart(2,'0')}`;
   const rocM=s.match(/^(\d{2,3})\/(\d{1,2})\/(\d{1,2})$/);
   if(rocM) return `${+rocM[1]+1911}-${rocM[2].padStart(2,'0')}-${rocM[3].padStart(2,'0')}`;
   return fallbackYm?fallbackYm+'-15':null;
