@@ -4197,7 +4197,7 @@ function parseImportSXHist(file){
       const wb=XLSX.read(ev.target.result,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      const parsed=[]; let currentYm=null, currentSection=null;
+      const parsed=[]; const seenKeys=new Set(); let currentYm=null, currentSection=null;
       for(const row of raw){
         if(!row) continue;
         const v0=row[0]!=null?String(row[0]).trim():'';
@@ -4207,7 +4207,7 @@ function parseImportSXHist(file){
           if(!currentYm) continue;
           if(v0==='收入'){ currentSection='income'; continue; }
           if(v0==='支出'){ currentSection='expense'; continue; }
-          if(v0.startsWith('小計')||v0.startsWith('合計')||
+          if(v0.includes('小計')||v0.includes('合計')||
              v0==='本期結餘'||v0==='累計結餘'||v0==='上期結餘'||
              v0==='編號'||v0.startsWith('製表日期')) continue;
         }
@@ -4219,6 +4219,9 @@ function parseImportSXHist(file){
         const mainCat=row[3]?String(row[3]).trim():'';
         const subCat =row[4]?String(row[4]).trim():'';
         const detail =row[5]?String(row[5]).trim():'';
+        const dedupKey=`${currentSection}|${date}|${amt}|${row[2]||''}|${mainCat}|${subCat}|${detail}`;
+        if(currentSection==='expense' && ym<currentYm && seenKeys.has(dedupKey)) continue;
+        seenKeys.add(dedupKey);
         parsed.push({type:currentSection,category:mapSXCatAll(currentSection,mainCat,subCat,detail),amount:amt,date,ym});
       }
       if(!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
