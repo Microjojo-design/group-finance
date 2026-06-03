@@ -4201,21 +4201,25 @@ function parseImportSXHist(file){
       for(const row of raw){
         if(!row) continue;
         const v0=row[0]!=null?String(row[0]).trim():'';
-        if(!v0) continue;
-        const monthM=v0.match(/^(\d{3})年(\d{1,2})月/);
-        if(monthM){ currentYm=`${parseInt(monthM[1])+1911}-${monthM[2].padStart(2,'0')}`; currentSection=null; continue; }
-        if(!currentYm) continue;
-        if(v0==='收入'){ currentSection='income'; continue; }
-        if(v0==='支出'){ currentSection='expense'; continue; }
-        if(v0.startsWith('小計')||v0.startsWith('合計')){ currentSection=null; continue; }
-        if(!currentSection) continue;
+        if(v0){
+          const monthM=v0.match(/^(\d{3})年(\d{1,2})月/);
+          if(monthM){ currentYm=`${parseInt(monthM[1])+1911}-${monthM[2].padStart(2,'0')}`; currentSection=null; continue; }
+          if(!currentYm) continue;
+          if(v0==='收入'){ currentSection='income'; continue; }
+          if(v0==='支出'){ currentSection='expense'; continue; }
+          if(v0.startsWith('小計')||v0.startsWith('合計')||
+             v0==='本期結餘'||v0==='累計結餘'||v0==='上期結餘'||
+             v0==='編號'||v0.startsWith('製表日期')) continue;
+        }
+        if(!currentYm||!currentSection) continue;
         const rawAmt=row[6]; const amt=typeof rawAmt==='number'?rawAmt:parseFloat(rawAmt);
         if(isNaN(amt)||amt<=0) continue;
         const date=parseSXDate(row[1],currentYm);
+        const ym=date?date.substring(0,7):currentYm;
         const mainCat=row[3]?String(row[3]).trim():'';
         const subCat =row[4]?String(row[4]).trim():'';
         const detail =row[5]?String(row[5]).trim():'';
-        parsed.push({type:currentSection,category:mapSXCatAll(currentSection,mainCat,subCat,detail),amount:amt,date,ym:currentYm});
+        parsed.push({type:currentSection,category:mapSXCatAll(currentSection,mainCat,subCat,detail),amount:amt,date,ym});
       }
       if(!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
       const byMonth={};
