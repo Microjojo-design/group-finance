@@ -1501,7 +1501,11 @@ setInterval(async()=>{
 
 async function sbFetch(path, method='GET', body=null){
   const ctrl = new AbortController();
-  const tid = setTimeout(()=>ctrl.abort(), 6000);
+  const timeout =
+    (method==='POST' && Array.isArray(body) && body.length>50) ? 30000 :
+    (method==='DELETE' && path.includes('id=in.')) ? 30000 :
+    6000;
+  const tid = setTimeout(()=>ctrl.abort(), timeout);
   const token = _authToken || SB_KEY;
   const opts = {
     method,
@@ -4536,9 +4540,9 @@ async function confirmImportSXMerge(){
     const badge=document.getElementById('imp-sx-merge-badge');
     badge.textContent=`已匯入 ${uniqueMonths} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
     document.getElementById('imp-sx-merge-actions').style.display='none';
-    document.getElementById('imp-sx-merge-preview').innerHTML=`<div class="imp-success">✅ 合併匯入完成！共 ${newRecs.length} 筆。</div>`;
+    document.getElementById('imp-sx-merge-preview').innerHTML=`<div class="imp-success">✅ 合併匯入完成！新增 ${newRecs.length} 筆，取代舊匯入 ${oldIds.length} 筆。</div>`;
     sxRagicStaging=null; sxShoplineStaging=null;
-    toast(`蒔心田生醫合併匯入完成，共 ${newRecs.length} 筆`);
+    toast(`蒔心田生醫合併匯入完成，新增 ${newRecs.length} 筆，取代舊匯入 ${oldIds.length} 筆`);
     if(activeCo==='shixin'){ render(); renderRecs(); renderReport(); renderAICharts(); }
   }catch(e){ toast(`匯入失敗：${e.message||'請確認網路後重試'} ⚠️`,false); console.error(e); }
 }
