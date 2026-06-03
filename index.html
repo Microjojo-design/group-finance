@@ -1577,9 +1577,22 @@ function setRecs(co,data){
   _syncRecs(co);  // async, fire-and-forget
 }
 
+async function loadAllRecsPaged(co){
+  const all=[];
+  const pageSize=1000;
+  for(let offset=0;;offset+=pageSize){
+    const rows=await sbFetch(`records?co=eq.${co}&select=*&order=date.asc,id.asc&offset=${offset}&limit=${pageSize}`);
+    all.push(...rows);
+    if(rows.length<pageSize) break;
+  }
+  return all;
+}
+
 async function loadRecs(co){
   try{
-    const rows=await sbFetch(`records?co=eq.${co}&select=*&order=id.asc&limit=10000`);
+    const rows=co==='shixin'
+      ? await loadAllRecsPaged(co)
+      : await sbFetch(`records?co=eq.${co}&select=*&order=id.asc&limit=10000`);
     _cache[co]=rows.map(r=>{
       const rec={
         id:r.id, type:r.type, category:r.category, amount:Number(r.amount),
@@ -4480,23 +4493,46 @@ async function confirmImportSXMerge(){
   const uniqueMonths=[...new Set(combined.map(r=>r.ym))].length;
 
   try{
+    // Step 1：查詢主月份的舊匯入 ID（尚未刪除，只是記錄）
+    const oldIds=[];
     if(mainRecs.length){
-      // 逐月刪除，避免連續區間誤刪中間未匯入的月份
       const months=[...new Set(mainRecs.map(r=>r.ym))];
       for(const ym of months){
         const [y,m]=ym.split('-').map(Number);
         // m is 1-indexed; JS Date month is 0-indexed, so new Date(y,m,1) gives next month
         const nd=new Date(y,m,1);
         const nextM=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
-        await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${ym}-01&date=lt.${nextM}-01`,'DELETE');
-        _cache['shixin']=getRecs('shixin').filter(r=>!(r.date>=`${ym}-01`&&r.date<`${nextM}-01`&&r.by==='匯入'));
+        const rows=await sbFetch(`records?co=eq.shixin&by=eq.${encodeURIComponent('匯入')}&date=gte.${ym}-01&date=lt.${nextM}-01&select=id`);
+        if(Array.isArray(rows)) rows.forEach(r=>oldIds.push(r.id));
       }
     }
-    // INSERT 全部（含跨月補入），跨月月份的舊資料保持不動
+
+    // Step 2：分批 INSERT 新資料（每批 100 筆，逐批確認筆數）
     const toInsert=combined.map(r=>({co:'shixin',type:r.type,category:r.category,amount:r.amount,date:r.date,note:r.note||'匯入',by:'匯入',status:'approved'}));
-    const inserted=await sbFetch('records','POST',toInsert);
-    const newRecs=inserted.map(r=>({id:r.id,type:r.type,category:r.category,amount:Number(r.amount),date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'}));
-    _cache['shixin']=[...getRecs('shixin'),...newRecs];
+    const CHUNK=100;
+    const allInserted=[];
+    for(let i=0;i<toInsert.length;i+=CHUNK){
+      const batch=toInsert.slice(i,i+CHUNK);
+      const res=await sbFetch('records','POST',batch);
+      if(!Array.isArray(res)||res.length!==batch.length)
+        throw new Error(`第 ${Math.floor(i/CHUNK)+1} 批 INSERT 不完整（送出 ${batch.length} 筆，回傳 ${Array.isArray(res)?res.length:0} 筆）。舊資料未刪除，請重試。`);
+      allInserted.push(...res);
+    }
+
+    // Step 3：全部 INSERT 成功才刪舊資料
+    if(oldIds.length){
+      const DEL_CHUNK=200;
+      for(let i=0;i<oldIds.length;i+=DEL_CHUNK){
+        const idList=oldIds.slice(i,i+DEL_CHUNK).join(',');
+        await sbFetch(`records?id=in.(${idList})`,'DELETE');
+      }
+    }
+
+    // Step 4：更新 cache
+    const newRecs=allInserted.map(r=>({id:r.id,type:r.type,category:r.category,amount:Number(r.amount),date:r.date,note:r.note||'',by:r.by||'',status:r.status||'approved'}));
+    const oldIdSet=new Set(oldIds);
+    _cache['shixin']=[...getRecs('shixin').filter(r=>!oldIdSet.has(r.id)),...newRecs];
+
     const badge=document.getElementById('imp-sx-merge-badge');
     badge.textContent=`已匯入 ${uniqueMonths} 個月`; badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
     document.getElementById('imp-sx-merge-actions').style.display='none';
@@ -4504,7 +4540,7 @@ async function confirmImportSXMerge(){
     sxRagicStaging=null; sxShoplineStaging=null;
     toast(`蒔心田生醫合併匯入完成，共 ${newRecs.length} 筆`);
     if(activeCo==='shixin'){ render(); renderRecs(); renderReport(); renderAICharts(); }
-  }catch(e){ toast('匯入失敗，請確認網路後重試 ⚠️',false); console.error(e); }
+  }catch(e){ toast(`匯入失敗：${e.message||'請確認網路後重試'} ⚠️`,false); console.error(e); }
 }
 
 function cancelImportSXMerge(){
