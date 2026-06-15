@@ -598,7 +598,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <!-- 退回通知（viewer 有被退回的記錄時顯示）-->
       <div id="rejectedNotice" style="display:none;margin-bottom:14px"></div>
       <div class="kg" id="dashKg">
-        <div class="kc ki"><div class="kl">本月收入</div><div class="kv" id="kI">$0</div><div class="kch" id="kIc">—</div></div>
+        <div class="kc ki"><div class="kl" id="kIlbl">本月收入</div><div class="kv" id="kI">$0</div><div class="kch" id="kIc">—</div></div>
         <div class="kc ke"><div class="kl" id="kElbl">本月支出</div><div class="kv" id="kE">$0</div><div class="kch" id="kEc">—</div></div>
         <div class="kc" style="border-top:3px solid var(--gold);display:none" id="kBonusCard"><div class="kl">本月包租費</div><div class="kv" id="kBonus" style="color:var(--gold)">$0</div><div class="kch" style="color:var(--gold)">獨立列計</div></div>
         <div class="kc kn"><div class="kl">本期結餘</div><div class="kv" id="kN">$0</div><div class="kch" id="kNn">—</div></div>
@@ -1854,6 +1854,11 @@ const hasBonus = co => BONUS_COS.includes(co);
 const CAILIAOB_CAT = '高速-材料B';
 const hasCailiaob = co => co === 'gaoshu';
 
+// 蒔心田「蒔投資」獨立列計，不計入收入
+const SHIXIN_INV_CAT = '蒔投資';
+const hasShixinInv = co => co === 'shixin';
+function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT).reduce((s,r)=>s+r.amount,0); }
+
 // Sum expense excluding or including bonus
 function sumExp(arr, mode){
   return approvedOnly(arr).filter(r=>r.type==='expense' && (mode==='include' || r.category!==BONUS_CAT) && r.category!==CAILIAOB_CAT && !GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
@@ -1872,7 +1877,7 @@ const today=()=>new Date().toISOString().split('T')[0];
 const mk=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 const rocLbl=d=>`${d.getFullYear()-1911}年${String(d.getMonth()+1).padStart(2,'0')}月`;
 const getMR=d=>{const k=mk(d);return getRecs(activeCo).filter(r=>r.date.startsWith(k));};
-const sumT=(arr,t)=>approvedOnly(arr).filter(r=>r.type===t).reduce((s,r)=>s+r.amount,0);
+const sumT=(arr,t)=>approvedOnly(arr).filter(r=>r.type===t&&!(t==='income'&&r.category===SHIXIN_INV_CAT)).reduce((s,r)=>s+r.amount,0);
 // saveU defined above in Supabase section
 function toast(msg,ok=true){const el=document.getElementById('toast');el.textContent=(ok?'✓ ':'✕ ')+msg;el.style.opacity='1';el.style.background=ok?'#0d9488':'#e11d48';setTimeout(()=>el.style.opacity='0',2500);}
 function esc(s){return String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');}
@@ -2165,27 +2170,42 @@ function render(){
   const net=inc-exp; // 結餘 = 收入 - 支出（包租費獨立列計，不影響結餘）
   const pl=inc>0?Math.round(net/inc*100):0;
 
-  // Show/hide special item card (包租費 for xiaori/xiangyue, 材料B for gaoshu)
+  // Show/hide special item card (包租費 for xiaori/xiangyue, 材料B for gaoshu, 蒔投資 for shixin)
   const showBonus = hasBonus(activeCo);
   const showCailiaob = hasCailiaob(activeCo);
-  const showSpecial = showBonus || showCailiaob;
+  const showSXInv = hasShixinInv(activeCo);
+  const showSpecial = showBonus || showCailiaob || showSXInv;
   const cailiaobAmt = showCailiaob ? sumCailiaob(cur) : 0;
+  const sxInvAmt = showSXInv ? sumShixinInv(cur) : 0;
   // bonusToggleBar removed
   const bonusCard = document.getElementById('kBonusCard');
   if(bonusCard){
-    bonusCard.style.cssText = showSpecial ? '' : 'display:none';
+    if(showSpecial){
+      bonusCard.style.display = '';
+      const invColor = showSXInv ? '#7c3aed' : 'var(--gold)';
+      bonusCard.style.borderTop = `3px solid ${invColor}`;
+    } else {
+      bonusCard.style.display = 'none';
+      bonusCard.style.borderTop = '';
+    }
     const kBonusLbl = bonusCard.querySelector('.kl');
-    if(kBonusLbl) kBonusLbl.textContent = showCailiaob ? '本月材料B' : '本月包租費';
+    if(kBonusLbl) kBonusLbl.textContent = showCailiaob ? '本月材料B' : showSXInv ? '本月投資' : '本月包租費';
+    const kBonusVal = bonusCard.querySelector('.kv');
+    if(kBonusVal) kBonusVal.style.color = showSXInv ? '#7c3aed' : 'var(--gold)';
+    const kBonusCh = bonusCard.querySelector('.kch');
+    if(kBonusCh) kBonusCh.style.color = showSXInv ? '#7c3aed' : 'var(--gold)';
   }
 
   // Update KPI grid columns dynamically
   const kg = document.getElementById('dashKg');
   kg.style.gridTemplateColumns = showSpecial ? 'repeat(5,1fr)' : 'repeat(4,1fr)';
 
+  const kIlbl = document.getElementById('kIlbl');
+  if(kIlbl) kIlbl.textContent = showSXInv ? '本月收入（不含投資）' : '本月收入';
   document.getElementById('kI').textContent=fmt(inc);
   document.getElementById('kE').textContent=fmt(exp);
   document.getElementById('kElbl').textContent = showBonus?'本月支出（不含包租費）': showCailiaob?'本月支出（不含材料B）':'本月支出';
-  if(document.getElementById('kBonus')) document.getElementById('kBonus').textContent=showCailiaob?fmt(cailiaobAmt):fmt(bonus);
+  if(document.getElementById('kBonus')) document.getElementById('kBonus').textContent=showCailiaob?fmt(cailiaobAmt):showSXInv?fmt(sxInvAmt):fmt(bonus);
 
   document.getElementById('kN').textContent=fmt(net);
   document.getElementById('kP').textContent=pl+'%';
@@ -2251,8 +2271,10 @@ function renderTxList(recs,listId,cntId,showDel){
 
 function renderTrend(){
   const showB=hasBonus(activeCo);
+  const showCBT=hasCailiaob(activeCo);
+  const showSXInvT=hasShixinInv(activeCo);
   function getMRForDate(d){const k=mk(d);return getRecs(activeCo).filter(r=>r.date.startsWith(k));}
-  const lbs=[],ins=[],exs=[],bonuses=[];
+  const lbs=[],ins=[],exs=[],bonuses=[],clbs=[],sxinvs=[];
   for(let i=5;i>=0;i--){
     const d=new Date(curDate);d.setMonth(d.getMonth()-i);
     const r=getMRForDate(d);
@@ -2260,22 +2282,25 @@ function renderTrend(){
     ins.push(sumT(r,'income'));
     exs.push(sumExp(r,'exclude'));
     bonuses.push(sumBonus(r));
+    clbs.push(sumCailiaob(r));
+    sxinvs.push(sumShixinInv(r));
   }
   if(tChart) tChart.destroy();
-  const showCB=hasCailiaob(activeCo);
-  const clbs=[]; // cailiaob values for trend
-  for(let i=5;i>=0;i--){const d=new Date(curDate);d.setMonth(d.getMonth()-i);const r=getMRForDate(d);clbs.push(sumCailiaob(r));}
-  const specialLabel=showB?'包租費':showCB?'材料B':'';
-  const specialData=showCB?clbs:bonuses;
-  const expLabel=showB?'支出（不含包租費）':showCB?'支出（不含材料B）':'支出';
+  const specialLabel=showB?'包租費':showCBT?'材料B':showSXInvT?'投資':'';
+  const specialData=showCBT?clbs:showSXInvT?sxinvs:bonuses;
+  const specialColor=showSXInvT?'rgba(124,58,237,.65)':'rgba(180,83,9,.65)';
+  const specialColorLine=showSXInvT?'#7c3aed':'#b45309';
+  const showSpec=showB||showCBT||showSXInvT;
+  const incLabel=showSXInvT?'收入（不含投資）':'收入';
+  const expLabel=showB?'支出（不含包租費）':showCBT?'支出（不含材料B）':'支出';
   const datasets = ttType==='bar' ? [
-    {label:'收入',data:ins,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
+    {label:incLabel,data:ins,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
     {label:expLabel,data:exs,backgroundColor:'rgba(225,29,72,.72)',borderRadius:4},
-    ...((showB||showCB)?[{label:specialLabel,data:specialData,backgroundColor:'rgba(180,83,9,.65)',borderRadius:4}]:[])
+    ...(showSpec?[{label:specialLabel,data:specialData,backgroundColor:specialColor,borderRadius:4}]:[])
   ] : [
-    {label:'收入',data:ins,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#0d9488'},
+    {label:incLabel,data:ins,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#0d9488'},
     {label:expLabel,data:exs,borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#e11d48'},
-    ...((showB||showCB)?[{label:specialLabel,data:specialData,borderColor:'#b45309',backgroundColor:'rgba(180,83,9,.06)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#b45309'}]:[])
+    ...(showSpec?[{label:specialLabel,data:specialData,borderColor:specialColorLine,backgroundColor:showSXInvT?'rgba(124,58,237,.06)':'rgba(180,83,9,.06)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:specialColorLine}]:[])
   ];
   tChart=new Chart(document.getElementById('trendChart').getContext('2d'),{
     type:ttType==='bar'?'bar':'line',
@@ -2425,21 +2450,25 @@ function renderReport(){
   const tbl=document.getElementById('repTbl');
   const months=[];for(let i=5;i>=0;i--){const d=new Date(curDate);d.setMonth(d.getMonth()-i);months.push(d);}
   const all=getRecs(activeCo);
-  const iCats=getCats(activeCo,'income');
+  const allICats=getCats(activeCo,'income');
+  const showSXInvRow=hasShixinInv(activeCo);
+  const iCats=showSXInvRow?allICats.filter(c=>c!==SHIXIN_INV_CAT):allICats;
   // Expense cats: separate regular vs bonus
   const allECats=getCats(activeCo,'expense');
   const regECats=allECats.filter(c=>c!==BONUS_CAT);
   const showBonusRow=hasBonus(activeCo);
   const showCailiaobRow=hasCailiaob(activeCo);
 
-  const gV=(d,t,c)=>{const k=mk(d);return all.filter(r=>r.type===t&&r.category===c&&r.date.startsWith(k)).reduce((s,r)=>s+r.amount,0);};
-  const gSInc=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.date.startsWith(k)).reduce((s,r)=>s+r.amount,0);};
-  const gSExp=(d,excBonus)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.date.startsWith(k)&&(!excBonus||r.category!==BONUS_CAT)).reduce((s,r)=>s+r.amount,0);};
-  const gSBonus=(d)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&r.date.startsWith(k)).reduce((s,r)=>s+r.amount,0);};
-  const totCat=(t,c)=>all.filter(r=>r.type===t&&r.category===c).reduce((s,r)=>s+r.amount,0);
-  const totInc=all.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
-  const totExpReg=all.filter(r=>r.type==='expense'&&r.category!==BONUS_CAT).reduce((s,r)=>s+r.amount,0);
-  const totBonus=all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT).reduce((s,r)=>s+r.amount,0);
+  const gV=(d,t,c)=>{const k=mk(d);return all.filter(r=>r.type===t&&r.category===c&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSInc=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.date.startsWith(k)&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSExp=(d,excBonus)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.date.startsWith(k)&&(!excBonus||r.category!==BONUS_CAT)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSBonus=(d)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSSXInv=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const totCat=(t,c)=>all.filter(r=>r.type===t&&r.category===c&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totInc=all.filter(r=>r.type==='income'&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totSXInv=all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totExpReg=all.filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totBonus=all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
 
   const fc=n=>n===0?'-':Math.round(n).toLocaleString('zh-TW');
   const fpl=(i,e)=>!i?'-':Math.round((i-e)/i*100)+'%';
@@ -2448,9 +2477,9 @@ function renderReport(){
   let h=`<thead><tr><th>主類別</th><th>子類別</th><th class="r">合計</th>${months.map(d=>`<th class="r">${rocLbl(d)}</th>`).join('')}</tr></thead><tbody>`;
 
   // ── 收入 ──
-  h+=`<tr class="shd"><td colspan="${3+months.length}">收入</td></tr>`;
+  h+=`<tr class="shd"><td colspan="${3+months.length}">收入${showSXInvRow?' （不含投資）':''}</td></tr>`;
   iCats.forEach(c=>{h+=`<tr><td></td><td><span class="cp cpi">${c}</span></td><td class="r">${fc(totCat('income',c))}</td>${months.map(d=>`<td class="r">${fc(gV(d,'income',c))}</td>`).join('')}</tr>`;});
-  h+=`<tr class="sub"><td></td><td>收入小計</td><td class="r">${fc(totInc)}</td>${months.map(d=>`<td class="r">${fc(gSInc(d))}</td>`).join('')}</tr>`;
+  h+=`<tr class="sub"><td></td><td>收入小計${showSXInvRow?' （不含投資）':''}</td><td class="r">${fc(totInc)}</td>${months.map(d=>`<td class="r">${fc(gSInc(d))}</td>`).join('')}</tr>`;
 
   // ── 支出（不含包租費）──
   h+=`<tr class="shd"><td colspan="${3+months.length}">支出${showBonusRow?' （不含包租費）':''}</td></tr>`;
@@ -2474,18 +2503,27 @@ function renderReport(){
     h+=months.map(d=>`<td class="r" style="color:#c2410c;font-weight:600">${fc(gSCailiaob(d))}</td>`).join('');
     h+=`</tr>`;
   }
+  if(showSXInvRow){
+    h+=`<tr class="shd" style="background:#f5f3ff"><td colspan="${3+months.length}" style="color:#5b21b6">蒔投資 — 獨立列計，不計入收入與損益</td></tr>`;
+    h+=`<tr style="background:#f5f3ff"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">${SHIXIN_INV_CAT}</span></td>`;
+    h+=`<td class="r" style="color:#7c3aed;font-weight:600">${fc(totSXInv)}</td>`;
+    h+=months.map(d=>`<td class="r" style="color:#7c3aed;font-weight:600">${fc(gSSXInv(d))}</td>`).join('');
+    h+=`</tr>`;
+  }
 
   // ── 結餘 & 損益率 ──
-  const netTot = totInc-totExpReg; // 結餘 = 收入 - 支出（包租費獨立，不影響結餘）
-  h+=`<tr class="bal ${netTot<0?'neg':''}"><td></td><td>本期結餘</td><td class="r">${fc(netTot)}</td>`;
+  const netTot = totInc-totExpReg; // 結餘 = 收入（不含投資）- 支出（包租費獨立）
+  const netLbl = showSXInvRow ? '本期結餘（不含投資）' : '本期結餘';
+  h+=`<tr class="bal ${netTot<0?'neg':''}"><td></td><td>${netLbl}</td><td class="r">${fc(netTot)}</td>`;
   h+=months.map(d=>{
-    const n=gSInc(d)-gSExp(d,true); // gSExp already excludes 包租費 and 材料B via sumExp
+    const n=gSInc(d)-gSExp(d,true);
     return`<td class="r">${n===0?'-':Math.round(n).toLocaleString('zh-TW')}</td>`;
   }).join('');
   h+=`</tr>`;
 
-  // 損益率：收入 vs 支出（不含包租費）
-  h+=`<tr class="plr"><td></td><td>損益率${showBonusRow?' （不含包租費）':''}</td><td class="r">${fpl(totInc,totExpReg)}</td>`;
+  // 損益率：收入（不含投資）vs 支出（不含包租費）
+  const plrLbl = showSXInvRow ? '損益率（不含投資）' : `損益率${showBonusRow?' （不含包租費）':''}`;
+  h+=`<tr class="plr"><td></td><td>${plrLbl}</td><td class="r">${fpl(totInc,totExpReg)}</td>`;
   h+=months.map(d=>`<td class="r">${fpl(gSInc(d),gSExp(d,true))}</td>`).join('');
   h+=`</tr>`;
 
@@ -3961,19 +3999,21 @@ function runRangeQuery(){
   const totalBonusAmt=sumBonus(rangeRecs);
   const totalCailiaobAmt=sumCailiaob(rangeRecs);
   const showCailiaobRQ=hasCailiaob(activeCo);
+  const showSXInvRQ=hasShixinInv(activeCo);
+  const totalSXInvAmt=showSXInvRQ?sumShixinInv(rangeRecs):0;
   const totalExpReg=sumExp(rangeRecs,'exclude'); // always exclude bonus from 支出
-  const totalNet=totalInc-totalExpReg; // 結餘 = 收入 - 支出（包租費獨立）
+  const totalNet=totalInc-totalExpReg; // 結餘 = 收入（不含投資）- 支出
   const pl=totalInc>0?Math.round(totalNet/totalInc*100):0;
 
-  // ── 包租費 total badge ──
+  // ── 包租費/材料B/投資 total badge ──
   const _rqBTA = document.getElementById('rqBonusTotalAmt');
-  if(_rqBTA) _rqBTA.textContent=showB?`區間包租費：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:'';
+  if(_rqBTA) _rqBTA.textContent=showB?`區間包租費：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間蒔投資：${fmt(totalSXInvAmt)}`:'';
 
   // ── KPI grid ──
   const rocM=ym=>{const[y,m]=ym.split('-');return`${parseInt(y)-1911}年${parseInt(m)}月`;};
   document.getElementById('rqSub').textContent=`${rocM(fromVal)} ～ ${rocM(toVal)}　共 ${months.length} 個月`;
 
-  const kpiCols = (showB && excB)||(showCailiaobRQ&&totalCailiaobAmt>0) ? 5 : 4;
+  const kpiCols = (showB && excB)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt>0) ? 5 : 4;
   const kpiStyle = `grid-template-columns:repeat(${kpiCols},1fr)`;
   const bonusKpi = (showB&&excB) ? `
     <div class="kc" style="border-top:3px solid var(--gold)">
@@ -3985,42 +4025,53 @@ function runRangeQuery(){
       <div class="kl">材料B（獨立）</div>
       <div class="kv" style="font-size:18px;color:#c2410c">${fmt(totalCailiaobAmt)}</div>
       <div class="kch" style="color:#c2410c">不計入損益</div>
+    </div>` : showSXInvRQ&&totalSXInvAmt>0 ? `
+    <div class="kc" style="border-top:3px solid #7c3aed">
+      <div class="kl">蒔投資（獨立）</div>
+      <div class="kv" style="font-size:18px;color:#7c3aed">${fmt(totalSXInvAmt)}</div>
+      <div class="kch" style="color:#7c3aed">不計入損益</div>
     </div>` : '';
 
+  const incLblRQ=showSXInvRQ?'區間收入（不含投資）':'區間總收入';
+  const plLblRQ=showSXInvRQ?'損益率（不含投資）':showB&&excB?'損益率（不含包租費）':'損益率';
   document.getElementById('rqKpi').style.cssText=kpiStyle;
   document.getElementById('rqKpi').innerHTML=`
-    <div class="kc ki"><div class="kl">區間總收入</div><div class="kv" style="font-size:18px">${fmt(totalInc)}</div><div class="kch">共 ${months.length} 個月</div></div>
+    <div class="kc ki"><div class="kl">${incLblRQ}</div><div class="kv" style="font-size:18px">${fmt(totalInc)}</div><div class="kch">共 ${months.length} 個月</div></div>
     <div class="kc ke"><div class="kl">區間支出${showB&&excB?' （不含包租費）':''}</div><div class="kv" style="font-size:18px">${fmt(totalExpReg)}</div><div class="kch">月均 ${fmt(Math.round(totalExpReg/months.length))}</div></div>
     ${bonusKpi}
     <div class="kc kn"><div class="kl">區間淨結餘</div><div class="kv" style="font-size:18px;color:${totalNet>=0?'var(--inc)':'var(--exp)'}">${fmt(totalNet)}</div><div class="kch ${totalNet>=0?'up':'dn'}">${totalNet>=0?'▲ 正結餘':'▼ 負結餘'}</div></div>
-    <div class="kc kp"><div class="kl">損益率${showB&&excB?' （不含包租費）':''}</div><div class="kv" style="font-size:18px">${pl}%</div><div class="kch ${pl>=30?'up':pl>=0?'':'dn'}">${pl>=30?'✦ 良好':pl>=0?'持平':'▼ 負值'}</div></div>`;
+    <div class="kc kp"><div class="kl">${plLblRQ}</div><div class="kv" style="font-size:18px">${pl}%</div><div class="kch ${pl>=30?'up':pl>=0?'':'dn'}">${pl>=30?'✦ 良好':pl>=0?'持平':'▼ 負值'}</div></div>`;
 
   // ── Month table ──
   document.getElementById('rqMonthCnt').textContent=months.length+' 個月';
   const hasB=showB&&excB;
+  const incHdr=showSXInvRQ?'收入（不含投資）':'收入';
   let mh=`<thead><tr>
-    <th>月份</th><th class="r">收入</th>
+    <th>月份</th><th class="r">${incHdr}</th>
     <th class="r">支出${hasB?' （不含包租費）':''}</th>
     ${hasB?`<th class="r" style="color:#b45309">包租費</th>`:''}
+    ${showSXInvRQ?`<th class="r" style="color:#7c3aed">投資</th>`:''}
     <th class="r">結餘</th><th class="r">損益率</th>
   </tr></thead><tbody>`;
-  const mIncs=[],mExps=[],mBonus=[],mCailiaob=[],mLbls=[];
+  const mIncs=[],mExps=[],mBonus=[],mCailiaob=[],mLbls=[],mSXInvs=[];
   months.forEach(ym=>{
     const mr=rangeRecs.filter(r=>r.date.startsWith(ym));
     const inc=sumT(mr,'income');
     const expReg=sumExp(mr,'exclude');
     const bon=sumBonus(mr);
-    const net=inc-expReg; // 結餘不含包租費
+    const sxInvM=sumShixinInv(mr);
+    const net=inc-expReg;
     const p=inc>0?Math.round(net/inc*100):0;
     const [y,m]=ym.split('-');
     const lbl=`${parseInt(y)-1911}年${parseInt(m)}月`;
     const clb=sumCailiaob(mr);
-    mLbls.push(lbl); mIncs.push(inc); mExps.push(expReg); mBonus.push(bon); mCailiaob.push(clb);
+    mLbls.push(lbl); mIncs.push(inc); mExps.push(expReg); mBonus.push(bon); mCailiaob.push(clb); mSXInvs.push(sxInvM);
     mh+=`<tr>
       <td style="font-family:'DM Mono',monospace">${lbl}</td>
       <td class="r" style="color:var(--inc)">${inc?fmt(inc):'-'}</td>
       <td class="r" style="color:var(--exp)">${expReg?fmt(expReg):'-'}</td>
       ${hasB?`<td class="r" style="color:#b45309;font-weight:600">${bon?fmt(bon):'-'}</td>`:''}
+      ${showSXInvRQ?`<td class="r" style="color:#7c3aed;font-weight:600">${sxInvM?fmt(sxInvM):'-'}</td>`:''}
       <td class="r" style="color:${net>=0?'var(--inc)':'var(--exp)'};font-weight:600">${net?fmt(net):'-'}</td>
       <td class="r" style="color:var(--gold)">${inc?p+'%':'-'}</td>
     </tr>`;
@@ -4031,6 +4082,7 @@ function runRangeQuery(){
     <td class="r" style="color:var(--inc)">${fmt(totalInc)}</td>
     <td class="r" style="color:var(--exp)">${fmt(totalExpReg)}</td>
     ${hasB?`<td class="r" style="color:#b45309">${fmt(totalBonusAmt)}</td>`:''}
+    ${showSXInvRQ?`<td class="r" style="color:#7c3aed">${fmt(totalSXInvAmt)}</td>`:''}
     <td class="r" style="color:${totalNet>=0?'var(--inc)':'var(--exp)'}">${fmt(totalNet)}</td>
     <td class="r" style="color:var(--gold)">${totPl}%</td>
   </tr></tbody>`;
@@ -4038,9 +4090,9 @@ function runRangeQuery(){
 
   // ── 支出類別表（不含包租費） ──
   document.getElementById('rqExpTblTitle').textContent='支出類別加總'+(hasB?' （不含包租費）':'');
-  const buildCatTbl=(recs, type, tblId, totalId, excBonus)=>{
+  const buildCatTbl=(recs, type, tblId, totalId, excBonus, excCat)=>{
     const cm={};
-    recs.filter(r=>r.type===type&&(!excBonus||r.category!==BONUS_CAT))
+    recs.filter(r=>r.type===type&&(!excBonus||r.category!==BONUS_CAT)&&(!excCat||r.category!==excCat))
         .forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
     const sorted=Object.entries(cm).sort((a,b)=>b[1]-a[1]);
     const total=sorted.reduce((s,[,v])=>s+v,0);
@@ -4063,28 +4115,30 @@ function runRangeQuery(){
     h+=`<tr style="background:var(--sur2);font-weight:700"><td>合計</td><td class="r" style="color:${color}">${fmt(total)}</td><td class="r">100%</td></tr></tbody>`;
     document.getElementById(tblId).innerHTML=h;
   };
-  buildCatTbl(rangeRecs,'income','rqIncTbl','rqIncTotal',false);
+  buildCatTbl(rangeRecs,'income','rqIncTbl','rqIncTotal',false,showSXInvRQ?SHIXIN_INV_CAT:null);
   buildCatTbl(rangeRecs,'expense','rqExpTbl','rqExpTotal',true); // always exclude bonus from exp cat table
 
-  // ── 包租費獨立表 ──
+  // ── 包租費/材料B/蒔投資 獨立表 ──
   const bonusCard=document.getElementById('rqBonusCard');
-  if((showB&&excB&&totalBonusAmt>0)||(showCailiaobRQ&&totalCailiaobAmt>0)){
+  if((showB&&excB&&totalBonusAmt>0)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt>0)){
     bonusCard.style.display='block';
     const isClb=showCailiaobRQ&&totalCailiaobAmt>0;
-    const showAmt=isClb?totalCailiaobAmt:totalBonusAmt;
+    const isSXInv=showSXInvRQ&&totalSXInvAmt>0&&!showB&&!isClb;
+    const showAmt=isClb?totalCailiaobAmt:isSXInv?totalSXInvAmt:totalBonusAmt;
+    const cardColor=isSXInv?'#7c3aed':isClb?'#c2410c':'#b45309';
+    const cardBg=isSXInv?'#f5f3ff':isClb?'#fff7ed':'#fffbeb';
     document.getElementById('rqBonusTotal').textContent=fmt(showAmt);
     const cardTitle=bonusCard.querySelector('.ct');
-    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':'🔑 包租費明細（獨立列計）';
-    let bh=`<thead><tr><th>月份</th><th class="r">包租費</th></tr></thead><tbody>`;
-    const isClbCard=showCailiaobRQ&&totalCailiaobAmt>0;
+    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':isSXInv?'💼 蒔投資明細（獨立列計）':'🔑 包租費明細（獨立列計）';
+    let bh=`<thead><tr><th>月份</th><th class="r">${isSXInv?'投資':'包租費'}</th></tr></thead><tbody>`;
     months.forEach((ym,i)=>{
-      const cardAmt=isClbCard?mCailiaob[i]:mBonus[i];
+      const cardAmt=isClb?mCailiaob[i]:isSXInv?mSXInvs[i]:mBonus[i];
       if(cardAmt>0){
         const[y,m]=ym.split('-');
-        bh+=`<tr><td style="font-family:'DM Mono',monospace">${parseInt(y)-1911}年${parseInt(m)}月</td><td class="r" style="color:#c2410c;font-weight:600">${fmt(cardAmt)}</td></tr>`;
+        bh+=`<tr><td style="font-family:'DM Mono',monospace">${parseInt(y)-1911}年${parseInt(m)}月</td><td class="r" style="color:${cardColor};font-weight:600">${fmt(cardAmt)}</td></tr>`;
       }
     });
-    bh+=`<tr style="background:#fff7ed;font-weight:800"><td>合計</td><td class="r" style="color:#c2410c">${fmt(showAmt)}</td></tr></tbody>`;
+    bh+=`<tr style="background:${cardBg};font-weight:800"><td>合計</td><td class="r" style="color:${cardColor}">${fmt(showAmt)}</td></tr></tbody>`;
     document.getElementById('rqBonusTbl').innerHTML=bh;
   } else {
     bonusCard.style.display='none';
@@ -4094,27 +4148,30 @@ function runRangeQuery(){
   document.getElementById('rqDonutNote').textContent=showB&&excB?'不含包租費':'全部支出';
 
   // ── Charts ──
-  renderRqChart(mLbls, mIncs, mExps, mBonus, showB&&excB, mCailiaob, showCailiaobRQ&&totalCailiaobAmt>0);
+  renderRqChart(mLbls, mIncs, mExps, mBonus, showB&&excB, mCailiaob, showCailiaobRQ&&totalCailiaobAmt>0, mSXInvs, showSXInvRQ&&totalSXInvAmt>0);
   renderRqDonut(rangeRecs, excB);
 
   // ── 類別逐月走勢 selector ──
   initCatTrendSelector(rangeRecs, months);
 }
 
-function renderRqChart(labels, incs, exps, bonuses, showBonus, cailiaobs, showCailiaob){
+function renderRqChart(labels, incs, exps, bonuses, showBonus, cailiaobs, showCailiaob, sxinvs, showSXInv){
   if(rqBarChart) rqBarChart.destroy();
-  const showSpec=showBonus||showCailiaob;
-  const specData=showCailiaob?cailiaobs:bonuses;
-  const specLabel=showCailiaob?'材料B':'包租費';
+  const showSpec=showBonus||showCailiaob||showSXInv;
+  const specData=showCailiaob?cailiaobs:showSXInv?(sxinvs||[]):bonuses;
+  const specLabel=showCailiaob?'材料B':showSXInv?'投資':'包租費';
+  const specColor=showSXInv?'rgba(124,58,237,.65)':'rgba(180,83,9,.65)';
+  const specColorLine=showSXInv?'#7c3aed':'#b45309';
+  const incLbl=showSXInv?'收入（不含投資）':'收入';
   const expLbl='支出'+(showBonus?' （不含包租費）':showCailiaob?' （不含材料B）':'');
   const datasets = rqChartType==='bar' ? [
-    {label:'收入',data:incs,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
+    {label:incLbl,data:incs,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
     {label:expLbl,data:exps,backgroundColor:'rgba(225,29,72,.72)',borderRadius:4},
-    ...(showSpec?[{label:specLabel,data:specData,backgroundColor:'rgba(180,83,9,.65)',borderRadius:4}]:[])
+    ...(showSpec?[{label:specLabel,data:specData,backgroundColor:specColor,borderRadius:4}]:[])
   ] : [
-    {label:'收入',data:incs,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#0d9488'},
+    {label:incLbl,data:incs,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#0d9488'},
     {label:expLbl,data:exps,borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.08)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#e11d48'},
-    ...(showSpec?[{label:specLabel,data:specData,borderColor:'#b45309',backgroundColor:'rgba(180,83,9,.06)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:'#b45309'}]:[])
+    ...(showSpec?[{label:specLabel,data:specData,borderColor:specColorLine,backgroundColor:showSXInv?'rgba(124,58,237,.06)':'rgba(180,83,9,.06)',tension:.4,fill:true,pointRadius:3,pointBackgroundColor:specColorLine}]:[])
   ];
   rqBarChart=new Chart(document.getElementById('rqChart').getContext('2d'),{
     type:rqChartType==='bar'?'bar':'line',
@@ -4713,6 +4770,9 @@ function _mrRenderDataCards(co){
 
   if(bon>0||pBon>0) cards.push({ label:'包租費/分紅', val:bon, prev:pBon, yoy:yBon, icon:'🔑', good:n=>n<=0, invertColor:true });
   if(cb>0) cards.push({ label:'材料B', val:cb, prev:0, yoy:0, icon:'🔧', custom: _mrFmt(cb)+'元' });
+  const sxInvCur = hasShixinInv(co) ? sumShixinInv(rCur) : 0;
+  const sxInvPrev = hasShixinInv(co) ? sumShixinInv(rPrev) : 0;
+  if(hasShixinInv(co) && (sxInvCur>0||sxInvPrev>0)) cards.push({ label:'蒔投資（獨立）', val:sxInvCur, prev:sxInvPrev, yoy:0, icon:'💼', good:()=>true });
 
   const container = document.getElementById('mrDataCards');
   container.innerHTML = cards.map(c=>{
@@ -4889,6 +4949,7 @@ function generateMonthReportText(){
   const exp  = sumExp(rCur,'exclude'),pExp  = sumExp(rPrev,'exclude'),yExp  = sumExp(rYoY,'exclude');
   const bon  = sumBonus(rCur),        pBon  = sumBonus(rPrev),        yBon  = sumBonus(rYoY);
   const cb   = sumCailiaob(rCur);
+  const sxInv = hasShixinInv(co) ? sumShixinInv(rCur) : 0;
   const net  = inc - exp - bon;
   const pNet = pInc - pExp - pBon;
 
@@ -4919,6 +4980,9 @@ function generateMonthReportText(){
 
   if(cb>0){
     lines.push(`（本月材料B：${N(cb)}元，獨立列計，不計入上述損益）`);
+  }
+  if(sxInv>0){
+    lines.push(`（本月蒔投資：${N(sxInv)}元，獨立列計，不計入上述損益）`);
   }
   lines.push('');
 
