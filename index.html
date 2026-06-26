@@ -6786,7 +6786,13 @@ const ATT_MAX = 8;
 
 const GDRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let _gToken = null;          // OAuth access token
+let _gTokenExp = 0;          // token 失效時間（epoch ms）
+let _gTokenClient = null;    // 持久化 token client（供靜默續期）
+let _gTokenWaiters = [];     // 等待 token 的 Promise resolver/reject
 let _gFolderId = null;       // 根資料夾 ID（首次上傳時建立）
+
+// token 是否仍有效（保留 60 秒緩衝）
+function _gTokenValid(){ return !!_gToken && Date.now() < _gTokenExp; }
 
 // 各上傳區的暫存附件列表
 let _moAttFiles  = [];  // GM modal
@@ -6798,7 +6804,54 @@ let _apdWorkAtts = [];  // GM 核簽明細 Modal 附件編輯（工作副本）
 // ── 判斷 Client ID 是否已設定 ────────────────
 function _gClientReady(){ return GDRIVE_CLIENT_ID && GDRIVE_CLIENT_ID.length > 10; }
 
-// ── Google OAuth 授權 ─────────────────────────
+// ── 取得（或重建）持久化 token client ─────────
+function _gGetClient(){
+  if(_gTokenClient) return _gTokenClient;
+  if(typeof google === 'undefined') return null;
+  _gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID,
+    scope: GDRIVE_SCOPES,
+    callback: (resp) => {
+      const waiters = _gTokenWaiters; _gTokenWaiters = [];
+      if(resp && resp.access_token){
+        _gToken = resp.access_token;
+        _gTokenExp = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
+        renderAllAuthAreas();
+        waiters.forEach(w => w.resolve(_gToken));
+      } else {
+        _gToken = null; _gTokenExp = 0;
+        renderAllAuthAreas();
+        waiters.forEach(w => w.reject(new Error((resp && resp.error) || 'auth_failed')));
+      }
+    },
+    error_callback: (err) => {
+      // 使用者關閉授權視窗或彈窗被擋 → 釋放等待者，避免上傳卡死
+      const waiters = _gTokenWaiters; _gTokenWaiters = [];
+      waiters.forEach(w => w.reject(new Error((err && err.type) || 'auth_aborted')));
+    },
+  });
+  return _gTokenClient;
+}
+
+// ── 確保取得有效 token：有效直接回，否則靜默續期，失敗才互動授權 ──
+function ensureGToken(){
+  if(_gTokenValid()) return Promise.resolve(_gToken);
+  if(!_gClientReady()) return Promise.reject(new Error('尚未設定 Google Client ID'));
+  const client = _gGetClient();
+  if(!client) return Promise.reject(new Error('Google 授權模組載入中'));
+  // 先靜默嘗試（曾授權過的帳號不會跳視窗）；失敗則改互動
+  return new Promise((resolve, reject) => {
+    _gTokenWaiters.push({ resolve, reject });
+    try { client.requestAccessToken({ prompt: '' }); }
+    catch(e){ _gTokenWaiters = _gTokenWaiters.filter(w=>w.resolve!==resolve); reject(e); }
+  }).catch(() => new Promise((resolve, reject) => {
+    _gTokenWaiters.push({ resolve, reject });
+    try { client.requestAccessToken({ prompt: 'consent' }); }
+    catch(e){ _gTokenWaiters = _gTokenWaiters.filter(w=>w.resolve!==resolve); reject(e); }
+  }));
+}
+
+// ── Google OAuth 授權（按鈕點擊用）─────────────
 function gDriveAuth(onSuccess){
   if(!_gClientReady()){
     toast('尚未設定 Google Client ID，請聯繫系統管理員', false);
@@ -6808,25 +6861,16 @@ function gDriveAuth(onSuccess){
     toast('Google 授權模組載入中，請稍後再試', false);
     return;
   }
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GDRIVE_CLIENT_ID,
-    scope: GDRIVE_SCOPES,
-    callback: (resp) => {
-      if(resp.error){ toast('Google 授權失敗：' + resp.error, false); return; }
-      _gToken = resp.access_token;
-      // 更新所有授權區塊顯示
-      renderAllAuthAreas();
-      if(onSuccess) onSuccess();
-    },
-  });
-  client.requestAccessToken();
+  ensureGToken()
+    .then(() => { if(onSuccess) onSuccess(); })
+    .catch(err => toast('Google 授權失敗：' + (err.message || err), false));
 }
 
 function renderAllAuthAreas(){
   ['mo-att-auth-area','si-att-auth-area','se-att-auth-area','ste-att-auth-area','apd-att-auth-area'].forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
-    if(_gToken){
+    if(_gTokenValid()){
       el.innerHTML = `<div class="gauth-ok">✅ 已連結 Google Drive，可上傳附件</div>`;
     } else {
       el.innerHTML = `<button type="button" class="gauth-btn" onclick="gDriveAuth(renderAllAuthAreas)">
@@ -6839,6 +6883,7 @@ function renderAllAuthAreas(){
 
 // ── 建立／取得根資料夾 ────────────────────────
 async function getOrCreateFolder(name, parentId=null){
+  await ensureGToken();
   const q = parentId
     ? `name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`
     : `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
@@ -6868,6 +6913,7 @@ async function ensureRootFolder(){
 
 // ── 上傳檔案到 Drive ──────────────────────────
 async function driveUploadFile(file, co, yyyymm){
+  await ensureGToken();
   const rootId = await ensureRootFolder();
   const coId   = await getOrCreateFolder(co, rootId);
   const moId   = await getOrCreateFolder(yyyymm, coId);
@@ -6896,6 +6942,7 @@ async function driveUploadFile(file, co, yyyymm){
 
 // ── 刪除 Drive 檔案 ───────────────────────────
 async function driveDeleteFile(fileId){
+  await ensureGToken();
   await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`,
     { method:'DELETE', headers:{ Authorization:'Bearer '+_gToken } }
   );
@@ -6920,7 +6967,7 @@ function _fmtSize(bytes){
 
 // ── GM Modal 附件 ─────────────────────────────
 function moAttPick(){
-  if(!_gToken){ gDriveAuth(()=>{ renderMoAttList(); }); return; }
+  if(!_gTokenValid()){ gDriveAuth(()=>{ renderMoAttList(); }); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
@@ -6990,7 +7037,7 @@ function _moAttRemove(i){
 
 // ── Staff 附件（共用邏輯，income/expense 分開暫存）────
 function staffAttPick(type){
-  if(!_gToken){ gDriveAuth(()=>{ renderStAttList(type); }); return; }
+  if(!_gTokenValid()){ gDriveAuth(()=>{ renderStAttList(type); }); return; }
   const attArr = type==='income' ? _siAttFiles : _seAttFiles;
   const input = document.createElement('input');
   input.type = 'file';
@@ -7070,7 +7117,7 @@ function _stAttRemove(type, i){
 function renderSteAuthArea(){
   const el = document.getElementById('ste-att-auth-area');
   if(!el) return;
-  if(_gToken){
+  if(_gTokenValid()){
     el.innerHTML = `<div class="gauth-ok">✅ 已連結 Google Drive，可上傳附件</div>`;
   } else {
     el.innerHTML = `<button type="button" class="gauth-btn" onclick="gDriveAuth(()=>{renderSteAttList();renderSteAuthArea();})">
@@ -7081,7 +7128,7 @@ function renderSteAuthArea(){
 }
 
 function steAttPick(){
-  if(!_gToken){ gDriveAuth(()=>{ renderSteAttList(); renderSteAuthArea(); }); return; }
+  if(!_gTokenValid()){ gDriveAuth(()=>{ renderSteAttList(); renderSteAuthArea(); }); return; }
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
@@ -7310,7 +7357,7 @@ function closeApDetail(){
 }
 
 function apdAttPick(){
-  if(!_gToken){ gDriveAuth(()=>{ renderApdAttList(); renderAllAuthAreas(); }); return; }
+  if(!_gTokenValid()){ gDriveAuth(()=>{ renderApdAttList(); renderAllAuthAreas(); }); return; }
   const input=document.createElement('input');
   input.type='file'; input.multiple=true;
   input.onchange=async e=>{
