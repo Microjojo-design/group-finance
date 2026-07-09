@@ -1493,7 +1493,7 @@ setInterval(async()=>{
   }catch(e){console.warn('Token refresh failed',e);}
 },45*60*1000);
 
-async function sbFetch(path, method='GET', body=null){
+async function sbFetch(path, method='GET', body=null, prefer=null){
   const ctrl = new AbortController();
   const timeout =
     (method==='POST' && Array.isArray(body) && body.length>50) ? 30000 :
@@ -1509,7 +1509,7 @@ async function sbFetch(path, method='GET', body=null){
       'apikey': SB_KEY,
       'Authorization': 'Bearer ' + token,
       'Content-Type': 'application/json',
-      'Prefer': (method==='POST'||method==='PATCH') ? 'return=representation' : ''
+      'Prefer': prefer!==null ? prefer : ((method==='POST'||method==='PATCH') ? 'return=representation' : '')
     }
   };
   if(body) opts.body = JSON.stringify(body);
@@ -1592,24 +1592,43 @@ async function loadRecs(co){
     const rows=co==='shixin'
       ? await loadAllRecsPaged(co)
       : await sbFetch(`records?co=eq.${co}&select=*&order=id.asc&limit=10000`);
-    _cache[co]=rows.map(r=>{
-      const rec={
-        id:r.id, type:r.type, category:r.category, amount:Number(r.amount),
-        date:r.date, note:r.note||'', by:r.by||'', status:r.status||'approved',
-      };
-      if(r.submitted_at)  rec.submittedAt  = r.submitted_at;
-      if(r.approved_by)   rec.approvedBy   = r.approved_by;
-      if(r.approved_at)   rec.approvedAt   = r.approved_at;
-      if(r.reject_reason) rec.rejectReason = r.reject_reason;
-      if(r.rejected_by)   rec.rejectedBy   = r.rejected_by;
-      if(r.rejected_at)   rec.rejectedAt   = r.rejected_at;
-      if(r.attachments)   rec.attachments  = r.attachments;
-      if(r.title)         rec.title        = r.title;
-      if(r.counterparty)  rec.counterparty = r.counterparty;
-      if(r.doc_no)        rec.docNo        = r.doc_no;
-      return rec;
-    });
+    _cache[co]=rows.map(_dbToRec);
   }catch(e){console.error('載入'+co+'記錄失敗:',e);_cache[co]=[];}
+}
+
+function _dbToRec(r){
+  const rec={
+    id:r.id, type:r.type, category:r.category, amount:Number(r.amount),
+    date:r.date, note:r.note||'', by:r.by||'', status:r.status||'approved',
+  };
+  if(r.submitted_at)  rec.submittedAt  = r.submitted_at;
+  if(r.approved_by)   rec.approvedBy   = r.approved_by;
+  if(r.approved_at)   rec.approvedAt   = r.approved_at;
+  if(r.reject_reason) rec.rejectReason = r.reject_reason;
+  if(r.rejected_by)   rec.rejectedBy   = r.rejected_by;
+  if(r.rejected_at)   rec.rejectedAt   = r.rejected_at;
+  if(r.attachments)   rec.attachments  = r.attachments;
+  if(r.title)         rec.title        = r.title;
+  if(r.counterparty)  rec.counterparty = r.counterparty;
+  if(r.doc_no)        rec.docNo        = r.doc_no;
+  return rec;
+}
+
+// 從 DB 重新同步單筆記錄到 cache（寫入被 RLS 濾成 0 筆時，把畫面拉回真實狀態）
+async function _refreshRecInCache(id, co){
+  try{
+    const rows=await sbFetch(`records?id=eq.${id}&select=*`);
+    const recs=getRecs(co);
+    const idx=recs.findIndex(r=>r.id===id);
+    if(!rows.length){
+      if(idx>=0){recs.splice(idx,1);_cache[co]=[...recs];}
+      return null;
+    }
+    const rec={..._dbToRec(rows[0]),localId:rows[0].id};
+    if(idx>=0)recs[idx]=rec;else recs.push(rec);
+    _cache[co]=[...recs];
+    return rec;
+  }catch(e){console.error('同步記錄失敗:',e);return undefined;}
 }
 
 function _recToDb(r,co){
@@ -5793,7 +5812,15 @@ async function stDelPendingRec(id){
   if(!rec||rec.status!=='pending'||rec.by!==currentUser?.name) return;
   if(!confirm('確定刪除此待審記錄？此操作無法復原。')) return;
   try{
-    await sbFetch(`records?id=eq.${rec.id}`,'DELETE');
+    const deleted=await sbFetch(`records?id=eq.${rec.id}`,'DELETE',null,'return=representation');
+    if(!deleted.length){
+      const fresh=await _refreshRecInCache(rec.id, activeCo);
+      renderStToday(); renderStHist(); updatePendingBadge();
+      toast(fresh&&fresh.status==='approved'
+        ? '無法刪除：這筆記錄已由主管核准。需刪除請聯絡主管'
+        : '無法刪除：這筆記錄的狀態已變更，畫面已同步最新狀態',false);
+      return;
+    }
     if(rec.attachments&&rec.attachments.length>0&&_gToken){
       rec.attachments.forEach(att=>{ if(att.fileId) driveDeleteFile(att.fileId).catch(()=>{}); });
     }
@@ -5810,7 +5837,15 @@ async function viewerDelPendingRec(id, co){
   if(!rec||rec.status!=='pending'||rec.by!==currentUser?.name){activeCo=prevCo;return;}
   if(!confirm('確定刪除此待審記錄？此操作無法復原。')){activeCo=prevCo;return;}
   try{
-    await sbFetch(`records?id=eq.${rec.id}`,'DELETE');
+    const deleted=await sbFetch(`records?id=eq.${rec.id}`,'DELETE',null,'return=representation');
+    if(!deleted.length){
+      const fresh=await _refreshRecInCache(rec.id, co);
+      renderRecs(); updatePendingBadge();
+      toast(fresh&&fresh.status==='approved'
+        ? '無法刪除：這筆記錄已由主管核准。需刪除請聯絡主管'
+        : '無法刪除：這筆記錄的狀態已變更，畫面已同步最新狀態',false);
+      activeCo=prevCo;return;
+    }
     _cache[co]=getRecs(co).filter(r=>r.id!==rec.id);
     renderRecs(); updatePendingBadge();
     toast('已刪除待審記錄');
@@ -5917,6 +5952,16 @@ function populateStEditCats(type, selected){
   sel.innerHTML=cats.map(c=>`<option${c===selected?' selected':''}>${c}</option>`).join('');
 }
 function closeStEditMo(){ document.getElementById('stEditMo').classList.remove('open'); stEditId=null; _steAttFiles=[]; }
+// PATCH 被 RLS 濾成 0 筆＝這筆單在 DB 端狀態已變（多半已被主管核簽）：同步真實狀態並誠實告知
+async function _stEditStale(){
+  const fresh=await _refreshRecInCache(stEditId, activeCo);
+  closeStEditMo();
+  toast(fresh&&fresh.status==='approved'
+    ? '無法修改：這筆記錄已由主管核准。內容有誤請聯絡主管處理'
+    : '無法修改：這筆記錄的狀態已變更，畫面已同步最新狀態',false);
+  renderStHist(); renderStToday(); updatePendingBadge();
+  if(typeof renderRecs==='function'&&currentUser?.role==='viewer') renderRecs();
+}
 async function submitStEdit(){
   if(!stEditId) return;
   const recs=getRecs(activeCo);
@@ -5939,19 +5984,21 @@ async function submitStEdit(){
     // 待審中修改：直接 PATCH，維持 pending
     const patch={type,category:cat,amount:amt,date,note:note||'',title,counterparty,attachments:attachments||null};
     try{
-      await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      const updated=await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      if(!updated.length){await _stEditStale();return;}
       recs[idx]={...recs[idx],...patch};
       _cache[activeCo]=[...recs];
       closeStEditMo();
       toast('已修改，繼續等待主管核簽');
-    }catch(e){toast('儲存失敗，請重試',false);console.error(e);return;}
+    }catch(e){toast(_sbWriteErrMsg(e,'儲存失敗，請重試'),false);console.error(e);return;}
   } else {
     // 已退回修改：直接 PATCH，重新送出
     const now=new Date().toISOString();
     const patch={type,category:cat,amount:amt,date,note:note||'',title,counterparty,attachments:attachments||null,
       status:'pending',submitted_at:now,reject_reason:null,rejected_by:null,rejected_at:null};
     try{
-      await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      const updated=await sbFetch(`records?id=eq.${stEditId}`,'PATCH',patch);
+      if(!updated.length){await _stEditStale();return;}
       recs[idx]={...recs[idx],type,category:cat,amount:amt,date,note,title,counterparty,attachments,
         status:'pending',submittedAt:now,rejectReason:null,rejectedBy:null,rejectedAt:null};
       _cache[activeCo]=[...recs];
@@ -5959,7 +6006,7 @@ async function submitStEdit(){
       toast('已重新送出，等待主管核簽');
       renderRejectedNotice();
       updatePendingBadge();
-    }catch(e){toast('送出失敗，請重試',false);console.error(e);return;}
+    }catch(e){toast(_sbWriteErrMsg(e,'送出失敗，請重試'),false);console.error(e);return;}
   }
   renderStHist(); renderStToday();
 }
