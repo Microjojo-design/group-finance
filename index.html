@@ -2677,6 +2677,30 @@ function generateDocNo(date){
   return prefix+String(maxSeq+1).padStart(3,'0');
 }
 
+// staff 受 RLS 限制看不到其他公司的記錄，本地算出的單號可能與其他公司撞號（DB 唯一索引擋下 409）
+// → 撞號時自動遞增序號重試，由 DB 唯一索引仲裁
+async function insertRecWithDocNo(rec, co){
+  for(let tries=0; tries<30; tries++){
+    try{ return await sbFetch('records','POST',[_recToDb(rec,co)]); }
+    catch(e){
+      const msg=String((e&&e.message)||e||'');
+      if(rec.docNo && (msg.includes('uniq_records_doc_no')||msg.includes('23505'))){
+        rec.docNo=rec.docNo.slice(0,8)+String(parseInt(rec.docNo.slice(8),10)+1).padStart(3,'0');
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error('單號重試次數用盡');
+}
+
+function _sbWriteErrMsg(e, fallback){
+  const msg=String((e&&e.message)||e||'');
+  if(msg.includes('row-level security')) return '送出失敗：此帳號沒有這家公司的寫入權限，請聯絡管理者檢查帳號權限設定 ⚠️';
+  if(msg.toLowerCase().includes('jwt')) return '登入已過期，請重新整理頁面後重新登入 ⚠️';
+  return fallback;
+}
+
 // ═══════════════════════════════════════════
 // TX MODAL (GM)
 // ═══════════════════════════════════════════
@@ -2741,7 +2765,7 @@ async function submitTxMo(){
       by:currentUser.name, status, attachments, docNo,
       submittedAt: isGM ? null : new Date().toISOString()
     };
-    const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
+    const inserted=await insertRecWithDocNo(newRec,activeCo);
     const realId=inserted[0].id;
     getRecs(activeCo).push({...newRec,id:realId,localId:realId});
     document.getElementById('m-amt').value='';
@@ -2758,7 +2782,7 @@ async function submitTxMo(){
       renderRecs(); updatePendingBadge();
     }
   }catch(e){
-    toast('新增失敗，請確認網路後重試 ⚠️',false);
+    toast(_sbWriteErrMsg(e,'新增失敗，請確認網路後重試 ⚠️'),false);
     console.error(e);
   }finally{
     _txMoSubmitting=false;
@@ -2900,7 +2924,7 @@ async function staffSub(type){
   const newRec={type,category:cat,amount:amt,date,note,title,counterparty,by,
     status:'pending', submittedAt:new Date().toISOString(), attachments, docNo};
   try{
-    const inserted=await sbFetch('records','POST',[_recToDb(newRec,activeCo)]);
+    const inserted=await insertRecWithDocNo(newRec,activeCo);
     const realId=inserted[0].id;
     // 直接更新 cache（不觸發 _syncRecs，避免重複 INSERT）
     getRecs(activeCo).push({...newRec,id:realId,localId:realId});
@@ -2917,7 +2941,8 @@ async function staffSub(type){
     if(dnEl) dnEl.textContent=generateDocNo(nextDate);
     renderStToday(); renderStHist(); updatePendingBadge();
   }catch(e){
-    toast('送出失敗，請確認網路後重試 ⚠️',false);
+    toast(_sbWriteErrMsg(e,'送出失敗，請確認網路後重試 ⚠️'),false);
+    console.error(e);
   }finally{
     if(subBtn){ subBtn.disabled=false; subBtn.textContent=p?'確認新增收入':'確認新增支出'; }
   }
