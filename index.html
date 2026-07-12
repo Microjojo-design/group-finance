@@ -81,6 +81,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .sb-icon.co-xiangyue{background:linear-gradient(135deg,#0d9488,#059669)}
 .sb-icon.co-shixin{background:linear-gradient(135deg,#7c3aed,#db2777)}
 .sb-icon.co-gaoshu{background:linear-gradient(135deg,#ea580c,#f59e0b)}
+.sb-icon.co-personal{background:linear-gradient(135deg,#db2777,#9d174d)}
 .sb-bname{font-size:14px;font-weight:900;color:#fff;letter-spacing:-.3px}
 .sb-bco{font-size:10px;color:#3e4870;font-family:'DM Mono',monospace;margin-top:1px}
 
@@ -92,6 +93,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .co-sw-btn.active-xiangyue{background:rgba(13,148,136,.25);border-color:#0d9488;color:#6ee7b7}
 .co-sw-btn.active-shixin{background:rgba(124,58,237,.25);border-color:#7c3aed;color:#c4b5fd}
 .co-sw-btn.active-gaoshu{background:rgba(234,88,12,.25);border-color:#ea580c;color:#fed7aa}
+.co-sw-btn.active-personal{background:rgba(219,39,119,.25);border-color:#db2777;color:#f9a8d4}
 
 .uchip{display:flex;align-items:center;gap:8px;background:#232942;border-radius:8px;padding:8px 10px}
 .uav{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#fff}
@@ -536,6 +538,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
   <div class="mob-co-btn" data-co="xiangyue" onclick="mobSwitchCo('xiangyue')">🏗 翔悅</div>
   <div class="mob-co-btn" data-co="shixin"   onclick="mobSwitchCo('shixin')">🌿 蒔心田</div>
   <div class="mob-co-btn" data-co="gaoshu"   onclick="mobSwitchCo('gaoshu')">🚗 高速</div>
+  <div class="mob-co-btn" data-co="personal" id="mobCoPersonal" style="display:none" onclick="mobSwitchCo('personal')">🔒 私人</div>
 </div>
 <!-- 側邊欄遮罩 -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobMenu()"></div>
@@ -553,6 +556,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div class="co-sw-btn" data-co="xiangyue" onclick="switchCo('xiangyue')">翔悅</div>
         <div class="co-sw-btn" data-co="shixin" onclick="switchCo('shixin')">蒔心田</div>
         <div class="co-sw-btn" data-co="gaoshu" onclick="switchCo('gaoshu')">高速</div>
+        <div class="co-sw-btn" data-co="personal" id="coSwPersonal" style="display:none" onclick="switchCo('personal')">🔒 私人</div>
       </div>
       <div class="uchip">
         <div class="uav av-gm">👑</div>
@@ -624,6 +628,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
             <option value="xiangyue">翔悅建設</option>
             <option value="shixin">蒔心田生醫</option>
             <option value="gaoshu">高速駕訓</option>
+            <option value="personal">私人</option>
           </select>
         </div>
       </div>
@@ -1044,6 +1049,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
             <option value="xiangyue">🏗 翔悅建設</option>
             <option value="shixin">🌿 蒔心田生醫</option>
             <option value="gaoshu">🚗 高速駕訓班</option>
+            <option value="personal">🔒 私人</option>
           </select>
         </div>
         <div class="stabs" style="margin-bottom:16px">
@@ -1393,7 +1399,13 @@ const COMPANIES = {
   xiangyue: { name:'翔悅建設', icon:'🏗', sub:'XIANGYUE', cls:'co-xiangyue', color:'#0d9488' },
   shixin:   { name:'蒔心田生醫',icon:'🌿', sub:'SHIXIN',   cls:'co-shixin',   color:'#7c3aed' },
   gaoshu:   { name:'高速駕訓班', icon:'🚗', sub:'GAOSHU',  cls:'co-gaoshu',   color:'#ea580c' },
+  personal: { name:'私人',     icon:'🔒', sub:'PERSONAL', cls:'co-personal', color:'#db2777' },
 };
+
+// 私人帳：僅 Mark（gm）與 Debbie 可見；DB 端由 RLS 政策 records_personal_debbie_all 把關
+function canPersonal(){
+  return !!currentUser && (currentUser.role==='gm' || currentUser.email==='debbieju2002@gmail.com');
+}
 
 // 高速駕訓班 categories
 const GS_INC = ['高速-學費收入','高速-考試費收入','高速-其他收入'];
@@ -1419,13 +1431,22 @@ const SX_EXP = [
   '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊','蒔-雜項與其他','蒔-代工原料'
 ];
 
+// 私人帳 categories
+const PERSONAL_INC = ['私-薪資','私-投資','私-其他收入'];
+const PERSONAL_EXP = ['私-餐飲','私-日用品','私-交通','私-醫療','私-居家','私-娛樂','私-教育','私-保險','私-稅費','私-其他支出'];
+
 const CAT_ICONS = {
   '租金收入':'🏠','電費收入':'⚡','其他收入':'💰',
   '薪資':'💼','勞健保':'🏥','電費':'💡','水費':'💧','電信費':'📱','包租費':'🔑',
   '車貸':'🚗','退押金':'📦','修繕費用':'🔧','維護保養':'⚙️','設備投資':'🖥',
   '稅費':'📑','行政管理費':'🗂','A206事件費用':'⚠️','其他費用':'📌',
 };
-function getCatIcon(c){ return CAT_ICONS[c] || (c.startsWith('蒔-')?(c.includes('物流')?'📦':c.includes('廣告')?'📣':c.includes('薪資')?'💼':c.includes('代工')?'🧪':'🌿'):'📌'); }
+const PERSONAL_CAT_ICONS = {
+  '私-薪資':'💼','私-投資':'📈','私-其他收入':'💰',
+  '私-餐飲':'🍜','私-日用品':'🧻','私-交通':'🚌','私-醫療':'🏥','私-居家':'🏡',
+  '私-娛樂':'🎮','私-教育':'📚','私-保險':'🛡️','私-稅費':'📑','私-其他支出':'📌',
+};
+function getCatIcon(c){ return CAT_ICONS[c] || PERSONAL_CAT_ICONS[c] || (c.startsWith('私-')?'🔒':c.startsWith('蒔-')?(c.includes('物流')?'📦':c.includes('廣告')?'📣':c.includes('薪資')?'💼':c.includes('代工')?'🧪':'🌿'):'📌'); }
 
 // 自訂類別：記憶體快取（key: `${co}_${type}`），由 loadCustomCats() 初始化
 const _customCatsCache={};
@@ -1462,6 +1483,7 @@ function getCats(co,type){
   let base;
   if(co==='shixin') base=type==='income'?SX_INC:SX_EXP;
   else if(co==='gaoshu') base=type==='income'?GS_INC:GS_EXP;
+  else if(co==='personal') base=type==='income'?PERSONAL_INC:PERSONAL_EXP;
   else base=type==='income'?SHARED_INC:SHARED_EXP;
   const custom=getCustomCats(co,type);
   return custom.length?[...base,...custom]:base;
@@ -1965,6 +1987,9 @@ async function doLogin(){
       activeCo=loginCo;
       document.getElementById('gmView').style.display='block';
       document.getElementById('gmNm').textContent=user.name;
+      const _showP=canPersonal();
+      const _swP=document.getElementById('coSwPersonal'); if(_swP) _swP.style.display=_showP?'':'none';
+      const _mobP=document.getElementById('mobCoPersonal'); if(_mobP) _mobP.style.display=_showP?'':'none';
       const isViewer=user.role==='viewer';
       ['nav-users','nav-import','nav-export','nav-approval','nav-monthreport'].forEach(id=>{
         const el=document.getElementById(id);
@@ -1995,7 +2020,7 @@ async function doLogin(){
 
     // 背景載入收支記錄 + 自訂類別（需 JWT，anon key 被 RLS 擋住）
     Promise.all([
-      ...['xiaori','xiangyue','shixin','gaoshu'].map(co=>loadRecs(co)),
+      ...['xiaori','xiangyue','shixin','gaoshu',...(canPersonal()?['personal']:[])].map(co=>loadRecs(co)),
       loadCustomCats()
     ]).then(()=>{
         initHistorical().catch(e=>console.error('歷史資料初始化失敗:',e));
@@ -2253,6 +2278,8 @@ function renderTxList(recs,listId,cntId,showDel){
     const st=r.status||'approved';
     const rco=r._co||activeCo;
     const isOwn=isViewer&&r.by===currentUser.name;
+    // 私人帳：Debbie（viewer）比照 GM 可編輯/刪除私人帳全部記錄
+    const canEditRec=isGM||(isViewer&&rco==='personal'&&canPersonal());
     const icon=stIcon[st]?`<span title="${st==='pending'?'待審核':'已退回'}" style="margin-left:4px">${stIcon[st]}</span>`:'';
     const attIcon=isGM&&r.attachments&&r.attachments.length>0?`<span title="附件 ${r.attachments.length} 個" style="margin-left:4px;cursor:pointer" onclick="event.stopPropagation();showAttModal(${r.id},'${rco}',event)">📎<sup style="font-size:9px">${r.attachments.length}</sup></span>`:'';
     const titleLine=r.title?`<span style="font-weight:500;color:var(--txt)">${esc(r.title)}</span>`:'';
@@ -2275,8 +2302,8 @@ function renderTxList(recs,listId,cntId,showDel){
       <div class="txir" onclick="event.stopPropagation()">
         <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
         ${viewerPendingBtns}${viewerRejectedBtns}
-        ${showDel&&isGM&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
-        ${showDel&&isGM?`<button class="txd" onclick="gmDelRec(${r.id},'${r._co||activeCo}')">✕</button>`:''}
+        ${showDel&&canEditRec&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
+        ${showDel&&canEditRec?`<button class="txd" onclick="gmDelRec(${r.id},'${r._co||activeCo}')">✕</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -2434,10 +2461,10 @@ function renderRecs(){
   const catSel=document.getElementById('fCat');const cat=catSel?.value||'';
   const keyword=(document.getElementById('recKeyword')?.value||'').trim().toLowerCase();
   const fCo=isGM?(document.getElementById('fCo')?.value||''):'';
-  const coNames={'xiaori':'小日常','xiangyue':'翔悅','shixin':'蒔心田','gaoshu':'高速'};
+  const coNames={'xiaori':'小日常','xiangyue':'翔悅','shixin':'蒔心田','gaoshu':'高速','personal':'私人'};
   let recs;
   if(keyword&&isGM){
-    const coList=fCo?[fCo]:['xiaori','xiangyue','shixin','gaoshu'];
+    const coList=fCo?[fCo]:['xiaori','xiangyue','shixin','gaoshu',...(canPersonal()?['personal']:[])];
     recs=[];
     coList.forEach(co=>{ getRecs(co).forEach(r=>{ recs.push({...r,_co:co,_coName:coNames[co]}); }); });
   } else {
@@ -2685,7 +2712,7 @@ function generateDocNo(date){
   if(!date) return '—';
   const prefix=date.replace(/-/g,'');
   let maxSeq=0;
-  ['xiaori','xiangyue','shixin','gaoshu'].forEach(co=>{
+  ['xiaori','xiangyue','shixin','gaoshu','personal'].forEach(co=>{
     (getRecs(co)||[]).forEach(r=>{
       if(r.docNo&&r.docNo.startsWith(prefix)){
         const seq=parseInt(r.docNo.slice(8),10);
@@ -2777,12 +2804,14 @@ async function submitTxMo(){
     if(!title){toast('請填寫名稱（必填）',false);return;}
     if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
     const isGM=currentUser.role==='gm';
-    const status=isGM?'approved':'pending';
+    // 私人帳免核簽：Mark/Debbie 記的都直接 approved（DB 端 RLS 亦允許）
+    const directApprove=isGM||activeCo==='personal';
+    const status=directApprove?'approved':'pending';
     const attachments=_moAttFiles.length>0?[..._moAttFiles]:null;
     const docNo=generateDocNo(date);
     const newRec={type:moType,category:cat,amount:amt,date,note,title,counterparty,
       by:currentUser.name, status, attachments, docNo,
-      submittedAt: isGM ? null : new Date().toISOString()
+      submittedAt: directApprove ? null : new Date().toISOString()
     };
     const inserted=await insertRecWithDocNo(newRec,activeCo);
     const realId=inserted[0].id;
@@ -2793,7 +2822,7 @@ async function submitTxMo(){
     document.getElementById('m-cp').value='';
     _moAttFiles=[];renderMoAttList();
     closeTxMo();
-    if(isGM){
+    if(directApprove){
       toast(moType==='income'?`已新增收入 ${fmt(amt)}`:`已新增支出 ${fmt(amt)}`);
       render(); renderRecs();
     } else {
@@ -2838,6 +2867,7 @@ function renderCatMgmt(){
   let base;
   if(co==='shixin') base=_cmType==='income'?SX_INC:SX_EXP;
   else if(co==='gaoshu') base=_cmType==='income'?GS_INC:GS_EXP;
+  else if(co==='personal') base=_cmType==='income'?PERSONAL_INC:PERSONAL_EXP;
   else base=_cmType==='income'?SHARED_INC:SHARED_EXP;
   const custom=getCustomCats(co,_cmType);
   const el=document.getElementById('cm-list');
@@ -5858,7 +5888,8 @@ let _gmEditId=null, _gmEditCo=null;
 
 function openGmEditMo(id, co){
   const rec=getRecs(co).find(r=>r.id===id);
-  if(!rec||rec.status!=='approved'||currentUser?.role!=='gm') return;
+  const canEdit=currentUser?.role==='gm'||(co==='personal'&&canPersonal());
+  if(!rec||rec.status!=='approved'||!canEdit) return;
   _gmEditId=id; _gmEditCo=co;
   // 填入類別選單
   const cats=getCats(co, rec.type);
