@@ -20,6 +20,8 @@
   --sh:0 1px 4px rgba(24,29,50,.07);
   --shm:0 4px 20px rgba(24,29,50,.11);
   --shl:0 12px 48px rgba(24,29,50,.18);
+  /* 別名：程式碼多處引用但原本未定義（顏色因此失效），統一對應到既有色票 */
+  --green:#0d9488;--red:#e11d48;--txt1:#181d32;--card:#fff;--bd:#e2e7f2;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:14px}
@@ -570,6 +572,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="ni" onclick="showPage('report',this)"><span class="nic">📈</span>彙總報表</div>
       <div class="ni" onclick="showPage('ai',this)"><span class="nic">🤖</span>AI 分析</div>
       <div class="ni" onclick="showPage('rangequery',this)"><span class="nic">🔍</span>區間統計查詢</div>
+      <div class="ni" id="nav-gsrepair" style="display:none" onclick="showPage('gsrepair',this)"><span class="nic">🔧</span>維修材料費比較</div>
       <div class="nav-s">管理</div>
       <div class="ni" id="nav-approval" onclick="showPage('approval',this)"><span class="nic">✅</span>核簽管理 <span id="pendingBadge" style="display:none;background:#e11d48;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;margin-left:4px">0</span></div>
       <div class="ni" id="nav-monthreport" onclick="showPage('monthreport',this)"><span class="nic">📝</span>一鍵月報</div>
@@ -643,6 +646,45 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div class="tbr"><div class="mnav"><button onclick="changeMonth(-1)">‹</button><span id="mLbl3"></span><button onclick="changeMonth(1)">›</button></div></div>
       </div>
       <div class="card" style="overflow-x:auto"><table class="tbl" id="repTbl"></table></div>
+    </div>
+
+    <!-- 高速：維修材料費比較 -->
+    <div id="page-gsrepair" class="page">
+      <div class="topbar">
+        <div><div class="pt">維修材料費比較</div><div class="ps">小客車／大重機 逐月與年度比較（民國110/06 起）</div></div>
+      </div>
+
+      <div class="kg mb16" id="gsrKpi"></div>
+
+      <div class="card mb16">
+        <div class="chd">
+          <div class="ct">📅 逐月比較</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <select id="gsrYear" onchange="renderGsRepair()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--txt1);font-size:13px"></select>
+            <label style="font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="gsrSplit" onchange="renderGsRepair()"> 顯示維修／材料拆分
+            </label>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><table class="tbl" id="gsrMonthTbl"></table></div>
+        <div id="gsrSplitNote" style="font-size:11px;color:var(--txt3);margin-top:8px"></div>
+      </div>
+
+      <div class="card mb16">
+        <div class="chd"><div class="ct">📈 逐月走勢</div>
+          <div class="vts">
+            <button class="vt active" onclick="setGsrRange(24,this)">近 24 月</button>
+            <button class="vt" onclick="setGsrRange(0,this)">全部</button>
+          </div>
+        </div>
+        <div style="height:280px;position:relative"><canvas id="gsrChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><div class="ct">🗓 年度總覽</div><div class="cbadge" id="gsrYearCnt"></div></div>
+        <div style="overflow-x:auto"><table class="tbl" id="gsrYearTbl"></table></div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:8px">「月均增減」＝該年度月平均與前一年月平均的比較（對月數不滿 12 個月的年度同樣成立）。⚠️ 標記＝資料月數不滿 12 個月，其「合計」欄不可與整年度直接相比。</div>
+      </div>
     </div>
 
     <!-- RANGE QUERY -->
@@ -1439,6 +1481,50 @@ const GS_EXP = ['高速-維修費','高速-材料費','高速-油費','高速-�
 // 車種明細類別：只供月報分析用，不計入 sumExp（父類 高速-維修費/材料費 已含其值）
 const GS_DETAIL_CATS = ['高速-維修費-小客車','高速-維修費-大重機','高速-材料費-小客車','高速-材料費-大重機'];
 
+// ── 高速 小客車／大重機 維修費＋材料費 歷史（來源：維修費材料費統計表-To 收支系統.xlsx）──
+// 民國 110/06～115/06。兩種資料精細度：
+//   4 個值 = [小客車維修, 小客車材料, 大重機維修, 大重機材料]（110/06～113/12，來源表「原始資料」分頁有拆分）
+//   2 個值 = [小客車合計, 大重機合計]（114/01～115/06，來源表只給各車種合計，未拆維修/材料）
+// 115/07 起由「當月報表」匯入自動產生 GS_DETAIL_CATS 記錄，優先於本表。
+// 已驗證：112/113/114 三個年度合計與來源表年度合計表完全一致。
+// 註：來源表 113~114 分頁的「113/09 小客車去年同期」誤植為 203,896（把大重機材料費 37,585 併入），
+//     此處採用「原始資料」分頁的 166,311（與年度合計 1,335,934 相符）。
+const GS_REPAIR_HIST = {
+  '2021-06':[20310,56670,36000,0], '2021-07':[47255,30330,45560,0], '2021-08':[73830,2993,48780,3000], '2021-09':[36815,82270,45030,2689],
+  '2021-10':[48800,87135,13310,27140], '2021-11':[48490,71155,97300,31460], '2021-12':[30350,68575,41000,30090], '2022-01':[70625,114225,36100,350],
+  '2022-02':[42045,16675,37000,13567], '2022-03':[61100,15800,35720,8750], '2022-04':[7850,55669,21700,10118], '2022-05':[60945,41138,69216,5083],
+  '2022-06':[58130,75545,116000,45324], '2022-07':[47305,34892,31200,38230], '2022-08':[84600,93039,26350,15348], '2022-09':[78940,69200,40000,0],
+  '2022-10':[80975,73900,66525,3050], '2022-11':[43945,50828,64200,8000], '2022-12':[132920,115860,41000,33340], '2023-01':[45510,56360,51000,0],
+  '2023-02':[20812,21488,65000,2415], '2023-03':[59525,62145,6195,4830], '2023-04':[92585,34980,44300,52665], '2023-05':[101650,83295,66350,2008],
+  '2023-06':[103556,39116,22464,32610], '2023-07':[60130,63475,52300,15628], '2023-08':[14000,85118,61000,2500], '2023-09':[83420,101273,26000,2520],
+  '2023-10':[86515,100850,29400,0], '2023-11':[77455,58663,61900,8100], '2023-12':[34170,24400,49800,6810], '2024-01':[42730,50845,79000,100],
+  '2024-02':[32355,50032,50950,0], '2024-03':[40025,42500,120200,31990], '2024-04':[85603,33000,61000,2400], '2024-05':[20880,91285,51500,6080],
+  '2024-06':[48738,25038,17700,0], '2024-07':[57105,52205,26900,6150], '2024-08':[70905,59425,56080,3000], '2024-09':[85395,80916,82000,37585],
+  '2024-10':[79235,122376,34387,6086], '2024-11':[25440,23276,97500,4951], '2024-12':[82875,33750,24800,6188], '2025-01':[46730,35131],
+  '2025-02':[74465,131000], '2025-03':[52478,31800], '2025-04':[72374,39450], '2025-05':[96526,25450],
+  '2025-06':[129925,60200], '2025-07':[154825,15350], '2025-08':[143730,80400], '2025-09':[96320,53412],
+  '2025-10':[125125,112275], '2025-11':[118288,20100], '2025-12':[52120,61700], '2026-01':[78385,52450],
+  '2026-02':[55759,63000], '2026-03':[56585,77810], '2026-04':[50890,78600], '2026-05':[162129,122400],
+  '2026-06':[125402,35050]
+};
+
+// 取某月的小客車／大重機維修材料費。優先用 records 的明細分類（當月報表匯入），沒有才回退歷史表。
+// 回傳 {xk, dj, xkR, xkM, djR, djM, hasSplit, src}；查無資料回 null。
+function gsRepairOf(ym){
+  const recs = approvedOnly(getRecs('gaoshu')).filter(r=>r.date.startsWith(ym)&&r.type==='expense');
+  const pick = c => recs.filter(r=>r.category===c).reduce((s,r)=>s+r.amount,0);
+  const xkR=pick('高速-維修費-小客車'), xkM=pick('高速-材料費-小客車');
+  const djR=pick('高速-維修費-大重機'), djM=pick('高速-材料費-大重機');
+  if(xkR+xkM+djR+djM > 0){
+    return {xk:xkR+xkM, dj:djR+djM, xkR, xkM, djR, djM, hasSplit:true, src:'記錄'};
+  }
+  const h = GS_REPAIR_HIST[ym];
+  if(!h) return null;
+  if(h.length===4) return {xk:h[0]+h[1], dj:h[2]+h[3], xkR:h[0], xkM:h[1], djR:h[2], djM:h[3], hasSplit:true, src:'歷史表'};
+  return {xk:h[0], dj:h[1], xkR:null, xkM:null, djR:null, djM:null, hasSplit:false, src:'歷史表'};
+}
+function _gsYm(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+
 // Shared categories for 小日常 & 翔悅
 const SHARED_INC = ['租金收入','電費收入','其他收入'];
 const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','車貸','退押金','修繕費用','維護保養','設備投資','稅費','行政管理費','A206事件費用','其他費用'];
@@ -2156,6 +2242,12 @@ function switchCo(co){
 }
 
 function applyCoTheme(){
+  const _gsr=document.getElementById('nav-gsrepair');
+  if(_gsr) _gsr.style.display = activeCo==='gaoshu' ? '' : 'none';
+  // 切到別家公司時若正停在這頁，退回儀表板
+  if(activeCo!=='gaoshu' && document.getElementById('page-gsrepair')?.classList.contains('active')){
+    showPage('dashboard', document.querySelector('.ni'));
+  }
   const c=COMPANIES[activeCo];
   document.getElementById('sbIcon').className='sb-icon '+c.cls;
   document.getElementById('sbIcon').textContent=c.icon;
@@ -2198,6 +2290,7 @@ function showPage(name,el){
   if(name==='users') renderUsers();
   if(name==='gmsettings') loadGMSettings();
   if(name==='rangequery'){ initRqDefaults(); runRangeQuery(); }
+  if(name==='gsrepair'){ initGsrYearSel(); renderGsRepair(); }
   if(name==='approval') renderApproval();
   if(name==='monthreport') renderMonthReport();
   if(name==='catmgmt') renderCatMgmt();
@@ -4980,17 +5073,6 @@ function _mrRepairTotal(recs){
     r.type==='expense' && (r.category==='高速-維修費'||r.category==='高速-材料費')
   ).reduce((s,r)=>s+r.amount,0);
 }
-function _mrRepairXiaoke(recs){
-  return approvedOnly(recs).filter(r=>
-    r.type==='expense' && (r.category==='高速-維修費-小客車'||r.category==='高速-材料費-小客車')
-  ).reduce((s,r)=>s+r.amount,0);
-}
-function _mrRepairDajunji(recs){
-  return approvedOnly(recs).filter(r=>
-    r.type==='expense' && (r.category==='高速-維修費-大重機'||r.category==='高速-材料費-大重機')
-  ).reduce((s,r)=>s+r.amount,0);
-}
-
 function _mrFmt(n){ return n.toLocaleString('zh-TW'); }
 function _mrPct(n,d){ if(!d) return '—'; const p=((n-d)/Math.abs(d)*100); return (p>=0?'+':'')+p.toFixed(1)+'%'; }
 function _mrDiff(n,d){ const v=n-d; return (v>=0?'+':'')+_mrFmt(v); }
@@ -5068,8 +5150,10 @@ function _mrRenderDataCards(co){
     const rp  = _mrRepairTotal(rCur);
     const rpP = _mrRepairTotal(rPrev);
     const rpY = _mrRepairTotal(rYoY);
-    const xk  = _mrRepairXiaoke(rCur),  xkP = _mrRepairXiaoke(rPrev),  xkY = _mrRepairXiaoke(rYoY);
-    const dj  = _mrRepairDajunji(rCur), djP = _mrRepairDajunji(rPrev), djY = _mrRepairDajunji(rYoY);
+    const _z={xk:0,dj:0};
+    const gC=gsRepairOf(_gsYm(cur))||_z, gP=gsRepairOf(_gsYm(prevD))||_z, gY=gsRepairOf(_gsYm(yoyD))||_z;
+    const xk=gC.xk, xkP=gP.xk, xkY=gY.xk;
+    const dj=gC.dj, djP=gP.dj, djY=gY.dj;
     const hasDetail = xk > 0 || dj > 0;
     const mkRow = (label, cur, prev, yoy) => {
       const momColor = prev > 0 ? (cur<=prev?'var(--green)':'var(--red)') : 'var(--txt3)';
@@ -5095,11 +5179,154 @@ function _mrRenderDataCards(co){
       </div>
       ${hasDetail ? mkRow('🚗 小客車維修＋材料費', xk, xkP, xkY) : ''}
       ${hasDetail ? mkRow('🏍 大重機維修＋材料費', dj, djP, djY) : ''}
-      ${!hasDetail ? '<div style="font-size:11px;color:var(--txt3);margin-top:8px">（匯入當月報表後可顯示車種明細）</div>' : ''}
+      ${!hasDetail ? '<div style="font-size:11px;color:var(--txt3);margin-top:8px">（本月尚無車種明細資料）</div>' : ''}
     </div>`;
   } else {
     repairCard.style.display='none';
   }
+}
+
+// ═══════════════════════════════════════════
+// 高速：維修材料費比較（GS REPAIR）
+// ═══════════════════════════════════════════
+let gsrChart=null, gsrRange=24;
+
+// 從歷史表最早月份掃到今天，records 有明細就用 records，否則用歷史表
+function gsRepairSeries(){
+  const keys=Object.keys(GS_REPAIR_HIST).sort();
+  if(!keys.length) return [];
+  const today=_gsYm(new Date());
+  const end = today > keys[keys.length-1] ? today : keys[keys.length-1];
+  let [y,m]=keys[0].split('-').map(Number);
+  const out=[];
+  for(let guard=0; guard<1200; guard++){
+    const ym=`${y}-${String(m).padStart(2,'0')}`;
+    const g=gsRepairOf(ym);
+    if(g) out.push(Object.assign({ym},g));
+    if(ym>=end) break;
+    m++; if(m>12){ m=1; y++; }
+  }
+  return out;
+}
+const _gsRoc = ym => { const [y,m]=ym.split('-'); return `${+y-1911}/${m}`; };
+const _gsN   = n => Number(n||0).toLocaleString('zh-TW');
+function _gsCmp(cur, base){
+  if(!base) return '<span style="color:var(--txt3)">—</span>';
+  const d=cur-base, pct=(d/Math.abs(base)*100);
+  const col = d<=0 ? 'var(--green)' : 'var(--red)';
+  return `<span style="color:${col}">${d>=0?'+':''}${_gsN(d)}<br><span style="font-size:10px">${d>=0?'+':''}${pct.toFixed(1)}%</span></span>`;
+}
+
+function initGsrYearSel(){
+  const sel=document.getElementById('gsrYear');
+  if(!sel) return;
+  const series=gsRepairSeries();
+  const years=[...new Set(series.map(r=>+r.ym.split('-')[0]-1911))].sort((a,b)=>b-a);
+  const keep=sel.value;
+  sel.innerHTML=years.map(y=>`<option value="${y}">${y} 年（民國）</option>`).join('');
+  if(keep && years.includes(+keep)) sel.value=keep;
+}
+
+function setGsrRange(n, el){
+  gsrRange=n;
+  document.querySelectorAll('#page-gsrepair .vt').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderGsRepair();
+}
+
+function renderGsRepair(){
+  if(activeCo!=='gaoshu') return;
+  const series=gsRepairSeries();
+  const byYm={}; series.forEach(r=>byYm[r.ym]=r);
+  const prevOf = ym => { let [y,m]=ym.split('-').map(Number); m--; if(m<1){m=12;y--;} return byYm[`${y}-${String(m).padStart(2,'0')}`]; };
+  const yoyOf  = ym => { const [y,m]=ym.split('-'); return byYm[`${+y-1}-${m}`]; };
+
+  // ── KPI：最新一個月 ──
+  const last=series[series.length-1];
+  const kpi=document.getElementById('gsrKpi');
+  if(last){
+    const lp=prevOf(last.ym), ly=yoyOf(last.ym);
+    const cell=(title,cur,p,y)=>`<div class="kc">
+      <div class="kl">${title}</div>
+      <div class="kv">${_gsN(cur)}</div>
+      <div style="font-size:11px;margin-top:4px;display:flex;gap:10px;flex-wrap:wrap">
+        <span>環比 ${p?_gsCmp(cur,p):'<span style="color:var(--txt3)">—</span>'}</span>
+        <span>同比 ${y?_gsCmp(cur,y):'<span style="color:var(--txt3)">—</span>'}</span>
+      </div></div>`;
+    kpi.innerHTML =
+      cell(`🚗 小客車（${_gsRoc(last.ym)}）`, last.xk, lp&&lp.xk, ly&&ly.xk) +
+      cell(`🏍 大重機（${_gsRoc(last.ym)}）`, last.dj, lp&&lp.dj, ly&&ly.dj) +
+      cell(`🔧 兩車種合計（${_gsRoc(last.ym)}）`, last.xk+last.dj, lp&&(lp.xk+lp.dj), ly&&(ly.xk+ly.dj));
+  }
+
+  // ── 逐月比較表 ──
+  const yr=+document.getElementById('gsrYear').value;
+  const showSplit=document.getElementById('gsrSplit').checked;
+  const rows=series.filter(r=>+r.ym.split('-')[0]-1911===yr);
+  const th = showSplit
+    ? `<tr><th>月份</th><th class="r">小客車</th><th class="r">維修</th><th class="r">材料</th><th class="r">環比</th><th class="r">同比</th><th class="r">大重機</th><th class="r">維修</th><th class="r">材料</th><th class="r">環比</th><th class="r">同比</th><th class="r">合計</th><th>來源</th></tr>`
+    : `<tr><th>月份</th><th class="r">小客車</th><th class="r">環比</th><th class="r">同比</th><th class="r">大重機</th><th class="r">環比</th><th class="r">同比</th><th class="r">合計</th><th>來源</th></tr>`;
+  const dash='<span style="color:var(--txt3)">—</span>';
+  const body=rows.map(r=>{
+    const pv=prevOf(r.ym), yv=yoyOf(r.ym);
+    const sp = v => r.hasSplit ? _gsN(v) : dash;
+    const mid = showSplit
+      ? `<td class="r">${_gsN(r.xk)}</td><td class="r" style="color:var(--txt3)">${sp(r.xkR)}</td><td class="r" style="color:var(--txt3)">${sp(r.xkM)}</td><td class="r">${pv?_gsCmp(r.xk,pv.xk):dash}</td><td class="r">${yv?_gsCmp(r.xk,yv.xk):dash}</td>`
+        + `<td class="r">${_gsN(r.dj)}</td><td class="r" style="color:var(--txt3)">${sp(r.djR)}</td><td class="r" style="color:var(--txt3)">${sp(r.djM)}</td><td class="r">${pv?_gsCmp(r.dj,pv.dj):dash}</td><td class="r">${yv?_gsCmp(r.dj,yv.dj):dash}</td>`
+      : `<td class="r">${_gsN(r.xk)}</td><td class="r">${pv?_gsCmp(r.xk,pv.xk):dash}</td><td class="r">${yv?_gsCmp(r.xk,yv.xk):dash}</td>`
+        + `<td class="r">${_gsN(r.dj)}</td><td class="r">${pv?_gsCmp(r.dj,pv.dj):dash}</td><td class="r">${yv?_gsCmp(r.dj,yv.dj):dash}</td>`;
+    return `<tr><td><b>${_gsRoc(r.ym)}</b></td>${mid}<td class="r"><b>${_gsN(r.xk+r.dj)}</b></td><td><span style="font-size:10px;color:var(--txt3)">${r.src}</span></td></tr>`;
+  }).join('');
+  const tx=rows.reduce((a,r)=>a+r.xk,0), td=rows.reduce((a,r)=>a+r.dj,0);
+  const foot=`<tr style="background:var(--sur2);font-weight:700"><td>${yr}年合計</td>`
+    + (showSplit?`<td class="r">${_gsN(tx)}</td><td></td><td></td><td></td><td></td><td class="r">${_gsN(td)}</td><td></td><td></td><td></td><td></td>`
+                :`<td class="r">${_gsN(tx)}</td><td></td><td></td><td class="r">${_gsN(td)}</td><td></td><td></td>`)
+    + `<td class="r">${_gsN(tx+td)}</td><td></td></tr>`;
+  document.getElementById('gsrMonthTbl').innerHTML=`<thead>${th}</thead><tbody>${body}${foot}</tbody>`;
+  const noSplit=rows.filter(r=>!r.hasSplit).length;
+  document.getElementById('gsrSplitNote').textContent =
+    noSplit ? `註：本年度有 ${noSplit} 個月的來源資料只提供各車種合計，未拆分維修／材料，該欄以 — 表示。` : '';
+
+  // ── 走勢圖 ──
+  const plot = gsrRange>0 ? series.slice(-gsrRange) : series;
+  if(gsrChart) gsrChart.destroy();
+  gsrChart=new Chart(document.getElementById('gsrChart').getContext('2d'),{
+    type:'line',
+    data:{labels:plot.map(r=>_gsRoc(r.ym)),datasets:[
+      {label:'小客車',data:plot.map(r=>r.xk),borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.35,fill:true,pointRadius:2},
+      {label:'大重機',data:plot.map(r=>r.dj),borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,.08)',tension:.35,fill:true,pointRadius:2}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#4a5480'}},tooltip:{callbacks:{label:c=>`${c.dataset.label}：${_gsN(c.parsed.y)}元`}}},
+      scales:{x:{ticks:{color:'#9aa3be',font:{size:10},maxRotation:60}},y:{ticks:{color:'#9aa3be',callback:v=>'$'+v.toLocaleString()}}}}
+  });
+
+  // ── 年度總覽 ──
+  const yrMap={};
+  series.forEach(r=>{
+    const y=+r.ym.split('-')[0]-1911;
+    (yrMap[y]=yrMap[y]||{xk:0,dj:0,n:0});
+    yrMap[y].xk+=r.xk; yrMap[y].dj+=r.dj; yrMap[y].n++;
+  });
+  const ys=Object.keys(yrMap).map(Number).sort((a,b)=>a-b);
+  // 年增減一律用「月平均」比較：110 年只有 7 個月、當年度尚未過完，
+  // 直接拿年度合計對比前一年會得出假跌幅（例如 115 年 6 個月 vs 114 年 12 個月＝-47.6%）。
+  // 月平均對任何月數都成立；兩邊都滿 12 個月時，百分比與年度合計比較完全相同。
+  const yBody=ys.map(y=>{
+    const c=yrMap[y], pRec=yrMap[y-1];
+    const tot=c.xk+c.dj;
+    const avg=(v,n)=>Math.round(v/n);
+    const cmpAvg=(cv,pv)=>pRec?_gsCmp(avg(cv,c.n),avg(pv,pRec.n)):dash;
+    const mark=c.n<12?' <span title="資料月數不滿 12 個月，合計欄不可與整年直接相比">⚠️</span>':'';
+    return `<tr><td><b>${y} 年</b>${mark}</td><td class="r">${c.n}</td>`
+      +`<td class="r">${_gsN(c.xk)}</td><td class="r">${cmpAvg(c.xk,pRec&&pRec.xk)}</td>`
+      +`<td class="r">${_gsN(c.dj)}</td><td class="r">${cmpAvg(c.dj,pRec&&pRec.dj)}</td>`
+      +`<td class="r"><b>${_gsN(tot)}</b></td><td class="r">${cmpAvg(tot,pRec&&(pRec.xk+pRec.dj))}</td>`
+      +`<td class="r">${_gsN(avg(tot,c.n))}</td></tr>`;
+  }).join('');
+  document.getElementById('gsrYearTbl').innerHTML =
+    `<thead><tr><th>年度</th><th class="r">月數</th><th class="r">小客車</th><th class="r">月均增減</th><th class="r">大重機</th><th class="r">月均增減</th><th class="r">合計</th><th class="r">月均增減</th><th class="r">月平均</th></tr></thead><tbody>${yBody}</tbody>`;
+  document.getElementById('gsrYearCnt').textContent=`${ys.length} 個年度・共 ${series.length} 個月`;
 }
 
 function _mrRenderAlerts(co){
@@ -5250,8 +5477,10 @@ function generateMonthReportText(){
 
   // ── SECTION 2: 高速維修材料費 ──
   if(co === 'gaoshu'){
-    const xk  = _mrRepairXiaoke(rCur),  xkP = _mrRepairXiaoke(rPrev),  xkY = _mrRepairXiaoke(rYoY);
-    const dj  = _mrRepairDajunji(rCur), djP = _mrRepairDajunji(rPrev), djY = _mrRepairDajunji(rYoY);
+    const _z={xk:0,dj:0};
+    const gC=gsRepairOf(_gsYm(cur))||_z, gP=gsRepairOf(_gsYm(prevD))||_z, gY=gsRepairOf(_gsYm(yoyD))||_z;
+    const xk=gC.xk, xkP=gP.xk, xkY=gY.xk;
+    const dj=gC.dj, djP=gP.dj, djY=gY.dj;
     const yoyMon = rocMon(yoyD);
     const hasDetail = xk > 0 || dj > 0;
 
@@ -5425,6 +5654,12 @@ async function generateMonthReportAI(){
   const rp  = co==='gaoshu'?_mrRepairTotal(rCur):0;
   const rpP = co==='gaoshu'?_mrRepairTotal(rPrev):0;
   const rpY = co==='gaoshu'?_mrRepairTotal(rYoY):0;
+  // 車種明細（records 沒有就回退 GS_REPAIR_HIST），供 AI 撰寫小客車／大重機的環比與同比
+  const _zg={xk:0,dj:0};
+  const gvC = co==='gaoshu'?(gsRepairOf(_gsYm(cur))||_zg):_zg;
+  const gvP = co==='gaoshu'?(gsRepairOf(_gsYm(prevD))||_zg):_zg;
+  const gvY = co==='gaoshu'?(gsRepairOf(_gsYm(yoyD))||_zg):_zg;
+  const gvLine = g => `小客車：${N(g.xk)}元 / 大重機：${N(g.dj)}元`;
 
   const trend12=[];
   for(let i=11;i>=0;i--){
@@ -5442,13 +5677,13 @@ async function generateMonthReportAI(){
 年累計結餘：${N(ytd)}元
 ${cb>0?'材料B（獨立）：'+N(cb)+'元':''}
 主要支出：${topExp}
-${co==='gaoshu'?'維修+材料費：'+N(rp)+'元':''}
+${co==='gaoshu'?'維修+材料費：'+N(rp)+'元'+'（'+gvLine(gvC)+'）':''}
 
 【上月 ${rocLbl(prevD)}】收入：${N(pInc)} 支出：${N(pExp+pBon)} 結餘：${N(pNet)}
-${co==='gaoshu'?'上月維修+材料費：'+N(rpP)+'元':''}
+${co==='gaoshu'?'上月維修+材料費：'+N(rpP)+'元'+'（'+gvLine(gvP)+'）':''}
 
 【去年同期 ${rocLbl(yoyD)}】收入：${N(yInc)} 支出：${N(yExp+yBon)} 結餘：${N(yNet)}
-${co==='gaoshu'?'去年同期維修+材料費：'+N(rpY)+'元':''}
+${co==='gaoshu'?'去年同期維修+材料費：'+N(rpY)+'元'+'（'+gvLine(gvY)+'）':''}
 
 【近12個月趨勢】
 ${trend12.join('\n')}`;
@@ -5463,6 +5698,7 @@ ${trend12.join('\n')}`;
 第5行：累計結餘：X,XXX,XXX元
 第6行：空行
 [高速專屬] (1)維修費與材料費總額，與上個月相比，增加/減少：XX元(+/−XX%)。與去年XX月同期相比，增加/減少：XX元(+/−XX%)。
+[高速專屬] (2)小客車維修＋材料費的環比與同比；(3)大重機維修＋材料費的環比與同比（數據見資料區的括號，基期為 0 才寫「無歷史資料」）
 [高速專屬] 空行
 [非高速] (1)(2)(3) 列出前3大支出項目的環比與同比變化
 分析段落：2-3句話說明原因或趨勢，語氣親切
