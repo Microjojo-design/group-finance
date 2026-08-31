@@ -6249,12 +6249,30 @@ const GSMTH_EXPENSE_MAP = {
   '高速-雜支':                  [22,25,32],   // 橡膠壓管, 普機雜支, 手牌貨車雜支
 };
 
-// 收入行對應（col1 = 金額）
-const GSMTH_INCOME_ROWS = {
-  '高速-學費收入':   [3,4,5,6,7,8],    // 小客車,大重機,普機,職業小客車,公路班,鐘點
-  '高速-考試費收入': [12,13,14,15],     // 小客車,大重機,普機,職業小客車
-  '高速-其他收入':   [19,20,21,22,23,24,25,26,27,28,29,30,31], // 全部 3.其他 的項目（col1）
-};
+// 收入區塊（col0 = 區塊標題 / 項目名稱，col1 = 金額）
+// 各區塊的明細列數逐月不同（115年7月「3.其他」長到第 34 列），寫死列號會靜默漏帳，
+// 故改為動態偵測：找到區塊標題後往下加總 col1，遇「合計」列停止並取其值對帳。
+const GSMTH_INCOME_SECTIONS = [
+  { cat:'高速-學費收入',   head:/^\s*1\./ },   // 1.學費收入
+  { cat:'高速-考試費收入', head:/^\s*2\./ },   // 2.考試費
+  { cat:'高速-其他收入',   head:/^\s*3\./ },   // 3.其他
+];
+
+// 掃描一個收入區塊 → {sum: 明細加總, rep: 報表「合計」值(無則 null), rows: 實際採計的列}
+function gsMthIncSection(raw, headRe){
+  let head=-1;
+  for(let r=0;r<raw.length;r++){ if(headRe.test(String(raw[r]?.[0]||''))){ head=r; break; } }
+  if(head<0) return null;
+  let sum=0, rep=null; const rows=[];
+  for(let r=head+1;r<raw.length;r++){
+    const c0=String(raw[r]?.[0]||'');
+    if(/^\s*合\s*計/.test(c0)){ const t=parseFloat(raw[r]?.[1]); rep=isNaN(t)?null:t; break; }
+    if(/^\s*\d+\s*\./.test(c0)) break;   // 沒有合計列時，撞到下一個區塊標題就停
+    const v=parseFloat(raw[r]?.[1]);
+    if(!isNaN(v)&&v>0){ sum+=v; rows.push(r); }
+  }
+  return {sum,rep,rows};
+}
 
 let gsMthStaging = null;
 
@@ -6304,13 +6322,6 @@ function parseImportGSMth(file){
         return(!isNaN(v)&&v>0)?v:0;
       };
 
-      // ── Helper：取某行 col1 的值（收入）──
-      const incVal=(rowIdx)=>{
-        const row=raw[rowIdx]||[];
-        const v=parseFloat(row[1]);
-        return (!isNaN(v)&&v>0)?v:0;
-      };
-
       // ── 解析支出 ──
       const parsed=[];
       for(const [cat,rowIdxs] of Object.entries(GSMTH_EXPENSE_MAP)){
@@ -6329,16 +6340,16 @@ function parseImportGSMth(file){
         if(amt>0) parsed.push({type:'expense',category:d.cat,ym,amount:Math.round(amt)});
       });
 
-      // ── 解析收入 ──
-      // 學費、考試費：從各車種行的 col1 加總
-      const xue=GSMTH_INCOME_ROWS['高速-學費收入'].reduce((s,r)=>s+incVal(r),0);
-      const kao=GSMTH_INCOME_ROWS['高速-考試費收入'].reduce((s,r)=>s+incVal(r),0);
-      // 其他收入：col1 有值的行（19-31），但排除支出行名稱出現在 col0 的重複
-      // 其他收入只讀 col1（收入側）
-      const oth=GSMTH_INCOME_ROWS['高速-其他收入'].reduce((s,r)=>s+incVal(r),0);
-      if(xue>0) parsed.push({type:'income',category:'高速-學費收入',ym,amount:Math.round(xue)});
-      if(kao>0) parsed.push({type:'income',category:'高速-考試費收入',ym,amount:Math.round(kao)});
-      if(oth>0) parsed.push({type:'income',category:'高速-其他收入',ym,amount:Math.round(oth)});
+      // ── 解析收入（動態區塊）──
+      const incSecs=[];
+      GSMTH_INCOME_SECTIONS.forEach(sec=>{
+        const r=gsMthIncSection(raw,sec.head);
+        if(!r) return;
+        incSecs.push({cat:sec.cat,...r});
+        if(r.sum>0) parsed.push({type:'income',category:sec.cat,ym,amount:Math.round(r.sum)});
+      });
+      // 逐區塊與報表「合計」對帳，不符即擋下匯入（避免靜默漏帳）
+      const incMis=incSecs.filter(x=>x.rep!=null&&Math.abs(x.sum-x.rep)>=1);
 
       if(!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
 
@@ -6349,9 +6360,18 @@ function parseImportGSMth(file){
       const totExpAll=totExp+totMat;
       const net=totInc-totExp;
 
-      // 驗證總收入、總支出（與報表底部合計對比）
-      const repInc=parseFloat(raw[38]?.[1])||0;
-      const repExp=parseFloat(raw[36]?.[3])||0;
+      // 驗證總收入、總支出（與報表底部「總計」列對比；動態尋找，找不到才退回舊列號）
+      const findTot=(col,valCol,fallbackRow)=>{
+        for(let r=0;r<raw.length;r++){
+          if(/^\s*總\s*計/.test(String(raw[r]?.[col]||''))){
+            const v=parseFloat(raw[r]?.[valCol]);
+            if(!isNaN(v)&&v>0) return v;
+          }
+        }
+        return parseFloat(raw[fallbackRow]?.[valCol])||0;
+      };
+      const repInc=findTot(0,1,38);
+      const repExp=findTot(2,3,36);
       const incOk=repInc>0?Math.abs(totInc-repInc)<2:true;
       const expOk=repExp>0?Math.abs(totExpAll-repExp)<2:true;
 
@@ -6376,9 +6396,22 @@ function parseImportGSMth(file){
       html+=`</div>`;
       if(totMat>0) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border-radius:8px;font-size:13px;color:#c2410c">🔧 材料B：${fmt(totMat)}（獨立列計，不計入損益）</div>`;
       if(!expOk) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">⚠ 支出合計與報表差異 ${fmt(Math.abs(totExpAll-repExp))}，請確認是否有未對應項目</div>`;
+      if(incMis.length){
+        html+=`<div style="margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b">`;
+        html+=`<b>❌ 收入區塊與報表合計不符，已擋下匯入</b><br>`;
+        incMis.forEach(x=>{ html+=`${x.cat}：解析 ${fmt(Math.round(x.sum))} ／ 報表合計 ${fmt(Math.round(x.rep))}（差 ${fmt(Math.round(Math.abs(x.sum-x.rep)))}）<br>`; });
+        html+=`請確認 Excel 該區塊是否有合併儲存格或非數字內容。</div>`;
+      }
       html+=`</div>`;
 
       preview.innerHTML=html;
+      if(incMis.length){
+        actions.style.display='none'; gsMthStaging=null;
+        badge.textContent='對帳不符，未匯入';
+        badge.style.cssText='background:#fef2f2;color:#b91c1c;border:1px solid #fecaca';
+        drop.style.borderColor='#dc2626'; drop.style.background='#fef2f2';
+        return;
+      }
       gsMthStaging={parsed,ym};
       actions.style.display='block';
       badge.textContent=`已解析 ${mLabel}`;
