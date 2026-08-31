@@ -1538,6 +1538,21 @@ setInterval(async()=>{
   }catch(e){console.warn('Token refresh failed',e);}
 },45*60*1000);
 
+// AI 呼叫一律走 Supabase Edge Function（finance-ai）。
+// 瀏覽器不能直接打 api.anthropic.com：CORS 封鎖非允許來源（回 400 Disallowed CORS origin
+// → fetch 丟 Failed to fetch），且 API key 絕不可放進 public repo 的 index.html。
+// key 存在 Edge Function secrets，這裡只帶使用者的 JWT 供伺服器驗證登入。
+async function aiFetch(system, user, maxTokens){
+  const res = await fetch(`${SB_URL}/functions/v1/finance-ai`,{
+    method:'POST',
+    headers:{'apikey':SB_KEY,'Authorization':'Bearer '+(_authToken||SB_KEY),'Content-Type':'application/json'},
+    body:JSON.stringify({system, user, max_tokens:maxTokens})
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok || !data.ok) throw new Error(data.error || `AI 服務回應異常（HTTP ${res.status}）`);
+  return data.text;
+}
+
 async function sbFetch(path, method='GET', body=null, prefer=null){
   const ctrl = new AbortController();
   const timeout =
@@ -2630,9 +2645,7 @@ async function runAI(){
   const co=COMPANIES[activeCo].name;
   const bonusNote=hasBonus(activeCo)?'（包租費獨立列計，不計入支出）':'';
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`以下是「${co}」近期收支損益數據${bonusNote}：\n\n${summary.join('\n')}\n\n支出前5大類別：${top}\n\n請以繁體中文，條列5個重點分析損益趨勢。每點以「• 」開頭，正向加 ✦，警示加 ⚠，重要數字加【數字】。`}]})});
-    const data=await resp.json();
-    const text=data.content?.[0]?.text||'分析失敗';
+    const text=await aiFetch('',`以下是「${co}」近期收支損益數據${bonusNote}：\n\n${summary.join('\n')}\n\n支出前5大類別：${top}\n\n請以繁體中文，條列5個重點分析損益趨勢。每點以「• 」開頭，正向加 ✦，警示加 ⚠，重要數字加【數字】。`,1500);
     cont.innerHTML=text.split('\n').filter(Boolean).map(l=>`<p>${l.replace(/✦/g,'<span class="hi">✦</span>').replace(/⚠/g,'<span class="wa">⚠</span>').replace(/【([^】]+)】/g,'<span class="inf">【$1】</span>')}</p>`).join('');
   }catch(e){cont.innerHTML='<span style="color:var(--exp)">分析失敗，請確認連線後再試</span>';}
   ['aiBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});
@@ -5462,18 +5475,7 @@ ${trend12.join('\n')}`;
 ★ 全文250-350字`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        system: systemPrompt,
-        messages:[{role:'user',content:`請為【${coName}】撰寫月報。\n\n${dataBlock}`}]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.map(b=>b.type==='text'?b.text:'').join('') || '生成失敗，請稍後再試。';
+    const text = await aiFetch(systemPrompt, `請為【${coName}】撰寫月報。\n\n${dataBlock}`, 1500);
 
     const outputEl = document.getElementById('mrOutput');
     outputEl.textContent = text;
@@ -5816,18 +5818,7 @@ ${trend12.join('\n')}`;
 ★ 全文350-450字`;
 
   try{
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1200,
-        system: systemPrompt,
-        messages:[{role:'user',content:`請為【小日常＋翔悅建設】撰寫合併月報。\n\n${dataBlock}`}]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.map(b=>b.type==='text'?b.text:'').join('') || '生成失敗，請稍後再試。';
+    const text = await aiFetch(systemPrompt, `請為【小日常＋翔悅建設】撰寫合併月報。\n\n${dataBlock}`, 2000);
     const outputEl = document.getElementById('mrOutput');
     outputEl.textContent = text;
     const dot = document.getElementById('mrOutputDot');
