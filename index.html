@@ -3599,6 +3599,44 @@ function parseImportRagic(file){
   reader.readAsArrayBuffer(file);
 }
 
+// ═══════════════════════════════════════════
+// 匯入防呆：偵測目標月份是否已有其他來源的記錄
+// ═══════════════════════════════════════════
+// 背景（2026-08-31 事故）：Ragic 明細被匯入小日常 114 年，但該區間已有 2026-04-15
+// 匯入的彙總報表資料。Ragic 匯入只刪自己的記錄、不動別的來源，兩套同一筆錢並存
+// → 全年收入虛增 730 萬、支出虛增 490 萬，且畫面數字要重整後才會爆開。
+// 同一次操作對翔悅是「補資料」、對小日常是「重複灌水」——差別只在該公司該月份原本有沒有資料，
+// 所以必須在寫入前逐公司逐月檢查。
+const BATCH_IMPORT_BY = ['匯入','系統','Ragic匯入'];   // 整月覆蓋型的批次來源
+// 其餘（Mark／RichDaily／Debbie／Hermes／Vegiwell…）是人工逐筆輸入，與匯入共存屬正常，不觸發警告
+
+// 回傳 [{ym, src, n, amt}]：目標月份中「來源不是 selfBy」的既有記錄
+// onlyBatch=true  → 只看批次來源（Ragic 匯入用：它不會刪別人，重點是防重複計算）
+// onlyBatch=false → 全部來源都看（彙總報表匯入用：它整月清除，重點是防誤刪）
+function _impMonthConflicts(co, yms, selfBy, onlyBatch){
+  const recs = getRecs(co) || [];
+  const out = [];
+  yms.forEach(ym=>{
+    const m = {};
+    recs.filter(r => r.date.startsWith(ym) && (r.by||'') !== selfBy).forEach(r=>{
+      const src = r.by || '(未標示)';
+      if(onlyBatch && !BATCH_IMPORT_BY.includes(src)) return;
+      m[src] = m[src] || {n:0, amt:0};
+      m[src].n++; m[src].amt += r.amount;
+    });
+    Object.entries(m).forEach(([src,v]) => out.push({ym, src, n:v.n, amt:v.amt}));
+  });
+  return out;
+}
+
+function _impConflictMsg(head, conflicts, tail){
+  const lines = conflicts.map(c=>{
+    const [y,m] = c.ym.split('-');
+    return `　・${+y-1911}年${+m}月　${c.src}　${c.n} 筆　${c.amt.toLocaleString('zh-TW')} 元`;
+  });
+  return `${head}\n\n${lines.join('\n')}\n\n${tail}`;
+}
+
 async function confirmImportRagic(){
   const staging=impStaging.ragic;
   if(!staging){toast('無資料可匯入',false);return;}
@@ -3606,6 +3644,21 @@ async function confirmImportRagic(){
   if(!ym){toast('無法判斷月份',false);return;}
   const [yr,mo]=ym.split('-').map(Number);
   const nxt=mo===12?`${yr+1}-01`:`${yr}-${String(mo+1).padStart(2,'0')}`;
+  // 防呆：Ragic 匯入只覆蓋自己先前的記錄，若該月已有其他批次來源會變成兩套並存
+  const _coNm={xiaori:'小日常', xiangyue:'翔悅建設'};
+  const _conf=[];
+  [['xiaori',xrRecs],['xiangyue',xyRecs]].forEach(([c,rs])=>{
+    if(!rs.length) return;
+    _impMonthConflicts(c,[ym],'Ragic匯入',true).forEach(x=>_conf.push({...x, src:`${_coNm[c]}／${x.src}`}));
+  });
+  if(_conf.length){
+    if(!confirm(_impConflictMsg(
+      '⚠️ 目標月份已經有其他批次匯入的資料：',
+      _conf,
+      'Ragic 匯入只會覆蓋自己先前的記錄，不會刪除上列資料，\n' +
+      '若兩者是同一批帳，匯入後會變成同一筆錢計算兩次。\n\n' +
+      '請先確認，或先刪除上列記錄再匯入。仍要繼續嗎？'))) return;
+  }
   const btn=document.querySelector('[onclick="confirmImportRagic()"]');
   if(btn){btn.disabled=true;btn.textContent='匯入中…';}
   try{
@@ -4248,6 +4301,14 @@ async function confirmImport(co){
   const data=impStaging[co]; if(!data||!data.length){toast('無資料可匯入',false);return;}
   const pfx=co==='xiaori'?'xr':'xy';
   const affected=[...new Set(data.map(d=>d.ym))];
+  // 防呆：這個匯入是「整月清除後重寫」，該月所有既有記錄（含人工逐筆輸入）都會被刪除
+  const _conf=_impMonthConflicts(co, affected, '匯入', false);
+  if(_conf.length){
+    if(!confirm(_impConflictMsg(
+      '⚠️ 彙總報表匯入會「整月清除後重寫」，下列既有記錄將被一併刪除：',
+      _conf,
+      '此操作無法復原。確定要刪除上列記錄並以彙總報表覆蓋嗎？'))) return;
+  }
   const btn=document.querySelector(`[onclick="confirmImport('${co}')"]`);
   if(btn){btn.disabled=true;btn.textContent='匯入中…';}
   try{
