@@ -601,7 +601,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="kg" id="dashKg">
         <div class="kc ki"><div class="kl" id="kIlbl">本月收入</div><div class="kv" id="kI">$0</div><div class="kch" id="kIc">—</div></div>
         <div class="kc ke"><div class="kl" id="kElbl">本月支出</div><div class="kv" id="kE">$0</div><div class="kch" id="kEc">—</div></div>
-        <div class="kc" style="border-top:3px solid var(--gold);display:none" id="kBonusCard"><div class="kl">本月包租費</div><div class="kv" id="kBonus" style="color:var(--gold)">$0</div><div class="kch" style="color:var(--gold)">獨立列計</div></div>
+        <div class="kc" style="border-top:3px solid var(--gold);display:none" id="kBonusCard"><div class="kl">本月獨立列計</div><div class="kv" id="kBonus" style="color:var(--gold)">$0</div><div class="kch" style="color:var(--gold)">獨立列計</div></div>
         <div class="kc kn"><div class="kl">本期結餘</div><div class="kv" id="kN">$0</div><div class="kch" id="kNn">—</div></div>
         <div class="kc kp"><div class="kl">損益率</div><div class="kv" id="kP">0%</div><div class="kch" id="kPn">—</div></div>
       </div>
@@ -722,7 +722,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
             <div style="height:250px;position:relative"><canvas id="rqChart"></canvas></div>
           </div>
           <div class="card">
-            <div class="chd"><div class="ct">🗂 區間支出分類</div><div class="cbadge" id="rqDonutNote">不含包租費</div></div>
+            <div class="chd"><div class="ct">🗂 區間支出分類</div><div class="cbadge" id="rqDonutNote">不含獨立列計</div></div>
             <div style="height:250px;position:relative"><canvas id="rqDonut"></canvas></div>
           </div>
         </div>
@@ -743,7 +743,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <!-- 包租費獨立表（小日常/翔悅 且 排除模式 才顯示） -->
         <div id="rqBonusCard" class="card" style="display:none;margin-top:16px">
           <div class="chd">
-            <div class="ct" style="color:#b45309">🔑 包租費明細（獨立列計）</div>
+            <div class="ct" style="color:#b45309">🔑 獨立列計明細</div>
             <div class="cbadge" id="rqBonusTotal" style="background:#fffbeb;color:#b45309;border-color:#fde68a">$0</div>
           </div>
           <div style="overflow-x:auto"><table class="tbl" id="rqBonusTbl"></table></div>
@@ -1527,7 +1527,7 @@ function _gsYm(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(
 
 // Shared categories for 小日常 & 翔悅
 const SHARED_INC = ['租金收入','電費收入','其他收入'];
-const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','車貸','退押金','修繕費用','維護保養','設備投資','稅費','行政管理費','A206事件費用','其他費用'];
+const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕費用','維護保養','設備投資','稅費','行政管理費','A206事件費用','其他費用'];
 
 // 蒔心田 categories
 const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-酷朋','蒔-其他電商','蒔-團購','蒔-退貨、折讓'];
@@ -1546,7 +1546,7 @@ const PERSONAL_EXP = ['私-餐飲','私-日用品','私-交通','私-醫療','�
 
 const CAT_ICONS = {
   '租金收入':'🏠','電費收入':'⚡','其他收入':'💰',
-  '薪資':'💼','勞健保':'🏥','電費':'💡','水費':'💧','電信費':'📱','包租費':'🔑',
+  '薪資':'💼','勞健保':'🏥','電費':'💡','水費':'💧','電信費':'📱','包租費':'🔑','分紅':'💰',
   '車貸':'🚗','退押金':'📦','修繕費用':'🔧','維護保養':'⚙️','設備投資':'🖥',
   '稅費':'📑','行政管理費':'🗂','A206事件費用':'⚠️','其他費用':'📌',
 };
@@ -2007,10 +2007,16 @@ let editUID=null;
 // 包租費永遠不計入支出、獨立列計
 const COLORS=['#1a56db','#0d9488','#e11d48','#d97706','#7c3aed','#0891b2','#16a34a','#db2777','#65a30d','#9333ea','#ea580c','#ca8a04'];
 
-// Companies that have 包租費
-const BONUS_CAT = '包租費';
-const BONUS_COS = ['xiaori','xiangyue'];
-const hasBonus = co => BONUS_COS.includes(co);
+// 獨立列計的支出類別：不計入支出與損益，單獨顯示。
+// 同一套機制，各公司叫法不同——小日常＝包租費、翔悅建設＝分紅。
+// 兩者互不交叉（DB 實查：包租費只在 xiaori、分紅只在 xiangyue），故可依公司對應。
+const BONUS_CAT_BY_CO = { xiaori:'包租費', xiangyue:'分紅' };
+const BONUS_CATS = Object.values(BONUS_CAT_BY_CO);
+const BONUS_COS  = Object.keys(BONUS_CAT_BY_CO);
+const hasBonus   = co => !!BONUS_CAT_BY_CO[co];
+const isBonusCat = c  => BONUS_CATS.includes(c);
+// 顯示用名稱（未指定公司時取目前檢視的公司）
+const bonusLbl   = co => BONUS_CAT_BY_CO[co||activeCo] || '包租費';
 
 // 高速駕訓班「材料B」獨立列計，不計入支出（同包租費邏輯）
 const CAILIAOB_CAT = '高速-材料B';
@@ -2023,9 +2029,9 @@ function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'
 
 // Sum expense excluding or including bonus
 function sumExp(arr, mode){
-  return approvedOnly(arr).filter(r=>r.type==='expense' && (mode==='include' || r.category!==BONUS_CAT) && r.category!==CAILIAOB_CAT && !GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
+  return approvedOnly(arr).filter(r=>r.type==='expense' && (mode==='include' || !isBonusCat(r.category)) && r.category!==CAILIAOB_CAT && !GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
 }
-function sumBonus(arr){ return arr.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0); }
+function sumBonus(arr){ return arr.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0); }
 function sumCailiaob(arr){ return arr.filter(r=>r.type==='expense'&&r.category===CAILIAOB_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0); }
 // Only approved records count toward financials
 const approvedOnly = arr => arr.filter(r=>(r.status||'approved')==='approved');
@@ -2362,7 +2368,7 @@ function render(){
       bonusCard.style.borderTop = '';
     }
     const kBonusLbl = bonusCard.querySelector('.kl');
-    if(kBonusLbl) kBonusLbl.textContent = showCailiaob ? '本月材料B' : showSXInv ? '本月投資' : '本月包租費';
+    if(kBonusLbl) kBonusLbl.textContent = showCailiaob ? '本月材料B' : showSXInv ? '本月投資' : '本月'+bonusLbl();
     const kBonusVal = bonusCard.querySelector('.kv');
     if(kBonusVal) kBonusVal.style.color = showSXInv ? '#7c3aed' : 'var(--gold)';
     const kBonusCh = bonusCard.querySelector('.kch');
@@ -2377,7 +2383,7 @@ function render(){
   if(kIlbl) kIlbl.textContent = showSXInv ? '本月收入（不含投資）' : '本月收入';
   document.getElementById('kI').textContent=fmt(inc);
   document.getElementById('kE').textContent=fmt(exp);
-  document.getElementById('kElbl').textContent = showBonus?'本月支出（不含包租費）': showCailiaob?'本月支出（不含材料B）':'本月支出';
+  document.getElementById('kElbl').textContent = showBonus?`本月支出（不含${bonusLbl()}）`: showCailiaob?'本月支出（不含材料B）':'本月支出';
   if(document.getElementById('kBonus')) document.getElementById('kBonus').textContent=showCailiaob?fmt(cailiaobAmt):showSXInv?fmt(sxInvAmt):fmt(bonus);
 
   document.getElementById('kN').textContent=fmt(net);
@@ -2462,13 +2468,13 @@ function renderTrend(){
     sxinvs.push(sumShixinInv(r));
   }
   if(tChart) tChart.destroy();
-  const specialLabel=showB?'包租費':showCBT?'材料B':showSXInvT?'投資':'';
+  const specialLabel=showB?bonusLbl():showCBT?'材料B':showSXInvT?'投資':'';
   const specialData=showCBT?clbs:showSXInvT?sxinvs:bonuses;
   const specialColor=showSXInvT?'rgba(124,58,237,.65)':'rgba(180,83,9,.65)';
   const specialColorLine=showSXInvT?'#7c3aed':'#b45309';
   const showSpec=showB||showCBT||showSXInvT;
   const incLabel=showSXInvT?'收入（不含投資）':'收入';
-  const expLabel=showB?'支出（不含包租費）':showCBT?'支出（不含材料B）':'支出';
+  const expLabel=showB?`支出（不含${bonusLbl()}）`:showCBT?'支出（不含材料B）':'支出';
   const datasets = ttType==='bar' ? [
     {label:incLabel,data:ins,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
     {label:expLabel,data:exs,backgroundColor:'rgba(225,29,72,.72)',borderRadius:4},
@@ -2491,7 +2497,7 @@ function renderTrend(){
 function setTT(t,btn){ttType=t;document.querySelectorAll('.vt').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderTrend();}
 
 function renderDonut(cur){
-  const map={};cur.filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&r.category!==CAILIAOB_CAT).forEach(r=>{map[r.category]=(map[r.category]||0)+r.amount;});
+  const map={};cur.filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&r.category!==CAILIAOB_CAT).forEach(r=>{map[r.category]=(map[r.category]||0)+r.amount;});
   const lbs=Object.keys(map),data=Object.values(map);
   if(dChart) dChart.destroy();
   if(!lbs.length) return;
@@ -2631,20 +2637,20 @@ function renderReport(){
   const iCats=showSXInvRow?allICats.filter(c=>c!==SHIXIN_INV_CAT):allICats;
   // Expense cats: separate regular vs bonus
   const allECats=getCats(activeCo,'expense');
-  const regECats=allECats.filter(c=>c!==BONUS_CAT);
+  const regECats=allECats.filter(c=>!isBonusCat(c));
   const showBonusRow=hasBonus(activeCo);
   const showCailiaobRow=hasCailiaob(activeCo);
 
   const gV=(d,t,c)=>{const k=mk(d);return all.filter(r=>r.type===t&&r.category===c&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const gSInc=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.date.startsWith(k)&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
-  const gSExp=(d,excBonus)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.date.startsWith(k)&&(!excBonus||r.category!==BONUS_CAT)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
-  const gSBonus=(d)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSExp=(d,excBonus)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.date.startsWith(k)&&(!excBonus||!isBonusCat(r.category))&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSBonus=(d)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const gSSXInv=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const totCat=(t,c)=>all.filter(r=>r.type===t&&r.category===c&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totInc=all.filter(r=>r.type==='income'&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totSXInv=all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
-  const totExpReg=all.filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
-  const totBonus=all.filter(r=>r.type==='expense'&&r.category===BONUS_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totExpReg=all.filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totBonus=all.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
 
   const fc=n=>n===0?'-':Math.round(n).toLocaleString('zh-TW');
   const fpl=(i,e)=>!i?'-':Math.round((i-e)/i*100)+'%';
@@ -2658,14 +2664,14 @@ function renderReport(){
   h+=`<tr class="sub"><td></td><td>收入小計${showSXInvRow?' （不含投資）':''}</td><td class="r">${fc(totInc)}</td>${months.map(d=>`<td class="r">${fc(gSInc(d))}</td>`).join('')}</tr>`;
 
   // ── 支出（不含包租費）──
-  h+=`<tr class="shd"><td colspan="${3+months.length}">支出${showBonusRow?' （不含包租費）':''}</td></tr>`;
+  h+=`<tr class="shd"><td colspan="${3+months.length}">支出${showBonusRow?` （不含${bonusLbl()}）`:''}</td></tr>`;
   regECats.forEach(c=>{h+=`<tr><td></td><td><span class="cp cpe">${c}</span></td><td class="r">${fc(totCat('expense',c))}</td>${months.map(d=>`<td class="r">${fc(gV(d,'expense',c))}</td>`).join('')}</tr>`;});
-  h+=`<tr class="sub"><td></td><td>支出小計${showBonusRow?' （不含包租費）':''}</td><td class="r">${fc(totExpReg)}</td>${months.map(d=>`<td class="r">${fc(gSExp(d,true))}</td>`).join('')}</tr>`;
+  h+=`<tr class="sub"><td></td><td>支出小計${showBonusRow?` （不含${bonusLbl()}）`:''}</td><td class="r">${fc(totExpReg)}</td>${months.map(d=>`<td class="r">${fc(gSExp(d,true))}</td>`).join('')}</tr>`;
 
   // ── 包租費 / 材料B 獨立區塊 ──
   if(showBonusRow){
-    h+=`<tr class="shd" style="background:#fffbeb"><td colspan="${3+months.length}" style="color:#92400e">包租費 — 獨立列計，不計入支出與損益</td></tr>`;
-    h+=`<tr style="background:#fffbeb"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${BONUS_CAT}</span></td>`;
+    h+=`<tr class="shd" style="background:#fffbeb"><td colspan="${3+months.length}" style="color:#92400e">${bonusLbl()} — 獨立列計，不計入支出與損益</td></tr>`;
+    h+=`<tr style="background:#fffbeb"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${bonusLbl()}</span></td>`;
     h+=`<td class="r" style="color:#b45309;font-weight:600">${fc(totBonus)}</td>`;
     h+=months.map(d=>`<td class="r" style="color:#b45309;font-weight:600">${fc(gSBonus(d))}</td>`).join('');
     h+=`</tr>`;
@@ -2698,7 +2704,7 @@ function renderReport(){
   h+=`</tr>`;
 
   // 損益率：收入（不含投資）vs 支出（不含包租費）
-  const plrLbl = showSXInvRow ? '損益率（不含投資）' : `損益率${showBonusRow?' （不含包租費）':''}`;
+  const plrLbl = showSXInvRow ? '損益率（不含投資）' : `損益率${showBonusRow?` （不含${bonusLbl()}）`:''}`;
   h+=`<tr class="plr"><td></td><td>${plrLbl}</td><td class="r">${fpl(totInc,totExpReg)}</td>`;
   h+=months.map(d=>`<td class="r">${fpl(gSInc(d),gSExp(d,true))}</td>`).join('');
   h+=`</tr>`;
@@ -2713,9 +2719,9 @@ function renderAICharts(){
   const lbs=[],ins=[],exs=[];
   for(let i=11;i>=0;i--){const d=new Date(curDate);d.setMonth(d.getMonth()-i);const k=mk(d);const r=getRecs(activeCo).filter(rec=>rec.date.startsWith(k));lbs.push(rocLbl(d));ins.push(sumT(r,'income'));exs.push(sumExp(r,'exclude'));}
   if(aiTC) aiTC.destroy();
-  aiTC=new Chart(document.getElementById('aiTC').getContext('2d'),{type:'line',data:{labels:lbs,datasets:[{label:'收入',data:ins,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3},{label:hasBonus(activeCo)?'支出 (不含包租費)':'支出',data:exs,borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.08)',tension:.4,fill:true,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#4a5480'}}},scales:{x:{ticks:{color:'#9aa3be',font:{size:10}}},y:{ticks:{color:'#9aa3be',callback:v=>'$'+v.toLocaleString()}}}}});
+  aiTC=new Chart(document.getElementById('aiTC').getContext('2d'),{type:'line',data:{labels:lbs,datasets:[{label:'收入',data:ins,borderColor:'#0d9488',backgroundColor:'rgba(13,148,136,.08)',tension:.4,fill:true,pointRadius:3},{label:hasBonus(activeCo)?`支出 (不含${bonusLbl()})`:'支出',data:exs,borderColor:'#e11d48',backgroundColor:'rgba(225,29,72,.08)',tension:.4,fill:true,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#4a5480'}}},scales:{x:{ticks:{color:'#9aa3be',font:{size:10}}},y:{ticks:{color:'#9aa3be',callback:v=>'$'+v.toLocaleString()}}}}});
   const all=getRecs(activeCo);const cm={};
-  all.filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&r.category!==CAILIAOB_CAT).forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
+  all.filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&r.category!==CAILIAOB_CAT).forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
   const cl=Object.keys(cm).sort((a,b)=>cm[b]-cm[a]),cd=cl.map(l=>cm[l]);
   if(aiPC) aiPC.destroy();
   if(cl.length) aiPC=new Chart(document.getElementById('aiPC').getContext('2d'),{type:'pie',data:{labels:cl,datasets:[{data:cd,backgroundColor:COLORS.slice(0,cl.length),borderWidth:0,hoverOffset:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#4a5480',font:{size:11},padding:9}}}}});
@@ -2733,14 +2739,14 @@ async function runAI(){
     if(inc>0||exp>0){
       const net=inc-exp;
       const pl=inc>0?Math.round(net/inc*100):0;
-      const bonusNote=hasBonus(activeCo)&&bonus>0?`，包租費（獨立）${bonus}元`:'';
+      const bonusNote=hasBonus(activeCo)&&bonus>0?`，${bonusLbl()}（獨立）${bonus}元`:'';
       summary.push(`${rocLbl(d)}: 收入${inc}元, 支出${exp}元${bonusNote}, 結餘${net}元, 損益率${pl}%`);
     }
   }
-  const cm={};getRecs(activeCo).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&r.category!==CAILIAOB_CAT).forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
+  const cm={};getRecs(activeCo).filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&r.category!==CAILIAOB_CAT).forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
   const top=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}:${v}元`).join('、');
   const co=COMPANIES[activeCo].name;
-  const bonusNote=hasBonus(activeCo)?'（包租費獨立列計，不計入支出）':'';
+  const bonusNote=hasBonus(activeCo)?`（${bonusLbl()}獨立列計，不計入支出）`:'';
   try{
     const text=await aiFetch('',`以下是「${co}」近期收支損益數據${bonusNote}：\n\n${summary.join('\n')}\n\n支出前5大類別：${top}\n\n請以繁體中文，條列5個重點分析損益趨勢。每點以「• 」開頭，正向加 ✦，警示加 ⚠，重要數字加【數字】。`,1500);
     cont.innerHTML=text.split('\n').filter(Boolean).map(l=>`<p>${l.replace(/✦/g,'<span class="hi">✦</span>').replace(/⚠/g,'<span class="wa">⚠</span>').replace(/【([^】]+)】/g,'<span class="inf">【$1】</span>')}</p>`).join('');
@@ -3437,8 +3443,9 @@ function ragicMapCat(type, mainCat, subCat, coKey){
   // 支出
   // 電費
   if(subCat==='電費') return '電費';
-  // 包租費（小日常才有）
+  // 獨立列計類別：小日常＝包租費、翔悅＝分紅（原樣保留，由 isBonusCat 判定）
   if(subCat==='包租費') return '包租費';
+  if(subCat==='分紅')   return '分紅';
   // 設備投資
   if(mainCat==='設備') return '設備投資';
   // 稅費
@@ -3830,7 +3837,7 @@ function exportAISummary(co){
     return row.map((val,ci)=>{
       if(ci===0) return val; // 主類別 label
       // Find if this row is 包租費
-      if(row[1]==='包租費') return ci===0||ci===1?val:null;
+      if(isBonusCat(row[1])) return ci===0||ci===1?val:null;
       return val;
     });
   });
@@ -3838,16 +3845,16 @@ function exportAISummary(co){
   const expSubRow2=rows2.findIndex(r=>r[1]==='支出小計');
   if(expSubRow2>=0){
     rows2[expSubRow2]=[null,'支出小計',
-      expCats.filter(c=>c!==BONUS_CAT).reduce((s,c)=>s+allTotal('expense',c),0)||null,
-      ...months.map(ym=>expCats.filter(c=>c!==BONUS_CAT).reduce((s,c)=>s+getSum(ym,'expense',c),0)||null)
+      expCats.filter(c=>!isBonusCat(c)).reduce((s,c)=>s+allTotal('expense',c),0)||null,
+      ...months.map(ym=>expCats.filter(c=>!isBonusCat(c)).reduce((s,c)=>s+getSum(ym,'expense',c),0)||null)
     ];
     const retRow2=rows2.findIndex(r=>r[1]==='本期結餘');
     if(retRow2>=0){
       rows2[retRow2]=[null,'本期結餘',
-        (incSubTotal - expCats.filter(c=>c!==BONUS_CAT).reduce((s,c)=>s+allTotal('expense',c),0))||null,
+        (incSubTotal - expCats.filter(c=>!isBonusCat(c)).reduce((s,c)=>s+allTotal('expense',c),0))||null,
         ...months.map(ym=>{
           const i=getTotalByType(ym,'income');
-          const e=expCats.filter(c=>c!==BONUS_CAT).reduce((s,c)=>s+getSum(ym,'expense',c),0);
+          const e=expCats.filter(c=>!isBonusCat(c)).reduce((s,c)=>s+getSum(ym,'expense',c),0);
           return (i-e)||null;
         })
       ];
@@ -4276,7 +4283,7 @@ function parseImportFile(file, co) {
       const byMonth={};
       parsed.forEach(p=>{
         if(!byMonth[p.ym]) byMonth[p.ym]={income:0,expense:0,bonus:0};
-        if(p.type==='expense'&&p.category===BONUS_CAT) byMonth[p.ym].bonus+=p.amount;
+        if(p.type==='expense'&&isBonusCat(p.category)) byMonth[p.ym].bonus+=p.amount;
         else byMonth[p.ym][p.type]+=p.amount;
       });
       const months=Object.keys(byMonth).sort();
@@ -4427,7 +4434,7 @@ function runRangeQuery(){
 
   // ── 包租費/材料B/投資 total badge ──
   const _rqBTA = document.getElementById('rqBonusTotalAmt');
-  if(_rqBTA) _rqBTA.textContent=showB?`區間包租費：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間蒔投資：${fmt(totalSXInvAmt)}`:'';
+  if(_rqBTA) _rqBTA.textContent=showB?`區間${bonusLbl()}：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間蒔投資：${fmt(totalSXInvAmt)}`:'';
 
   // ── KPI grid ──
   const rocM=ym=>{const[y,m]=ym.split('-');return`${parseInt(y)-1911}年${parseInt(m)}月`;};
@@ -4437,7 +4444,7 @@ function runRangeQuery(){
   const kpiStyle = `grid-template-columns:repeat(${kpiCols},1fr)`;
   const bonusKpi = (showB&&excB) ? `
     <div class="kc" style="border-top:3px solid var(--gold)">
-      <div class="kl">包租費（獨立）</div>
+      <div class="kl">${bonusLbl()}（獨立）</div>
       <div class="kv" style="font-size:18px;color:var(--gold)">${fmt(totalBonusAmt)}</div>
       <div class="kch" style="color:var(--gold)">不計入損益</div>
     </div>` : showCailiaobRQ&&totalCailiaobAmt>0 ? `
@@ -4453,11 +4460,11 @@ function runRangeQuery(){
     </div>` : '';
 
   const incLblRQ=showSXInvRQ?'區間收入（不含投資）':'區間總收入';
-  const plLblRQ=showSXInvRQ?'損益率（不含投資）':showB&&excB?'損益率（不含包租費）':'損益率';
+  const plLblRQ=showSXInvRQ?'損益率（不含投資）':showB&&excB?`損益率（不含${bonusLbl()}）`:'損益率';
   document.getElementById('rqKpi').style.cssText=kpiStyle;
   document.getElementById('rqKpi').innerHTML=`
     <div class="kc ki"><div class="kl">${incLblRQ}</div><div class="kv" style="font-size:18px">${fmt(totalInc)}</div><div class="kch">共 ${months.length} 個月</div></div>
-    <div class="kc ke"><div class="kl">區間支出${showB&&excB?' （不含包租費）':''}</div><div class="kv" style="font-size:18px">${fmt(totalExpReg)}</div><div class="kch">月均 ${fmt(Math.round(totalExpReg/months.length))}</div></div>
+    <div class="kc ke"><div class="kl">區間支出${showB&&excB?` （不含${bonusLbl()}）`:''}</div><div class="kv" style="font-size:18px">${fmt(totalExpReg)}</div><div class="kch">月均 ${fmt(Math.round(totalExpReg/months.length))}</div></div>
     ${bonusKpi}
     <div class="kc kn"><div class="kl">區間淨結餘</div><div class="kv" style="font-size:18px;color:${totalNet>=0?'var(--inc)':'var(--exp)'}">${fmt(totalNet)}</div><div class="kch ${totalNet>=0?'up':'dn'}">${totalNet>=0?'▲ 正結餘':'▼ 負結餘'}</div></div>
     <div class="kc kp"><div class="kl">${plLblRQ}</div><div class="kv" style="font-size:18px">${pl}%</div><div class="kch ${pl>=30?'up':pl>=0?'':'dn'}">${pl>=30?'✦ 良好':pl>=0?'持平':'▼ 負值'}</div></div>`;
@@ -4468,8 +4475,8 @@ function runRangeQuery(){
   const incHdr=showSXInvRQ?'收入（不含投資）':'收入';
   let mh=`<thead><tr>
     <th>月份</th><th class="r">${incHdr}</th>
-    <th class="r">支出${hasB?' （不含包租費）':''}</th>
-    ${hasB?`<th class="r" style="color:#b45309">包租費</th>`:''}
+    <th class="r">支出${hasB?` （不含${bonusLbl()}）`:''}</th>
+    ${hasB?`<th class="r" style="color:#b45309">${bonusLbl()}</th>`:''}
     ${showSXInvRQ?`<th class="r" style="color:#7c3aed">投資</th>`:''}
     <th class="r">結餘</th><th class="r">損益率</th>
   </tr></thead><tbody>`;
@@ -4509,10 +4516,10 @@ function runRangeQuery(){
   document.getElementById('rqMonthTbl').innerHTML=mh;
 
   // ── 支出類別表（不含包租費） ──
-  document.getElementById('rqExpTblTitle').textContent='支出類別加總'+(hasB?' （不含包租費）':'');
+  document.getElementById('rqExpTblTitle').textContent='支出類別加總'+(hasB?` （不含${bonusLbl()}）`:'');
   const buildCatTbl=(recs, type, tblId, totalId, excBonus, excCat)=>{
     const cm={};
-    recs.filter(r=>r.type===type&&(!excBonus||r.category!==BONUS_CAT)&&(!excCat||r.category!==excCat))
+    recs.filter(r=>r.type===type&&(!excBonus||!isBonusCat(r.category))&&(!excCat||r.category!==excCat))
         .forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
     const sorted=Object.entries(cm).sort((a,b)=>b[1]-a[1]);
     const total=sorted.reduce((s,[,v])=>s+v,0);
@@ -4549,8 +4556,8 @@ function runRangeQuery(){
     const cardBg=isSXInv?'#f5f3ff':isClb?'#fff7ed':'#fffbeb';
     document.getElementById('rqBonusTotal').textContent=fmt(showAmt);
     const cardTitle=bonusCard.querySelector('.ct');
-    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':isSXInv?'💼 蒔投資明細（獨立列計）':'🔑 包租費明細（獨立列計）';
-    let bh=`<thead><tr><th>月份</th><th class="r">${isSXInv?'投資':'包租費'}</th></tr></thead><tbody>`;
+    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':isSXInv?'💼 蒔投資明細（獨立列計）':`🔑 ${bonusLbl()}明細（獨立列計）`;
+    let bh=`<thead><tr><th>月份</th><th class="r">${isSXInv?'投資':bonusLbl()}</th></tr></thead><tbody>`;
     months.forEach((ym,i)=>{
       const cardAmt=isClb?mCailiaob[i]:isSXInv?mSXInvs[i]:mBonus[i];
       if(cardAmt>0){
@@ -4565,7 +4572,7 @@ function runRangeQuery(){
   }
 
   // ── 圓餅圖 badge ──
-  document.getElementById('rqDonutNote').textContent=showB&&excB?'不含包租費':'全部支出';
+  document.getElementById('rqDonutNote').textContent=showB&&excB?`不含${bonusLbl()}`:'全部支出';
 
   // ── Charts ──
   renderRqChart(mLbls, mIncs, mExps, mBonus, showB&&excB, mCailiaob, showCailiaobRQ&&totalCailiaobAmt>0, mSXInvs, showSXInvRQ&&totalSXInvAmt>0);
@@ -4579,11 +4586,11 @@ function renderRqChart(labels, incs, exps, bonuses, showBonus, cailiaobs, showCa
   if(rqBarChart) rqBarChart.destroy();
   const showSpec=showBonus||showCailiaob||showSXInv;
   const specData=showCailiaob?cailiaobs:showSXInv?(sxinvs||[]):bonuses;
-  const specLabel=showCailiaob?'材料B':showSXInv?'投資':'包租費';
+  const specLabel=showCailiaob?'材料B':showSXInv?'投資':bonusLbl();
   const specColor=showSXInv?'rgba(124,58,237,.65)':'rgba(180,83,9,.65)';
   const specColorLine=showSXInv?'#7c3aed':'#b45309';
   const incLbl=showSXInv?'收入（不含投資）':'收入';
-  const expLbl='支出'+(showBonus?' （不含包租費）':showCailiaob?' （不含材料B）':'');
+  const expLbl='支出'+(showBonus?` （不含${bonusLbl()}）`:showCailiaob?' （不含材料B）':'');
   const datasets = rqChartType==='bar' ? [
     {label:incLbl,data:incs,backgroundColor:'rgba(13,148,136,.72)',borderRadius:4},
     {label:expLbl,data:exps,backgroundColor:'rgba(225,29,72,.72)',borderRadius:4},
@@ -4604,7 +4611,7 @@ function renderRqChart(labels, incs, exps, bonuses, showBonus, cailiaobs, showCa
 }
 function renderRqDonut(recs, excBonus){
   const cm={};
-  recs.filter(r=>r.type==='expense'&&(!excBonus||r.category!==BONUS_CAT)&&r.category!==CAILIAOB_CAT)
+  recs.filter(r=>r.type==='expense'&&(!excBonus||!isBonusCat(r.category))&&r.category!==CAILIAOB_CAT)
       .forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
   const labels=Object.keys(cm).sort((a,b)=>cm[b]-cm[a]),data=labels.map(l=>cm[l]);
   if(rqDonutChart) rqDonutChart.destroy();
@@ -5177,7 +5184,7 @@ function _mrRenderDataCards(co){
     { label:'損益率',   val:null, prev:null, yoy:null, icon:'📈', custom: plRate+'%' },
   ];
 
-  if(bon>0||pBon>0) cards.push({ label:'包租費/分紅', val:bon, prev:pBon, yoy:yBon, icon:'🔑', good:n=>n<=0, invertColor:true });
+  if(bon>0||pBon>0) cards.push({ label:bonusLbl(co), val:bon, prev:pBon, yoy:yBon, icon:'🔑', good:n=>n<=0, invertColor:true });
   if(cb>0) cards.push({ label:'材料B', val:cb, prev:0, yoy:0, icon:'🔧', custom: _mrFmt(cb)+'元' });
   const sxInvCur = hasShixinInv(co) ? sumShixinInv(rCur) : 0;
   const sxInvPrev = hasShixinInv(co) ? sumShixinInv(rPrev) : 0;
@@ -5609,7 +5616,7 @@ function generateMonthReportText(){
   // ── SECTION 3: 其他公司重點支出 ──
   if(co !== 'gaoshu'){
     const expMap = {};
-    approvedOnly(rCur).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&r.category!==CAILIAOB_CAT)
+    approvedOnly(rCur).filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&r.category!==CAILIAOB_CAT)
       .forEach(r=>{ expMap[r.category]=(expMap[r.category]||0)+r.amount; });
     const topCats = Object.entries(expMap).sort((a,b)=>b[1]-a[1]).slice(0,3);
 
@@ -5630,7 +5637,7 @@ function generateMonthReportText(){
       const bonYoY  = yBon;
       const bd1 = diffLbl(bon, bonPrev);
       const bd2 = diffLbl(bon, bonYoY);
-      lines.push(`包租費/分紅：${N(bon)}元，與上個月相比，${bd1||'持平'}。與去年同期相比，${bd2||'持平'}。`);
+      lines.push(`${bonusLbl(co)}：${N(bon)}元，與上個月相比，${bd1||'持平'}。與去年同期相比，${bd2||'持平'}。`);
       lines.push('');
     }
   }
@@ -5712,7 +5719,7 @@ async function generateMonthReportAI(){
   }
 
   const expMap={};
-  approvedOnly(rCur).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT&&r.category!==CAILIAOB_CAT)
+  approvedOnly(rCur).filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&r.category!==CAILIAOB_CAT)
     .forEach(r=>{expMap[r.category]=(expMap[r.category]||0)+r.amount;});
   const topExp=Object.entries(expMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}:${N(v)}元`).join('、');
 
@@ -5957,7 +5964,7 @@ function _mrGenTextShared(){
 
   // 小日常前3大支出
   const xrExpMap={};
-  approvedOnly(_mrGetMonthRecs('xiaori',cur)).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT)
+  approvedOnly(_mrGetMonthRecs('xiaori',cur)).filter(r=>r.type==='expense'&&!isBonusCat(r.category))
     .forEach(r=>{xrExpMap[r.category]=(xrExpMap[r.category]||0)+r.amount;});
   const xrTop=Object.entries(xrExpMap).sort((a,b)=>b[1]-a[1]).slice(0,3);
   if(xrTop.length){
@@ -5971,7 +5978,7 @@ function _mrGenTextShared(){
   }
   if(xrCur.bon>0){
     lines.push('');
-    lines.push(`包租費/分紅：${N(xrCur.bon)}元，與上月相比，${diffLbl(xrCur.bon,xrPrev.bon)||'持平'}。`);
+    lines.push(`${bonusLbl('xiaori')}：${N(xrCur.bon)}元，與上月相比，${diffLbl(xrCur.bon,xrPrev.bon)||'持平'}。`);
   }
   const xrIncD=diffLbl(xrCur.inc,xrPrev.inc), xrExpD=diffLbl(xrCur.exp,xrPrev.exp), xrNetD=diffLbl(xrCur.net,xrPrev.net);
   lines.push('');
@@ -5987,7 +5994,7 @@ function _mrGenTextShared(){
 
   // 翔悅前3大支出
   const xyExpMap={};
-  approvedOnly(_mrGetMonthRecs('xiangyue',cur)).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT)
+  approvedOnly(_mrGetMonthRecs('xiangyue',cur)).filter(r=>r.type==='expense'&&!isBonusCat(r.category))
     .forEach(r=>{xyExpMap[r.category]=(xyExpMap[r.category]||0)+r.amount;});
   const xyTop=Object.entries(xyExpMap).sort((a,b)=>b[1]-a[1]).slice(0,3);
   if(xyTop.length){
@@ -6001,7 +6008,7 @@ function _mrGenTextShared(){
   }
   if(xyCur.bon>0){
     lines.push('');
-    lines.push(`包租費/分紅：${N(xyCur.bon)}元，與上月相比，${diffLbl(xyCur.bon,xyPrev.bon)||'持平'}。`);
+    lines.push(`${bonusLbl('xiangyue')}：${N(xyCur.bon)}元，與上月相比，${diffLbl(xyCur.bon,xyPrev.bon)||'持平'}。`);
   }
   const xyIncD=diffLbl(xyCur.inc,xyPrev.inc), xyExpD=diffLbl(xyCur.exp,xyPrev.exp), xyNetD=diffLbl(xyCur.net,xyPrev.net);
   lines.push('');
@@ -6052,7 +6059,7 @@ async function _mrGenAIShared(){
 
   const getTopExp=(co,d,n=3)=>{
     const m={};
-    approvedOnly(_mrGetMonthRecs(co,d)).filter(r=>r.type==='expense'&&r.category!==BONUS_CAT)
+    approvedOnly(_mrGetMonthRecs(co,d)).filter(r=>r.type==='expense'&&!isBonusCat(r.category))
       .forEach(r=>{m[r.category]=(m[r.category]||0)+r.amount;});
     return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([k,v])=>`${k}:${N(v)}元`).join('、');
   };
@@ -6080,7 +6087,7 @@ async function _mrGenAIShared(){
   收入：${N(xrC.inc)}元 / 支出：${N(xrC.exp+xrC.bon)}元 / 結餘：${N(xrC.net)}元
   年累計結餘：${N(ytdXr)}元
   主要支出：${getTopExp('xiaori',cur)}
-${xrC.bon>0?`  包租費/分紅：${N(xrC.bon)}元`:''}
+${xrC.bon>0?`  ${bonusLbl('xiaori')}：${N(xrC.bon)}元`:''}
   上月：收入${N(xrP.inc)} 支出${N(xrP.exp+xrP.bon)} 結餘${N(xrP.net)}
   去年同期：收入${N(xrY.inc)} 支出${N(xrY.exp+xrY.bon)} 結餘${N(xrY.net)}
 
@@ -6088,7 +6095,7 @@ ${xrC.bon>0?`  包租費/分紅：${N(xrC.bon)}元`:''}
   收入：${N(xyC.inc)}元 / 支出：${N(xyC.exp+xyC.bon)}元 / 結餘：${N(xyC.net)}元
   年累計結餘：${N(ytdXy)}元
   主要支出：${getTopExp('xiangyue',cur)}
-${xyC.bon>0?`  包租費/分紅：${N(xyC.bon)}元`:''}
+${xyC.bon>0?`  ${bonusLbl('xiangyue')}：${N(xyC.bon)}元`:''}
   上月：收入${N(xyP.inc)} 支出${N(xyP.exp+xyP.bon)} 結餘${N(xyP.net)}
   去年同期：收入${N(xyY.inc)} 支出${N(xyY.exp+xyY.bon)} 結餘${N(xyY.net)}
 
@@ -6106,7 +6113,7 @@ ${trend12.join('\n')}`;
 第6行：累計結餘：X,XXX,XXX元
 第7行：空行
 (1)(2)(3) 列出小日常前3大支出項目的環比與同比變化
-包租費段落（如有）
+包租費／分紅段落（如有，依資料區給的名稱照抄，小日常叫包租費、翔悅叫分紅）
 環比與同比總結句
 空行
 一、翔悅建設（同上格式）
@@ -7012,8 +7019,8 @@ function renderCatTrend(){
 
   // Determine type (income or expense) for colour
   const isIncome = approvedOnly(rqCatRecs).some(r=>r.category===cat&&r.type==='income');
-  const color = cat===BONUS_CAT ? '#b45309' : cat===CAILIAOB_CAT ? '#c2410c' : isIncome ? '#0d9488' : '#e11d48';
-  const colorBg = cat===BONUS_CAT ? 'rgba(180,83,9,.65)' : cat===CAILIAOB_CAT ? 'rgba(194,65,12,.65)' : isIncome ? 'rgba(13,148,136,.72)' : 'rgba(225,29,72,.72)';
+  const color = isBonusCat(cat) ? '#b45309' : cat===CAILIAOB_CAT ? '#c2410c' : isIncome ? '#0d9488' : '#e11d48';
+  const colorBg = isBonusCat(cat) ? 'rgba(180,83,9,.65)' : cat===CAILIAOB_CAT ? 'rgba(194,65,12,.65)' : isIncome ? 'rgba(13,148,136,.72)' : 'rgba(225,29,72,.72)';
 
   // Labels in ROC format
   const labels = rqCatMonths.map(ym=>{
