@@ -1997,7 +1997,10 @@ async function initHistorical(){
 // STATE
 // ═══════════════════════════════════════════
 let currentUser=null, activeCo='xiaori';
-let curDate=new Date();
+// ⚠️ curDate 必須永遠是當月 1 號。全檔多處以 new Date(curDate)+setMonth(±n) 推算月份，
+// 若帶著 29~31 日會發生月份溢位（7/31 減一個月 = 6/31 → JS 自動進位成 7/1），
+// 造成「上個月」等於本月、趨勢圖月份重複。改動此行請務必維持 day=1。
+let curDate=(()=>{const _t=new Date(); return new Date(_t.getFullYear(), _t.getMonth(), 1);})();
 let ttType='bar', moType='income';
 let tChart=null,dChart=null,aiTC=null,aiPC=null;
 let editUID=null;
@@ -2297,6 +2300,7 @@ function showPage(name,el){
 }
 
 function changeMonth(d){
+  curDate.setDate(1);                       // 先歸 1 號，setMonth 才不會溢位
   curDate.setMonth(curDate.getMonth()+d);
   updateML();render();renderReport();renderRecs();
 }
@@ -2909,7 +2913,7 @@ let _bcRows=[], _bcSubmitting=false;
 
 function openBatchCopyMo(){
   if(!currentUser||currentUser.role!=='gm') return;
-  const d=new Date(); d.setMonth(d.getMonth()-1);
+  const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);   // 歸 1 號避免月份溢位
   document.getElementById('bc-month').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   document.getElementById('bc-date').value=today();
   document.getElementById('bc-kw').value='';
@@ -5677,13 +5681,13 @@ async function generateMonthReportAI(){
 年累計結餘：${N(ytd)}元
 ${cb>0?'材料B（獨立）：'+N(cb)+'元':''}
 主要支出：${topExp}
-${co==='gaoshu'?'維修+材料費：'+N(rp)+'元'+'（'+gvLine(gvC)+'）':''}
+${co==='gaoshu'?'維修+材料費：'+(rp>0?N(rp)+'元':'無資料（該月報表未匯入）')+'（'+gvLine(gvC)+'）':''}
 
 【上月 ${rocLbl(prevD)}】收入：${N(pInc)} 支出：${N(pExp+pBon)} 結餘：${N(pNet)}
-${co==='gaoshu'?'上月維修+材料費：'+N(rpP)+'元'+'（'+gvLine(gvP)+'）':''}
+${co==='gaoshu'?'上月維修+材料費：'+(rpP>0?N(rpP)+'元':'無資料（該月報表未匯入）')+'（'+gvLine(gvP)+'）':''}
 
 【去年同期 ${rocLbl(yoyD)}】收入：${N(yInc)} 支出：${N(yExp+yBon)} 結餘：${N(yNet)}
-${co==='gaoshu'?'去年同期維修+材料費：'+N(rpY)+'元'+'（'+gvLine(gvY)+'）':''}
+${co==='gaoshu'?'去年同期維修+材料費：'+(rpY>0?N(rpY)+'元':'無資料（該月報表未匯入）')+'（'+gvLine(gvY)+'）':''}
 
 【近12個月趨勢】
 ${trend12.join('\n')}`;
@@ -5698,7 +5702,9 @@ ${trend12.join('\n')}`;
 第5行：累計結餘：X,XXX,XXX元
 第6行：空行
 [高速專屬] (1)維修費與材料費總額，與上個月相比，增加/減少：XX元(+/−XX%)。與去年XX月同期相比，增加/減少：XX元(+/−XX%)。
-[高速專屬] (2)小客車維修＋材料費的環比與同比；(3)大重機維修＋材料費的環比與同比（數據見資料區的括號，基期為 0 才寫「無歷史資料」）
+[高速專屬] (2)小客車維修＋材料費的環比與同比；(3)大重機維修＋材料費的環比與同比（數據見資料區括號內）
+★ 基期若標示「無資料」或為 0，該項直接寫「無資料可比較」，**絕對不可寫成「持平 0元(0%)」**。
+★ 總額與車種是不同來源：總額可能無資料但車種有，此時仍要照車種數字算出增減，不可跟著寫持平。
 [高速專屬] 空行
 [非高速] (1)(2)(3) 列出前3大支出項目的環比與同比變化
 分析段落：2-3句話說明原因或趨勢，語氣親切
