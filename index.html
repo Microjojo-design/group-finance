@@ -619,12 +619,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
         <div class="tbr">
           <select id="fType" onchange="renderRecs()" class="btn" style="padding:6px 11px"><option value="">全部類型</option><option value="income">收入</option><option value="expense">支出</option></select>
           <select id="fCat" onchange="renderRecs()" class="btn" style="padding:6px 11px"><option value="">全部類別</option></select>
-          <div class="mnav"><button onclick="changeMonth(-1)">‹</button><span id="mLbl2"></span><button onclick="changeMonth(1)">›</button></div>
+          <div class="mnav" id="recMnav"><button onclick="changeMonth(-1)">‹</button><span id="mLbl2"></span><button onclick="changeMonth(1)">›</button></div>
         </div>
       </div>
       <div id="recSearchRow" style="display:none;padding:0 0 14px">
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <input type="text" id="recKeyword" placeholder="🔍 搜尋關鍵字（類別、摘要、對象、備註、經辦）" oninput="renderRecs()" style="flex:1;min-width:220px;background:var(--sur);border:1px solid var(--bdr);border-radius:9px;padding:9px 13px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none;color:var(--txt)">
+          <input type="text" id="recKeyword" placeholder="🔍 搜尋關鍵字（空白分隔可多詞：類別、摘要、對象、備註、經辦、單號、公司、金額、日期）" oninput="recKwInput()" style="flex:1;min-width:260px;background:var(--sur);border:1px solid var(--bdr);border-radius:9px;padding:9px 13px;font-size:13px;font-family:'Noto Sans TC',sans-serif;outline:none;color:var(--txt)">
           <select id="fCo" onchange="renderRecs()" class="btn" style="padding:6px 11px">
             <option value="">全部公司</option>
             <option value="xiaori">小日常</option>
@@ -633,8 +633,24 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
             <option value="gaoshu">高速駕訓</option>
             <option value="personal">私人</option>
           </select>
+          <select id="fRange" onchange="renderRecs()" class="btn" style="padding:6px 11px" title="查詢期間；選「當月」時才會跟著上方月份切換">
+            <option value="month">當月</option>
+            <option value="3m">近 3 個月</option>
+            <option value="6m">近 6 個月</option>
+            <option value="year">今年</option>
+            <option value="all">全部期間</option>
+            <option value="custom">自訂區間…</option>
+          </select>
           <button class="btn bp" onclick="openBatchCopyMo()">📋 批次複製</button>
         </div>
+        <div id="recCustomRange" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px">
+          <span style="font-size:12px;color:var(--txt3)">自訂區間</span>
+          <input type="date" id="fFrom" onchange="renderRecs()" class="btn" style="padding:6px 9px">
+          <span style="font-size:12px;color:var(--txt3)">~</span>
+          <input type="date" id="fTo" onchange="renderRecs()" class="btn" style="padding:6px 9px">
+          <button class="btn" style="padding:6px 11px" onclick="document.getElementById('fFrom').value='';document.getElementById('fTo').value='';renderRecs()">清除</button>
+        </div>
+        <div id="recCapNote" style="display:none;margin-top:9px;font-size:12px;color:#9a6b00;background:#fff8e6;border:1px solid #f5d78e;border-radius:8px;padding:8px 11px"></div>
       </div>
       <div class="card"><div class="txl" id="recTxl" style="max-height:580px"><div class="empty">尚無記錄</div></div></div>
     </div>
@@ -2594,34 +2610,133 @@ function openStEditMoFromCo(id, co){
   // submitStEdit will use activeCo=co which is correct
 }
 
+// ── v3.16：所有明細查詢 ──
+// ⚠️ 舊版是「有沒有打關鍵字」在偷偷切換查詢範圍（有關鍵字＝跨公司全時間／沒關鍵字＝單公司當月），
+//    且類別下拉永遠只讀 activeCo，切公司後殘留的類別會變成看不見的過濾條件 → 有資料卻查 0 筆。
+//    現在統一成單一路徑：公司、期間、類型、類別、關鍵字都由使用者明確指定。
+const REC_COS=['xiaori','xiangyue','shixin','gaoshu','personal'];
+const REC_CONAMES={xiaori:'小日常',xiangyue:'翔悅',shixin:'蒔心田',gaoshu:'高速',personal:'私人'};
+const REC_RENDER_CAP=500;
+
+// 查詢的公司範圍；無權限的私人帳一律排除（不靠 UI 隱藏當守門）
+function recScopeCos(fCo){
+  const allowed=REC_COS.filter(co=>co!=='personal'||canPersonal());
+  return fCo?allowed.filter(co=>co===fCo):allowed;
+}
+
+// 期間 → {from,to}（含頭含尾 YYYY-MM-DD；null = 不限）
+// 一律用 new Date(y, m±n, 1) / (y, m+1, 0) 建構，避免 setMonth 的月底溢位
+function recRange(){
+  const mode=document.getElementById('fRange')?.value||'month';
+  const y=curDate.getFullYear(), m=curDate.getMonth();
+  const d2s=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const mStart=n=>d2s(new Date(y,m-n,1));
+  const mEnd=()=>d2s(new Date(y,m+1,0));
+  if(mode==='all')  return null;
+  if(mode==='3m')   return {from:mStart(2),to:mEnd()};
+  if(mode==='6m')   return {from:mStart(5),to:mEnd()};
+  if(mode==='year') return {from:`${y}-01-01`,to:`${y}-12-31`};
+  if(mode==='custom'){
+    const f=document.getElementById('fFrom')?.value||'';
+    const t=document.getElementById('fTo')?.value||'';
+    if(!f&&!t) return null;
+    return {from:f||'0000-01-01',to:t||'9999-12-31'};
+  }
+  return {from:mStart(0),to:mEnd()};
+}
+
+let _recKwT=null;
+function recKwInput(){ clearTimeout(_recKwT); _recKwT=setTimeout(renderRecs,180); }
+
 function renderRecs(){
-  if(!currentUser||( currentUser.role!=='gm'&&currentUser.role!=='viewer')) return;
+  if(!currentUser||(currentUser.role!=='gm'&&currentUser.role!=='viewer')) return;
   const isGM=currentUser.role==='gm';
   const searchRow=document.getElementById('recSearchRow');
   if(searchRow) searchRow.style.display=isGM?'block':'none';
+
   const type=document.getElementById('fType')?.value||'';
-  const catSel=document.getElementById('fCat');const cat=catSel?.value||'';
-  const keyword=(document.getElementById('recKeyword')?.value||'').trim().toLowerCase();
-  const fCo=isGM?(document.getElementById('fCo')?.value||''):'';
-  const coNames={'xiaori':'小日常','xiangyue':'翔悅','shixin':'蒔心田','gaoshu':'高速','personal':'私人'};
-  let recs;
-  if(keyword&&isGM){
-    const coList=fCo?[fCo]:['xiaori','xiangyue','shixin','gaoshu',...(canPersonal()?['personal']:[])];
-    recs=[];
-    coList.forEach(co=>{ getRecs(co).forEach(r=>{ recs.push({...r,_co:co,_coName:coNames[co]}); }); });
-  } else {
-    const targetCo=(isGM&&fCo)?fCo:activeCo;
-    recs=getRecs(targetCo).filter(r=>r.date.startsWith(mk(curDate))).map(r=>({...r,_co:targetCo}));
+  const catSel=document.getElementById('fCat');
+  let cat=catSel?.value||'';
+  const kwRaw=(document.getElementById('recKeyword')?.value||'').trim();
+  const terms=kwRaw.toLowerCase().split(/\s+/).filter(Boolean);
+  const rangeMode=isGM?(document.getElementById('fRange')?.value||'month'):'month';
+  let fCo=isGM?(document.getElementById('fCo')?.value||''):'';
+
+  // 私人帳：無權限時連選項都不給
+  const coSel=document.getElementById('fCo');
+  const pOpt=coSel?.querySelector('option[value="personal"]');
+  if(pOpt) pOpt.style.display=canPersonal()?'':'none';
+  if(fCo==='personal'&&!canPersonal()){ fCo=''; if(coSel) coSel.value=''; }
+
+  // 自訂區間欄位只在選「自訂」時出現
+  const cw=document.getElementById('recCustomRange');
+  if(cw) cw.style.display=(rangeMode==='custom')?'flex':'none';
+
+  // 上方月份切換只有「當月」模式才影響結果，其餘淡化避免誤會
+  const mnav=document.getElementById('recMnav');
+  if(mnav){
+    const follows=(rangeMode==='month'||rangeMode==='3m'||rangeMode==='6m'||rangeMode==='year');
+    mnav.style.opacity=follows?'1':'.35';
+    mnav.title=follows?'':'目前期間不跟隨月份，切換月份不影響查詢結果';
   }
-  const allC=[...new Set(getRecs(activeCo).map(r=>r.category))].sort();
-  if(catSel) catSel.innerHTML='<option value="">全部類別</option>'+allC.map(c=>`<option ${cat===c?'selected':''}>${c}</option>`).join('');
+
+  // ── 取資料（公司範圍）──
+  let recs=[];
+  if(isGM){
+    recScopeCos(fCo).forEach(co=>{ getRecs(co).forEach(r=>recs.push({...r,_co:co,_coName:REC_CONAMES[co]})); });
+  }else{
+    recs=getRecs(activeCo).map(r=>({...r,_co:activeCo,_coName:REC_CONAMES[activeCo]}));
+  }
+
+  // ── 類別下拉：跟著「公司」走（先於期間計算，避免切月份時選項忽隱忽現）──
+  //    目前選的類別若不在範圍內就直接清掉，不留成隱形過濾條件
+  const allC=[...new Set(recs.map(r=>r.category))].sort();
+  if(cat&&!allC.includes(cat)) cat='';
+  if(catSel){
+    catSel.innerHTML='<option value="">全部類別</option>'+allC.map(c=>`<option ${cat===c?'selected':''}>${esc(c)}</option>`).join('');
+    catSel.value=cat;
+  }
+
+  // ── 期間 ──
+  const rg=isGM?recRange():{from:`${mk(curDate)}-01`,to:`${mk(curDate)}-31`};
+  if(rg) recs=recs.filter(r=>r.date>=rg.from&&r.date<=rg.to);
+
+  // ── 類型／類別／關鍵字 ──
   if(type) recs=recs.filter(r=>r.type===type);
-  if(cat) recs=recs.filter(r=>r.category===cat);
-  if(keyword) recs=recs.filter(r=>[r.category,r.note,r.title,r.counterparty,r.by,r.docNo].filter(Boolean).join(' ').toLowerCase().includes(keyword));
-  recs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(cat)  recs=recs.filter(r=>r.category===cat);
+  if(terms.length) recs=recs.filter(r=>{
+    const hay=[r.category,r.note,r.title,r.counterparty,r.by,r.docNo,r._coName,r.date,
+      String(r.amount),Math.round(r.amount||0).toLocaleString('zh-TW')]
+      .filter(Boolean).join(' ').toLowerCase();
+    return terms.every(t=>hay.includes(t));   // 空白分隔＝AND
+  });
+
+  recs.sort((a,b)=> a.date<b.date?1 : a.date>b.date?-1 : (b.id||0)-(a.id||0));
+
+  // ── 摘要：筆數＋收支合計，一眼看出有沒有篩到東西 ──
+  const inc=recs.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
+  const exp=recs.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
   const subEl=document.getElementById('recSub');
-  if(subEl) subEl.textContent=keyword?`搜尋「${keyword}」— ${recs.length} 筆`:'—';
-  renderTxList(recs,'recTxl',null,true);
+  if(subEl){
+    const parts=[];
+    if(isGM){
+      parts.push(fCo?REC_CONAMES[fCo]:'全部公司');
+      parts.push(rg?(rangeMode==='month'?rocLbl(curDate):`${rg.from} ~ ${rg.to}`):'全部期間');
+    }else parts.push(rocLbl(curDate));
+    if(type) parts.push(type==='income'?'收入':'支出');
+    if(cat) parts.push(cat);
+    if(kwRaw) parts.push(`關鍵字「${kwRaw}」`);
+    subEl.textContent=`${parts.join(' · ')} — ${recs.length} 筆 · 收入 ${fmt(inc)} · 支出 ${fmt(exp)}`;
+  }
+
+  // ── 渲染（大範圍查詢設上限，避免一次塞上千個節點）──
+  const capped=recs.length>REC_RENDER_CAP;
+  renderTxList(capped?recs.slice(0,REC_RENDER_CAP):recs,'recTxl',null,true);
+  const capEl=document.getElementById('recCapNote');
+  if(capEl){
+    capEl.style.display=capped?'block':'none';
+    capEl.textContent=capped?`⚠️ 符合 ${recs.length} 筆，僅顯示日期最近的 ${REC_RENDER_CAP} 筆（上方合計仍為全部 ${recs.length} 筆）。請縮小期間或加上關鍵字。`:'';
+  }
 }
 
 // ═══════════════════════════════════════════
