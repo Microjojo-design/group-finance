@@ -6651,21 +6651,30 @@ async function submitStEdit(){
 // 每個 row index 對應 XLS Sheet1 的實際行（0-based）
 // 支出欄位：col3=小客車, col4=大重機, col5=普機, col6=職小, col7=其他
 // 取 col3-7 的加總作為各類別金額
-const GSMTH_EXPENSE_MAP = {
-  '高速-維修費':                [5],          // 維修費
-  '高速-材料費':                [6],          // 材料費
-  '高速-油費':                  [3],          // 油費
-  '高速-考照相關費用':          [2, 7, 8, 9, 14, 28], // 雜支(筆試遊覽車), 考試規費, 駕照規費, 學費支出, 驗車費, 學照
-  '高速-政府單位費':            [10,13,15,20,24,27],  // 保險費勞健退, 稅金, 水電費, 代繳利二代健保, 代繳義稅, 普機補助
-  '高速-薪資':                  [11],         // 薪資
-  '高速-租金':                  [12],         // 租金
-  '高速-行政費用':              [4,16,17,19,26,31],   // 伙食費, 文具印刷費, 郵電費, 王宗明學科, 娟, 會計師
-  '高速-設備投資':              [29],         // 飲水機等設備
-  '高速-廣告費':                [23],         // FB網路交易費等廣告
-  '高速-專案-添購新車':         [21],         // 新車貸款
-  '高速-材料B':                 [30],         // 材料B（獨立列計）
-  '高速-雜支':                  [22,25,32],   // 橡膠壓管, 普機雜支, 手牌貨車雜支
-};
+// 支出側改用 col2「項目名稱」對應類別（v3.18）——舊版寫死列號，報表每月多幾列就漏帳或歸錯類別
+// 由上往下比對、先中先贏；對不到的項目在預覽中由使用者選類別，全部選定才可匯入
+const GSMTH_EXP_RULES = [
+  ['高速-材料B',           /材料B/i],
+  ['高速-考照相關費用',     /筆試|遊覽車|考試規費|駕照規費|學費支出|學照|驗車/],
+  ['高速-維修費',           /^維修費/],
+  ['高速-材料費',           /^材料費/],
+  ['高速-油費',             /^油費/],
+  ['高速-薪資',             /^薪資/],
+  ['高速-租金',             /^租金/],
+  ['高速-廣告費',           /FB|臉書|Google|廣告|文宣/i],
+  ['高速-回訓費用',         /回訓/],
+  ['高速-專案-添購新車',     /新車|車款|斑馬條|雙剎車/],
+  ['高速-政府單位費',       /保險費|勞.?健|二代健保|稅|水電|代繳|普機補助/],
+  ['高速-設備投資',         /設備|飲水機|螢幕|錄影|吸塵器|冷氣|列表機|水泥柱|護具/],
+  ['高速-行政費用',         /伙食|文具|印刷|郵電|課本|保全|網路平台|王宗明|學科|人力|網頁|會計師|防火管理|消防/],
+  ['高速-雜支',             /雜支|聯誼|福利|帆布|帳差|影印機|代墊|割草|翔悅|抽水肥/],
+];
+const GSMTH_EXP_CATS = [...GS_EXP, '高速-材料B'];
+function gsMthExpCat(name){
+  const n=String(name||'').replace(/\s+/g,'');
+  for(const [cat,re] of GSMTH_EXP_RULES){ if(re.test(n)) return cat; }
+  return null;
+}
 
 // 收入區塊（col0 = 區塊標題 / 項目名稱，col1 = 金額）
 // 各區塊的明細列數逐月不同（115年7月「3.其他」長到第 34 列），寫死列號會靜默漏帳，
@@ -6705,10 +6714,8 @@ function parseRocYM(str){
 }
 
 function parseImportGSMth(file){
-  const badge=document.getElementById('imp-gsmth-badge');
   const preview=document.getElementById('imp-gsmth-preview');
   const actions=document.getElementById('imp-gsmth-actions');
-  const drop=document.getElementById('imp-gsmth-drop');
   preview.innerHTML='<div style="color:var(--txt3);font-size:12px;padding:8px 0">解析中…</div>';
   actions.style.display='none'; gsMthStaging=null;
 
@@ -6720,7 +6727,8 @@ function parseImportGSMth(file){
       const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
 
       // ── 解析月份（row 0, col 0）──
-      const ym=parseRocYM(String(raw[0]?.[0]||''));
+      const a1=String(raw[0]?.[0]||'').trim();
+      const ym=parseRocYM(a1);
       if(!ym) throw new Error(`無法解析月份（第一行：${raw[0]?.[0]}）`);
 
       // ── Helper：取某行 col3-7 的加總（支出）──
@@ -6740,43 +6748,38 @@ function parseImportGSMth(file){
         return(!isNaN(v)&&v>0)?v:0;
       };
 
-      // ── 解析支出 ──
-      const parsed=[];
-      for(const [cat,rowIdxs] of Object.entries(GSMTH_EXPENSE_MAP)){
-        const amt=rowIdxs.reduce((s,r)=>s+expRowTotal(r),0);
-        if(amt>0) parsed.push({type:'expense',category:cat,ym,amount:Math.round(amt)});
+      // ── 解析支出：「*支出」標題列之下、「合計」列之上，每列依 col2 項目名稱對應類別 ──
+      const head=raw.findIndex(r=>/^\s*\*?\s*支\s*出/.test(String(r?.[2]||'')));
+      const expRows=[];
+      for(let r=(head<0?2:head+1);r<raw.length;r++){
+        const name=String(raw[r]?.[2]||'').trim();
+        if(/^(合\s*計|總\s*計)/.test(name)) break;
+        const amt=expRowTotal(r);
+        if(amt>0) expRows.push({row:r,name:name||'(無項目名)',amt:Math.round(amt),cat:gsMthExpCat(name),auto:!!gsMthExpCat(name)});
       }
-      // ── 車種明細（小客車/大重機，不計入總支出）── row5=維修費, row6=材料費, col3=小客車, col4=大重機
-      const detailMap=[
-        {cat:'高速-維修費-小客車', row:5, col:3},
-        {cat:'高速-維修費-大重機', row:5, col:4},
-        {cat:'高速-材料費-小客車', row:6, col:3},
-        {cat:'高速-材料費-大重機', row:6, col:4},
-      ];
-      detailMap.forEach(d=>{
-        const amt=expRowCol(d.row,d.col);
-        if(amt>0) parsed.push({type:'expense',category:d.cat,ym,amount:Math.round(amt)});
+      // ── 車種明細（小客車/大重機，不計入總支出）── 維修費/材料費列，col3=小客車, col4=大重機
+      const details=[];
+      const findExpRow=re=>expRows.find(x=>re.test(x.name.replace(/\s+/g,'')))?.row;
+      [['維修費',/^維修費/],['材料費',/^材料費/]].forEach(([lbl,re])=>{
+        const r=findExpRow(re); if(r==null) return;
+        [['小客車',3],['大重機',4]].forEach(([car,col])=>{
+          const amt=expRowCol(r,col);
+          if(amt>0) details.push({type:'expense',category:`高速-${lbl}-${car}`,ym,amount:Math.round(amt)});
+        });
       });
 
       // ── 解析收入（動態區塊）──
-      const incSecs=[];
+      const incSecs=[], incParsed=[];
       GSMTH_INCOME_SECTIONS.forEach(sec=>{
         const r=gsMthIncSection(raw,sec.head);
         if(!r) return;
         incSecs.push({cat:sec.cat,...r});
-        if(r.sum>0) parsed.push({type:'income',category:sec.cat,ym,amount:Math.round(r.sum)});
+        if(r.sum>0) incParsed.push({type:'income',category:sec.cat,ym,amount:Math.round(r.sum)});
       });
       // 逐區塊與報表「合計」對帳，不符即擋下匯入（避免靜默漏帳）
       const incMis=incSecs.filter(x=>x.rep!=null&&Math.abs(x.sum-x.rep)>=1);
 
-      if(!parsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
-
-      // ── 計算彙總 ──
-      const totInc=parsed.filter(p=>p.type==='income').reduce((s,p)=>s+p.amount,0);
-      const totExp=parsed.filter(p=>p.type==='expense'&&p.category!==CAILIAOB_CAT&&!GS_DETAIL_CATS.includes(p.category)).reduce((s,p)=>s+p.amount,0);
-      const totMat=parsed.filter(p=>p.category===CAILIAOB_CAT).reduce((s,p)=>s+p.amount,0);
-      const totExpAll=totExp+totMat;
-      const net=totInc-totExp;
+      if(!expRows.length&&!incParsed.length) throw new Error('解析後無有效資料，請確認檔案格式');
 
       // 驗證總收入、總支出（與報表底部「總計」列對比；動態尋找，找不到才退回舊列號）
       const findTot=(col,valCol,fallbackRow)=>{
@@ -6788,89 +6791,131 @@ function parseImportGSMth(file){
         }
         return parseFloat(raw[fallbackRow]?.[valCol])||0;
       };
-      const repInc=findTot(0,1,38);
-      const repExp=findTot(2,3,36);
-      // 支出側列號寫死：找出「合計」列以上、有金額卻不在對應表內的列（例：115/09 Excel 第 34、35 列）
-      const mappedRows=new Set(Object.values(GSMTH_EXPENSE_MAP).flat());
-      const unmapped=[];
-      for(let r=2;r<raw.length;r++){
-        if(/^\s*(合\s*計|總\s*計)/.test(String(raw[r]?.[2]||''))) break;
-        const amt=expRowTotal(r);
-        if(amt>0&&!mappedRows.has(r)) unmapped.push({row:r+1,name:String(raw[r]?.[2]||'').trim()||'(無項目名)',amt});
-      }
-      const incOk=repInc>0?Math.abs(totInc-repInc)<2:true;
-      const expOk=repExp>0?Math.abs(totExpAll-repExp)<2:true;
 
-      const [y,m]=ym.split('-');
-      const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
-
-      let html=`<div class="imp-success">✅ 解析成功：${mLabel}</div>`;
       // 防呆：此匯入會覆蓋該月既有的「匯入」記錄——明確告知是哪個月、會蓋掉什麼
       const exist=(getRecs('gaoshu')||[]).filter(r=>r.date.startsWith(ym)&&r.by==='匯入');
-      if(exist.length){
-        const eInc=exist.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
-        const eExp=exist.filter(r=>r.type!=='income'&&r.category!==CAILIAOB_CAT&&!GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
-        html+=`<div style="margin-top:10px;padding:10px 12px;background:#fef2f2;border:2px solid #dc2626;border-radius:8px;font-size:13px;color:#991b1b">`+
-          `<b>⚠️ ${mLabel} 已經有 ${exist.length} 筆匯入資料，確認後會被覆蓋</b><br>`+
-          `既有：收入 ${fmt(eInc)}／支出 ${fmt(eExp)}　→　新檔：收入 ${fmt(totInc)}／支出 ${fmt(totExp)}<br>`+
-          `請確認上傳的是正確月份的報表（檔案第一行寫的是「${String(raw[0]?.[0]||'').trim()}」）。</div>`;
-      }
-      html+=`<div style="background:var(--sur2);border-radius:10px;padding:14px;margin-top:10px">`;
-      html+=`<table class="imp-tbl"><thead><tr><th>類別</th><th>類型</th><th class="r">金額</th></tr></thead><tbody>`;
-      parsed.forEach(p=>{
-        const isClb=p.category===CAILIAOB_CAT;
-        const isDtl=GS_DETAIL_CATS.includes(p.category);
-        const color=p.type==='income'?'var(--inc)':isClb?'#c2410c':isDtl?'#7c3aed':'var(--exp)';
-        const tag=p.type==='income'?'收入':isClb?'材料B（獨立）':isDtl?'明細（不計總額）':'支出';
-        html+=`<tr><td>${p.category}</td><td><span style="font-size:11px;color:${color}">${tag}</span></td><td class="r" style="color:${color};font-weight:600">${fmt(p.amount)}</td></tr>`;
-      });
-      html+=`</tbody></table>`;
-      html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">`;
-      html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">總收入</div><div style="font-weight:700;color:var(--inc)">${fmt(totInc)}</div>${!incOk?'<div style="font-size:10px;color:orange">⚠ 與報表差異</div>':''}</div>`;
-      html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">支出（不含材料B）</div><div style="font-weight:700;color:var(--exp)">${fmt(totExp)}</div></div>`;
-      html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">本月損益</div><div style="font-weight:700;color:${net>=0?'var(--inc)':'var(--exp)'}">${fmt(net)}</div></div>`;
-      html+=`</div>`;
-      if(totMat>0) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border-radius:8px;font-size:13px;color:#c2410c">🔧 材料B：${fmt(totMat)}（獨立列計，不計入損益）</div>`;
-      if(!expOk||unmapped.length){
-        html+=`<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">⚠ 支出合計與報表差異 ${fmt(Math.abs(totExpAll-repExp))}，請確認是否有未對應項目`;
-        if(unmapped.length) html+=`<br>未納入的支出列：`+unmapped.map(u=>`第 ${u.row} 列「${u.name}」${fmt(u.amt)}`).join('、');
-        html+=`</div>`;
-      }
-      if(incMis.length){
-        html+=`<div style="margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b">`;
-        html+=`<b>❌ 收入區塊與報表合計不符，已擋下匯入</b><br>`;
-        incMis.forEach(x=>{ html+=`${x.cat}：解析 ${fmt(Math.round(x.sum))} ／ 報表合計 ${fmt(Math.round(x.rep))}（差 ${fmt(Math.round(Math.abs(x.sum-x.rep)))}）<br>`; });
-        html+=`請確認 Excel 該區塊是否有合併儲存格或非數字內容。</div>`;
-      }
-      html+=`</div>`;
 
-      preview.innerHTML=html;
-      if(incMis.length){
-        actions.style.display='none'; gsMthStaging=null;
-        badge.textContent='對帳不符，未匯入';
-        badge.style.cssText='background:#fef2f2;color:#b91c1c;border:1px solid #fecaca';
-        drop.style.borderColor='#dc2626'; drop.style.background='#fef2f2';
-        return;
-      }
-      gsMthStaging={parsed,ym,existN:exist.length};
-      actions.style.display='block';
-      const okBtn=actions.querySelector('[onclick="confirmImportGSMth()"]');
-      if(okBtn) okBtn.textContent=exist.length?`⚠️ 確認匯入，覆蓋 ${mLabel} 既有 ${exist.length} 筆`:`✅ 確認匯入 ${mLabel}`;
-      badge.textContent=`已解析 ${mLabel}`;
-      badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
-      drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
-
+      gsMthStaging={ym,a1,expRows,details,incParsed,incMis,exist,
+        repInc:findTot(0,1,38), repExp:findTot(2,3,36)};
+      renderGsMthPreview();
     }catch(err){
       preview.innerHTML=`<div class="imp-err">❌ 解析失敗：${err.message}</div>`;
+      const badge=document.getElementById('imp-gsmth-badge');
       badge.textContent='解析失敗'; actions.style.display='none';
     }
   };
   reader.readAsArrayBuffer(file);
 }
 
+// 依目前類別選擇組出要寫入的記錄（支出依類別合併，未選類別者不含）
+function gsMthBuildParsed(st){
+  const byCat={};
+  st.expRows.forEach(x=>{ if(x.cat) byCat[x.cat]=(byCat[x.cat]||0)+x.amt; });
+  const exp=GSMTH_EXP_CATS.filter(c=>byCat[c]>0).map(c=>({type:'expense',category:c,ym:st.ym,amount:byCat[c]}));
+  return [...exp, ...st.details, ...st.incParsed];
+}
+
+function gsMthPickCat(i,cat){
+  if(!gsMthStaging) return;
+  gsMthStaging.expRows[i].cat=cat||null;
+  renderGsMthPreview();
+}
+
+function renderGsMthPreview(){
+  const st=gsMthStaging; if(!st) return;
+  const badge=document.getElementById('imp-gsmth-badge');
+  const preview=document.getElementById('imp-gsmth-preview');
+  const actions=document.getElementById('imp-gsmth-actions');
+  const drop=document.getElementById('imp-gsmth-drop');
+  const {ym,expRows,incMis,exist}=st;
+  const parsed=gsMthBuildParsed(st);
+  const pending=expRows.filter(x=>!x.cat);
+
+  // ── 計算彙總 ──
+  const totInc=parsed.filter(p=>p.type==='income').reduce((s,p)=>s+p.amount,0);
+  const totExp=expRows.filter(x=>x.cat!==CAILIAOB_CAT).reduce((s,x)=>s+x.amt,0);   // 含待選類別者
+  const totMat=expRows.filter(x=>x.cat===CAILIAOB_CAT).reduce((s,x)=>s+x.amt,0);
+  const totExpAll=totExp+totMat;
+  const net=totInc-totExp;
+  const incOk=st.repInc>0?Math.abs(totInc-st.repInc)<2:true;
+  const expOk=st.repExp>0?Math.abs(totExpAll-st.repExp)<2:true;
+
+  const [y,m]=ym.split('-');
+  const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
+
+  let html=`<div class="imp-success">✅ 解析成功：${mLabel}</div>`;
+  if(exist.length){
+    const eInc=exist.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
+    const eExp=exist.filter(r=>r.type!=='income'&&r.category!==CAILIAOB_CAT&&!GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
+    html+=`<div style="margin-top:10px;padding:10px 12px;background:#fef2f2;border:2px solid #dc2626;border-radius:8px;font-size:13px;color:#991b1b">`+
+      `<b>⚠️ ${mLabel} 已經有 ${exist.length} 筆匯入資料，確認後會被覆蓋</b><br>`+
+      `既有：收入 ${fmt(eInc)}／支出 ${fmt(eExp)}　→　新檔：收入 ${fmt(totInc)}／支出 ${fmt(totExp)}<br>`+
+      `請確認上傳的是正確月份的報表（檔案第一行寫的是「${st.a1}」）。</div>`;
+  }
+  if(pending.length){
+    html+=`<div style="margin-top:10px;padding:10px 12px;background:#fff7ed;border:2px solid #ea580c;border-radius:8px;font-size:13px;color:#9a3412">`+
+      `<b>📝 有 ${pending.length} 個支出項目系統認不得，請在下方「支出項目對應」選擇類別後才能匯入</b></div>`;
+  }
+  html+=`<div style="background:var(--sur2);border-radius:10px;padding:14px;margin-top:10px">`;
+  html+=`<table class="imp-tbl"><thead><tr><th>類別</th><th>類型</th><th class="r">金額</th></tr></thead><tbody>`;
+  parsed.forEach(p=>{
+    const isClb=p.category===CAILIAOB_CAT;
+    const isDtl=GS_DETAIL_CATS.includes(p.category);
+    const color=p.type==='income'?'var(--inc)':isClb?'#c2410c':isDtl?'#7c3aed':'var(--exp)';
+    const tag=p.type==='income'?'收入':isClb?'材料B（獨立）':isDtl?'明細（不計總額）':'支出';
+    html+=`<tr><td>${p.category}</td><td><span style="font-size:11px;color:${color}">${tag}</span></td><td class="r" style="color:${color};font-weight:600">${fmt(p.amount)}</td></tr>`;
+  });
+  if(pending.length) html+=`<tr><td style="color:#ea580c">（待選擇類別）</td><td><span style="font-size:11px;color:#ea580c">支出</span></td><td class="r" style="color:#ea580c;font-weight:600">${fmt(pending.reduce((s,x)=>s+x.amt,0))}</td></tr>`;
+  html+=`</tbody></table>`;
+  html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">`;
+  html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">總收入</div><div style="font-weight:700;color:var(--inc)">${fmt(totInc)}</div>${!incOk?'<div style="font-size:10px;color:orange">⚠ 與報表差異</div>':''}</div>`;
+  html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">支出（不含材料B）</div><div style="font-weight:700;color:var(--exp)">${fmt(totExp)}</div></div>`;
+  html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">本月損益</div><div style="font-weight:700;color:${net>=0?'var(--inc)':'var(--exp)'}">${fmt(net)}</div></div>`;
+  html+=`</div>`;
+  if(totMat>0) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border-radius:8px;font-size:13px;color:#c2410c">🔧 材料B：${fmt(totMat)}（獨立列計，不計入損益）</div>`;
+  if(!expOk) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">⚠ 支出合計與報表差異 ${fmt(Math.abs(totExpAll-st.repExp))}（解析 ${fmt(totExpAll)}／報表總計 ${fmt(st.repExp)}），請確認報表內容</div>`;
+  if(incMis.length){
+    html+=`<div style="margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b">`;
+    html+=`<b>❌ 收入區塊與報表合計不符，已擋下匯入</b><br>`;
+    incMis.forEach(x=>{ html+=`${x.cat}：解析 ${fmt(Math.round(x.sum))} ／ 報表合計 ${fmt(Math.round(x.rep))}（差 ${fmt(Math.round(Math.abs(x.sum-x.rep)))}）<br>`; });
+    html+=`請確認 Excel 該區塊是否有合併儲存格或非數字內容。</div>`;
+  }
+  // ── 支出項目對應（逐列）──
+  html+=`<details style="margin-top:12px"${pending.length?' open':''}><summary style="cursor:pointer;font-size:13px;font-weight:600">支出項目對應（${expRows.length} 項）</summary>`;
+  html+=`<table class="imp-tbl" style="margin-top:6px"><thead><tr><th>列</th><th>項目</th><th class="r">金額</th><th>類別</th></tr></thead><tbody>`;
+  expRows.forEach((x,i)=>{
+    const cell=x.auto
+      ? `<span style="font-size:12px">${x.cat}</span>`
+      : `<select onchange="gsMthPickCat(${i},this.value)" style="font-size:12px;${x.cat?'':'border:2px solid #ea580c'}"><option value="">— 請選擇 —</option>${GSMTH_EXP_CATS.map(c=>`<option value="${c}"${c===x.cat?' selected':''}>${c}</option>`).join('')}</select>`;
+    html+=`<tr><td>${x.row+1}</td><td>${esc(x.name)}</td><td class="r">${fmt(x.amt)}</td><td>${cell}</td></tr>`;
+  });
+  html+=`</tbody></table></details>`;
+  html+=`</div>`;
+
+  preview.innerHTML=html;
+  if(incMis.length){
+    actions.style.display='none'; gsMthStaging=null;
+    badge.textContent='對帳不符，未匯入';
+    badge.style.cssText='background:#fef2f2;color:#b91c1c;border:1px solid #fecaca';
+    drop.style.borderColor='#dc2626'; drop.style.background='#fef2f2';
+    return;
+  }
+  actions.style.display='block';
+  const okBtn=actions.querySelector('[onclick="confirmImportGSMth()"]');
+  if(okBtn){
+    okBtn.disabled=!!pending.length;
+    okBtn.textContent=pending.length?`請先選擇 ${pending.length} 個項目的類別`
+      :exist.length?`⚠️ 確認匯入，覆蓋 ${mLabel} 既有 ${exist.length} 筆`:`✅ 確認匯入 ${mLabel}`;
+  }
+  badge.textContent=`已解析 ${mLabel}`;
+  badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
+  drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
+}
+
 async function confirmImportGSMth(){
   if(!gsMthStaging) return;
-  const {parsed,ym,existN}=gsMthStaging;
+  if(gsMthStaging.expRows.some(x=>!x.cat)){ toast('還有支出項目未選擇類別',false); return; }
+  const parsed=gsMthBuildParsed(gsMthStaging), {ym}=gsMthStaging, existN=gsMthStaging.exist.length;
   const [y,m]=ym.split('-');
   const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
   if(existN&&!confirm(`⚠️ 即將覆蓋高速駕訓班「${mLabel}」既有的 ${existN} 筆匯入資料，此操作無法復原。\n\n確定上傳的是 ${mLabel} 的報表嗎？`)) return;
