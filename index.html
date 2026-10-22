@@ -1547,14 +1547,15 @@ const SHARED_INC = ['租金收入','電費收入','其他收入'];
 const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕費用','維護保養','設備投資','稅費','行政管理費','A206事件費用','其他費用'];
 
 // 蒔心田 categories
-const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-酷朋','蒔-其他電商','蒔-團購','蒔-退貨、折讓'];
+const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-其他電商','蒔-其他','蒔-股東投資','蒔-對外投資'];
 const SX_EXP = [
-  '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-包材費用',
-  '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局','蒔-物流-蝦皮',
-  '蒔-金流-官網手續費','蒔-金流-簡訊費','蒔-金流-刷卡手續費','蒔-金流-Line Pay手續費',
-  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-銷售佣金、分潤',
+  '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-銷貨成本-包材','蒔-銷貨成本-外購商品',
+  '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局',
+  '蒔-金流-官網手續費','蒔-金流-簡訊費','蒔-金流-刷卡手續費','蒔-金流-Line Pay手續費','蒔-金流-蝦皮手續費',
+  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google',
   '蒔-人事薪資','蒔-系統軟體','蒔-行銷製作-影片拍攝剪輯','蒔-網紅/KOL酬勞',
-  '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊','蒔-雜項與其他','蒔-代工原料'
+  '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊',
+  '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他'
 ];
 
 // 私人帳 categories
@@ -2039,10 +2040,11 @@ const bonusLbl   = co => BONUS_CAT_BY_CO[co||activeCo] || '包租費';
 const CAILIAOB_CAT = '高速-材料B';
 const hasCailiaob = co => co === 'gaoshu';
 
-// 蒔心田「蒔投資」獨立列計，不計入收入
-const SHIXIN_INV_CAT = '蒔投資';
+// 蒔心田投資獨立列計，不計入收入與損益：股東投資（+）、對外投資（以負數記於收入側）
+const SHIXIN_INV_CATS = ['蒔-股東投資','蒔-對外投資'];
+const isSXInvCat = c => SHIXIN_INV_CATS.includes(c);
 const hasShixinInv = co => co === 'shixin';
-function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT).reduce((s,r)=>s+r.amount,0); }
+function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'&&isSXInvCat(r.category)).reduce((s,r)=>s+r.amount,0); }
 
 // Sum expense excluding or including bonus
 function sumExp(arr, mode){
@@ -2058,11 +2060,13 @@ const approvedOnly = arr => arr.filter(r=>(r.status||'approved')==='approved');
 // UTILS
 // ═══════════════════════════════════════════
 const fmt=n=>'$'+Math.round(n||0).toLocaleString('zh-TW');
+// 收支符號：負數金額（如成本減項、對外投資）反向顯示
+const sgnAmt=r=>((r.type==='income')===(r.amount>=0)?'+':'-')+fmt(Math.abs(r.amount));
 const today=()=>new Date().toISOString().split('T')[0];
 const mk=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 const rocLbl=d=>`${d.getFullYear()-1911}年${String(d.getMonth()+1).padStart(2,'0')}月`;
 const getMR=d=>{const k=mk(d);return getRecs(activeCo).filter(r=>r.date.startsWith(k));};
-const sumT=(arr,t)=>approvedOnly(arr).filter(r=>r.type===t&&!(t==='income'&&r.category===SHIXIN_INV_CAT)).reduce((s,r)=>s+r.amount,0);
+const sumT=(arr,t)=>approvedOnly(arr).filter(r=>r.type===t&&!(t==='income'&&isSXInvCat(r.category))).reduce((s,r)=>s+r.amount,0);
 // saveU defined above in Supabase section
 function toast(msg,ok=true){const el=document.getElementById('toast');el.textContent=(ok?'✓ ':'✕ ')+msg;el.style.opacity='1';el.style.background=ok?'#0d9488':'#e11d48';setTimeout(()=>el.style.opacity='0',2500);}
 function esc(s){return String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');}
@@ -2458,7 +2462,7 @@ function renderTxList(recs,listId,cntId,showDel){
         </div>
       </div>
       <div class="txir" onclick="event.stopPropagation()">
-        <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+        <div class="txia ${r.type==='income'?'in':'out'}">${sgnAmt(r)}</div>
         ${viewerPendingBtns}${viewerRejectedBtns}
         ${showDel?`<button class="txd" title="複製此筆（日期換今天）" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="copyRec(${r.id},'${rco}')">📋</button>`:''}
         ${showDel&&canEditRec&&r.status==='approved'?`<button class="txd" style="background:var(--acc-l);color:var(--acc);border:none;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;margin-right:2px" onclick="openGmEditMo(${r.id},'${r._co||activeCo}')">✏️</button>`:''}
@@ -2562,7 +2566,7 @@ function renderRejectedNotice(){
               <div>
                 <span style="font-weight:700;font-size:14px">${esc(r.title||r.category)}</span>
                 <span style="font-size:13px;margin-left:8px;opacity:.9">
-                  ${r.type==='income'?'+':'-'}${fmt(r.amount)} 元
+                  ${sgnAmt(r)} 元
                 </span>
                 <span style="font-size:11px;margin-left:6px;opacity:.75">
                   ${r.date}${coNames[r._co]?' · '+esc(coNames[r._co]):''}
@@ -2588,7 +2592,7 @@ function renderRejectedNotice(){
               <div>
                 <span style="font-weight:600">${esc(r.category)}</span>
                 <span style="color:${r.type==='income'?'var(--inc)':'var(--exp)'};font-weight:700;margin-left:8px">
-                  ${r.type==='income'?'+':'-'}${fmt(r.amount)}
+                  ${sgnAmt(r)}
                 </span>
                 <span style="color:var(--txt3);font-size:12px;margin-left:6px">
                   ${r.date} · ${esc(coNames[r._co]||r._co)}
@@ -2750,7 +2754,7 @@ function renderReport(){
   const all=getRecs(activeCo);
   const allICats=getCats(activeCo,'income');
   const showSXInvRow=hasShixinInv(activeCo);
-  const iCats=showSXInvRow?allICats.filter(c=>c!==SHIXIN_INV_CAT):allICats;
+  const iCats=showSXInvRow?allICats.filter(c=>!isSXInvCat(c)):allICats;
   // Expense cats: separate regular vs bonus
   const allECats=getCats(activeCo,'expense');
   const regECats=allECats.filter(c=>!isBonusCat(c));
@@ -2758,13 +2762,13 @@ function renderReport(){
   const showCailiaobRow=hasCailiaob(activeCo);
 
   const gV=(d,t,c)=>{const k=mk(d);return all.filter(r=>r.type===t&&r.category===c&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
-  const gSInc=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.date.startsWith(k)&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSInc=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.date.startsWith(k)&&!isSXInvCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const gSExp=(d,excBonus)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.date.startsWith(k)&&(!excBonus||!isBonusCat(r.category))&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const gSBonus=(d)=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
-  const gSSXInv=(d)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+  const gSSXInv=(d,cat)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&(cat?r.category===cat:isSXInvCat(r.category))&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const totCat=(t,c)=>all.filter(r=>r.type===t&&r.category===c&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
-  const totInc=all.filter(r=>r.type==='income'&&r.category!==SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
-  const totSXInv=all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totInc=all.filter(r=>r.type==='income'&&!isSXInvCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totSXInv=all.filter(r=>r.type==='income'&&isSXInvCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totExpReg=all.filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totBonus=all.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
 
@@ -2802,11 +2806,15 @@ function renderReport(){
     h+=`</tr>`;
   }
   if(showSXInvRow){
-    h+=`<tr class="shd" style="background:#f5f3ff"><td colspan="${3+months.length}" style="color:#5b21b6">蒔投資 — 獨立列計，不計入收入與損益</td></tr>`;
-    h+=`<tr style="background:#f5f3ff"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">${SHIXIN_INV_CAT}</span></td>`;
-    h+=`<td class="r" style="color:#7c3aed;font-weight:600">${fc(totSXInv)}</td>`;
-    h+=months.map(d=>`<td class="r" style="color:#7c3aed;font-weight:600">${fc(gSSXInv(d))}</td>`).join('');
-    h+=`</tr>`;
+    h+=`<tr class="shd" style="background:#f5f3ff"><td colspan="${3+months.length}" style="color:#5b21b6">投資 — 獨立列計，不計入收入與損益</td></tr>`;
+    SHIXIN_INV_CATS.forEach(cat=>{
+      const tot=all.filter(r=>r.type==='income'&&r.category===cat&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+      if(!tot&&cat!==SHIXIN_INV_CATS[0]) return;
+      h+=`<tr style="background:#f5f3ff"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">${cat}</span></td>`;
+      h+=`<td class="r" style="color:#7c3aed;font-weight:600">${fc(tot)}</td>`;
+      h+=months.map(d=>`<td class="r" style="color:#7c3aed;font-weight:600">${fc(gSSXInv(d,cat))}</td>`).join('');
+      h+=`</tr>`;
+    });
   }
 
   // ── 結餘 & 損益率 ──
@@ -3424,7 +3432,7 @@ function renderStToday(){
           <div class="txim">${r.date}${r.docNo?` <span style="font-family:'DM Mono',monospace;font-size:10px">#${r.docNo}</span>`:''}</div>
         </div>
         <div style="text-align:right">
-          <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+          <div class="txia ${r.type==='income'?'in':'out'}">${sgnAmt(r)}</div>
           ${r.status==='pending'?'<span class="st-badge st-pending" style="margin-top:2px">⏳ 待審核</span>':''}
         </div>
       </div>
@@ -3470,7 +3478,7 @@ function renderStHist(){
           <div class="txim">${r.date}</div>
         </div>
         <div style="text-align:right">
-          <div class="txia ${r.type==='income'?'in':'out'}">${r.type==='income'?'+':'-'}${fmt(r.amount)}</div>
+          <div class="txia ${r.type==='income'?'in':'out'}">${sgnAmt(r)}</div>
           <span class="st-badge ${stCls[st]}" style="margin-top:4px">${stLabel[st]}</span>
         </div>
       </div>
@@ -4555,13 +4563,13 @@ function runRangeQuery(){
 
   // ── 包租費/材料B/投資 total badge ──
   const _rqBTA = document.getElementById('rqBonusTotalAmt');
-  if(_rqBTA) _rqBTA.textContent=showB?`區間${bonusLbl()}：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間蒔投資：${fmt(totalSXInvAmt)}`:'';
+  if(_rqBTA) _rqBTA.textContent=showB?`區間${bonusLbl()}：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間投資淨額：${fmt(totalSXInvAmt)}`:'';
 
   // ── KPI grid ──
   const rocM=ym=>{const[y,m]=ym.split('-');return`${parseInt(y)-1911}年${parseInt(m)}月`;};
   document.getElementById('rqSub').textContent=`${rocM(fromVal)} ～ ${rocM(toVal)}　共 ${months.length} 個月`;
 
-  const kpiCols = (showB && excB)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt>0) ? 5 : 4;
+  const kpiCols = (showB && excB)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt!==0) ? 5 : 4;
   const kpiStyle = `grid-template-columns:repeat(${kpiCols},1fr)`;
   const bonusKpi = (showB&&excB) ? `
     <div class="kc" style="border-top:3px solid var(--gold)">
@@ -4573,9 +4581,9 @@ function runRangeQuery(){
       <div class="kl">材料B（獨立）</div>
       <div class="kv" style="font-size:18px;color:#c2410c">${fmt(totalCailiaobAmt)}</div>
       <div class="kch" style="color:#c2410c">不計入損益</div>
-    </div>` : showSXInvRQ&&totalSXInvAmt>0 ? `
+    </div>` : showSXInvRQ&&totalSXInvAmt!==0 ? `
     <div class="kc" style="border-top:3px solid #7c3aed">
-      <div class="kl">蒔投資（獨立）</div>
+      <div class="kl">投資淨額（獨立）</div>
       <div class="kv" style="font-size:18px;color:#7c3aed">${fmt(totalSXInvAmt)}</div>
       <div class="kch" style="color:#7c3aed">不計入損益</div>
     </div>` : '';
@@ -4640,7 +4648,7 @@ function runRangeQuery(){
   document.getElementById('rqExpTblTitle').textContent='支出類別加總'+(hasB?` （不含${bonusLbl()}）`:'');
   const buildCatTbl=(recs, type, tblId, totalId, excBonus, excCat)=>{
     const cm={};
-    recs.filter(r=>r.type===type&&(!excBonus||!isBonusCat(r.category))&&(!excCat||r.category!==excCat))
+    recs.filter(r=>r.type===type&&(!excBonus||!isBonusCat(r.category))&&(!excCat||!excCat.includes(r.category)))
         .forEach(r=>{cm[r.category]=(cm[r.category]||0)+r.amount;});
     const sorted=Object.entries(cm).sort((a,b)=>b[1]-a[1]);
     const total=sorted.reduce((s,[,v])=>s+v,0);
@@ -4663,21 +4671,21 @@ function runRangeQuery(){
     h+=`<tr style="background:var(--sur2);font-weight:700"><td>合計</td><td class="r" style="color:${color}">${fmt(total)}</td><td class="r">100%</td></tr></tbody>`;
     document.getElementById(tblId).innerHTML=h;
   };
-  buildCatTbl(rangeRecs,'income','rqIncTbl','rqIncTotal',false,showSXInvRQ?SHIXIN_INV_CAT:null);
+  buildCatTbl(rangeRecs,'income','rqIncTbl','rqIncTotal',false,showSXInvRQ?SHIXIN_INV_CATS:null);
   buildCatTbl(rangeRecs,'expense','rqExpTbl','rqExpTotal',true); // always exclude bonus from exp cat table
 
   // ── 包租費/材料B/蒔投資 獨立表 ──
   const bonusCard=document.getElementById('rqBonusCard');
-  if((showB&&excB&&totalBonusAmt>0)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt>0)){
+  if((showB&&excB&&totalBonusAmt>0)||(showCailiaobRQ&&totalCailiaobAmt>0)||(showSXInvRQ&&totalSXInvAmt!==0)){
     bonusCard.style.display='block';
     const isClb=showCailiaobRQ&&totalCailiaobAmt>0;
-    const isSXInv=showSXInvRQ&&totalSXInvAmt>0&&!showB&&!isClb;
+    const isSXInv=showSXInvRQ&&totalSXInvAmt!==0&&!showB&&!isClb;
     const showAmt=isClb?totalCailiaobAmt:isSXInv?totalSXInvAmt:totalBonusAmt;
     const cardColor=isSXInv?'#7c3aed':isClb?'#c2410c':'#b45309';
     const cardBg=isSXInv?'#f5f3ff':isClb?'#fff7ed':'#fffbeb';
     document.getElementById('rqBonusTotal').textContent=fmt(showAmt);
     const cardTitle=bonusCard.querySelector('.ct');
-    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':isSXInv?'💼 蒔投資明細（獨立列計）':`🔑 ${bonusLbl()}明細（獨立列計）`;
+    if(cardTitle) cardTitle.textContent=isClb?'🔧 材料B明細（獨立列計）':isSXInv?'💼 投資明細（獨立列計）':`🔑 ${bonusLbl()}明細（獨立列計）`;
     let bh=`<thead><tr><th>月份</th><th class="r">${isSXInv?'投資':bonusLbl()}</th></tr></thead><tbody>`;
     months.forEach((ym,i)=>{
       const cardAmt=isClb?mCailiaob[i]:isSXInv?mSXInvs[i]:mBonus[i];
@@ -4696,7 +4704,7 @@ function runRangeQuery(){
   document.getElementById('rqDonutNote').textContent=showB&&excB?`不含${bonusLbl()}`:'全部支出';
 
   // ── Charts ──
-  renderRqChart(mLbls, mIncs, mExps, mBonus, showB&&excB, mCailiaob, showCailiaobRQ&&totalCailiaobAmt>0, mSXInvs, showSXInvRQ&&totalSXInvAmt>0);
+  renderRqChart(mLbls, mIncs, mExps, mBonus, showB&&excB, mCailiaob, showCailiaobRQ&&totalCailiaobAmt>0, mSXInvs, showSXInvRQ&&totalSXInvAmt!==0);
   renderRqDonut(rangeRecs, excB);
 
   // ── 類別逐月走勢 selector ──
@@ -4792,11 +4800,8 @@ function mapSXCatAll(type, mainCat, subCat, detail){
     if(SX_INC.includes(sub)) return sub;
     if(SX_INC.includes(main)) return main;
     if(key.includes('蝦皮')) return '蒔-蝦皮';
-    if(key.includes('酷朋')) return '蒔-酷朋';
     if(key.includes('官網')||key.includes('shopline')) return '蒔-官網';
     if(key.includes('福報')||key.includes('素易')||key.includes('其他電商')) return '蒔-其他電商';
-    if(sub==='團購'||key.includes('團購')) return '蒔-團購';
-    if(key.includes('退貨')||key.includes('折讓')) return '蒔-退貨、折讓';
     return '蒔-親友團購';
   }
   if(SX_EXP.includes(sub)) return sub;
@@ -4805,8 +4810,8 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(['膠原蛋白','益菌盾','優兒護','穀胱甘肽','蒔-藻油','代工','原料'].some(k=>(sub+main).includes(k))) return '蒔-銷貨成本-代工原料';
   if(key.includes('紙盒')) return '蒔-銷貨成本-紙盒';
   if(key.includes('鋁袋')) return '蒔-銷貨成本-鋁袋';
-  if(key.includes('包材')||key.includes('包裝')) return '蒔-包材費用';
-  if(sub==='蒔-蝦皮'||(key.includes('蝦皮')&&key.includes('費'))) return '蒔-物流-蝦皮';
+  if(key.includes('包材')||key.includes('包裝')) return '蒔-銷貨成本-包材';
+  if(sub==='蒔-蝦皮'||(key.includes('蝦皮')&&key.includes('費'))) return '蒔-金流-蝦皮手續費';
   if(key.includes('黑貓')||key.includes('運費')) return '蒔-物流-黑貓';
   if(key.includes('全家')) return '蒔-物流-全家';
   if(key.includes('7-11')||key.includes('711')) return '蒔-物流-7-11';
@@ -4822,7 +4827,9 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(key.includes('設計')||key.includes('文宣')) return '蒔-文宣設計';
   if(key.includes('seo')) return '蒔-SEO';
   if(key.includes('新聞')) return '蒔-新聞上刊';
-  if(key.includes('佣金')||key.includes('分潤')) return '蒔-銷售佣金、分潤';
+  if(key.includes('電話')||key.includes('郵電')) return '蒔-郵電費';
+  if(key.includes('玉山獎')||key.includes('參賽')||key.includes('獎項')) return '蒔-參賽/獎項';
+  if(key.includes('檢驗')) return '蒔-檢驗費';
   if(key.includes('系統')||key.includes('notion')||key.includes('chatgpt')||key.includes('canva')||key.includes('軟體')||key.includes('資訊')) return '蒔-系統軟體';
   return '蒔-雜項與其他';
 }
@@ -5309,7 +5316,7 @@ function _mrRenderDataCards(co){
   if(cb>0) cards.push({ label:'材料B', val:cb, prev:0, yoy:0, icon:'🔧', custom: _mrFmt(cb)+'元' });
   const sxInvCur = hasShixinInv(co) ? sumShixinInv(rCur) : 0;
   const sxInvPrev = hasShixinInv(co) ? sumShixinInv(rPrev) : 0;
-  if(hasShixinInv(co) && (sxInvCur>0||sxInvPrev>0)) cards.push({ label:'蒔投資（獨立）', val:sxInvCur, prev:sxInvPrev, yoy:0, icon:'💼', good:()=>true });
+  if(hasShixinInv(co) && (sxInvCur||sxInvPrev)) cards.push({ label:'投資淨額（獨立）', val:sxInvCur, prev:sxInvPrev, yoy:0, icon:'💼', good:()=>true });
 
   const container = document.getElementById('mrDataCards');
   container.innerHTML = cards.map(c=>{
@@ -5663,8 +5670,8 @@ function generateMonthReportText(){
   if(cb>0){
     lines.push(`（本月材料B：${N(cb)}元，獨立列計，不計入上述損益）`);
   }
-  if(sxInv>0){
-    lines.push(`（本月蒔投資：${N(sxInv)}元，獨立列計，不計入上述損益）`);
+  if(sxInv){
+    lines.push(`（本月投資淨額：${N(sxInv)}元，獨立列計，不計入上述損益）`);
   }
   lines.push('');
 
@@ -6357,7 +6364,7 @@ function renderApproval(){
           <div class="ap-meta">
             ${r.type==='income'?'收入':'支出'}
             <strong style="color:${r.type==='income'?'var(--inc)':'var(--exp)'}">
-              ${r.type==='income'?'+':'-'}${fmt(r.amount)}
+              ${sgnAmt(r)}
             </strong>
             · ${r.date} · 填寫人：${esc(r.by||'—')}
             ${r.note?`· ${esc(r.note)}`:''}
@@ -8087,7 +8094,7 @@ function openApDetail(id, co){
     ['類別', esc(rec.category)],
     rec.title?['名稱', esc(rec.title)]:null,
     rec.counterparty?[rec.type==='income'?'收入來源':'支出對象', esc(rec.counterparty)]:null,
-    ['金額', `<strong style="font-size:17px;color:${rec.type==='income'?'var(--inc)':'var(--exp)'}">${rec.type==='income'?'+':'-'}${fmt(rec.amount)}</strong>`],
+    ['金額', `<strong style="font-size:17px;color:${rec.type==='income'?'var(--inc)':'var(--exp)'}">${sgnAmt(rec)}</strong>`],
     ['日期', esc(rec.date)],
     ['填寫人', esc(rec.by||'—')],
     ['狀態', `<span class="st-badge ${stCls[st]||''}">${stLabel[st]||esc(st)}</span>`],
