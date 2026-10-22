@@ -6790,6 +6790,14 @@ function parseImportGSMth(file){
       };
       const repInc=findTot(0,1,38);
       const repExp=findTot(2,3,36);
+      // 支出側列號寫死：找出「合計」列以上、有金額卻不在對應表內的列（例：115/09 Excel 第 34、35 列）
+      const mappedRows=new Set(Object.values(GSMTH_EXPENSE_MAP).flat());
+      const unmapped=[];
+      for(let r=2;r<raw.length;r++){
+        if(/^\s*(合\s*計|總\s*計)/.test(String(raw[r]?.[2]||''))) break;
+        const amt=expRowTotal(r);
+        if(amt>0&&!mappedRows.has(r)) unmapped.push({row:r+1,name:String(raw[r]?.[2]||'').trim()||'(無項目名)',amt});
+      }
       const incOk=repInc>0?Math.abs(totInc-repInc)<2:true;
       const expOk=repExp>0?Math.abs(totExpAll-repExp)<2:true;
 
@@ -6797,6 +6805,16 @@ function parseImportGSMth(file){
       const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
 
       let html=`<div class="imp-success">✅ 解析成功：${mLabel}</div>`;
+      // 防呆：此匯入會覆蓋該月既有的「匯入」記錄——明確告知是哪個月、會蓋掉什麼
+      const exist=(getRecs('gaoshu')||[]).filter(r=>r.date.startsWith(ym)&&r.by==='匯入');
+      if(exist.length){
+        const eInc=exist.filter(r=>r.type==='income').reduce((s,r)=>s+r.amount,0);
+        const eExp=exist.filter(r=>r.type!=='income'&&r.category!==CAILIAOB_CAT&&!GS_DETAIL_CATS.includes(r.category)).reduce((s,r)=>s+r.amount,0);
+        html+=`<div style="margin-top:10px;padding:10px 12px;background:#fef2f2;border:2px solid #dc2626;border-radius:8px;font-size:13px;color:#991b1b">`+
+          `<b>⚠️ ${mLabel} 已經有 ${exist.length} 筆匯入資料，確認後會被覆蓋</b><br>`+
+          `既有：收入 ${fmt(eInc)}／支出 ${fmt(eExp)}　→　新檔：收入 ${fmt(totInc)}／支出 ${fmt(totExp)}<br>`+
+          `請確認上傳的是正確月份的報表（檔案第一行寫的是「${String(raw[0]?.[0]||'').trim()}」）。</div>`;
+      }
       html+=`<div style="background:var(--sur2);border-radius:10px;padding:14px;margin-top:10px">`;
       html+=`<table class="imp-tbl"><thead><tr><th>類別</th><th>類型</th><th class="r">金額</th></tr></thead><tbody>`;
       parsed.forEach(p=>{
@@ -6813,7 +6831,11 @@ function parseImportGSMth(file){
       html+=`<div style="background:var(--card);border-radius:8px;padding:10px;text-align:center"><div style="font-size:11px;color:var(--txt3)">本月損益</div><div style="font-weight:700;color:${net>=0?'var(--inc)':'var(--exp)'}">${fmt(net)}</div></div>`;
       html+=`</div>`;
       if(totMat>0) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border-radius:8px;font-size:13px;color:#c2410c">🔧 材料B：${fmt(totMat)}（獨立列計，不計入損益）</div>`;
-      if(!expOk) html+=`<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">⚠ 支出合計與報表差異 ${fmt(Math.abs(totExpAll-repExp))}，請確認是否有未對應項目</div>`;
+      if(!expOk||unmapped.length){
+        html+=`<div style="margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">⚠ 支出合計與報表差異 ${fmt(Math.abs(totExpAll-repExp))}，請確認是否有未對應項目`;
+        if(unmapped.length) html+=`<br>未納入的支出列：`+unmapped.map(u=>`第 ${u.row} 列「${u.name}」${fmt(u.amt)}`).join('、');
+        html+=`</div>`;
+      }
       if(incMis.length){
         html+=`<div style="margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b">`;
         html+=`<b>❌ 收入區塊與報表合計不符，已擋下匯入</b><br>`;
@@ -6830,8 +6852,10 @@ function parseImportGSMth(file){
         drop.style.borderColor='#dc2626'; drop.style.background='#fef2f2';
         return;
       }
-      gsMthStaging={parsed,ym};
+      gsMthStaging={parsed,ym,existN:exist.length};
       actions.style.display='block';
+      const okBtn=actions.querySelector('[onclick="confirmImportGSMth()"]');
+      if(okBtn) okBtn.textContent=exist.length?`⚠️ 確認匯入，覆蓋 ${mLabel} 既有 ${exist.length} 筆`:`✅ 確認匯入 ${mLabel}`;
       badge.textContent=`已解析 ${mLabel}`;
       badge.style.cssText='background:#f0fdfa;color:#0d9488;border:1px solid #99f6e4';
       drop.style.borderColor='#0d9488'; drop.style.background='#f0fdfa';
@@ -6846,9 +6870,10 @@ function parseImportGSMth(file){
 
 async function confirmImportGSMth(){
   if(!gsMthStaging) return;
-  const {parsed,ym}=gsMthStaging;
+  const {parsed,ym,existN}=gsMthStaging;
   const [y,m]=ym.split('-');
   const mLabel=`${parseInt(y)-1911}年${parseInt(m)}月`;
+  if(existN&&!confirm(`⚠️ 即將覆蓋高速駕訓班「${mLabel}」既有的 ${existN} 筆匯入資料，此操作無法復原。\n\n確定上傳的是 ${mLabel} 的報表嗎？`)) return;
   const nextDate=new Date(parseInt(y),parseInt(m),1);
   const nextYm=`${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,'0')}`;
   try{
