@@ -4206,7 +4206,6 @@ function exportGaoshuXlsx(){
     { no:'174',name:'  高速網路.交易費', type:'child' },
     { no:'176',name:'  加安消防',        type:'child' },
     { no:'177',name:'  華遠LED',         type:'child' },
-    { no:'182',name:'  代墊翔悅禮盒',    type:'child' },
     { no:'185',name:'  匯款少入',        type:'child' },
     { no:'186',name:'  飲水機維修',      type:'child' },
     { no:'187',name:'  華興測量',        type:'child' },
@@ -4238,6 +4237,7 @@ function exportGaoshuXlsx(){
     { no:'214',name:'年節禮盒',          type:'parent',  cat:'高速-年節禮盒' },
     { no:'215',name:'  中秋禮盒',        type:'child' },
     { no:'216',name:'  端午節粽子',      type:'child' },
+    { no:'217',name:'  代墊翔悅禮盒',    type:'child' },
     // Summary rows
     { no:'該月損益', name:'',            type:'summary', cat:'_net' },
     { no:'上個月結餘', name:'',          type:'summary', cat:'_prev' },
@@ -6679,8 +6679,8 @@ const GSMTH_EXP_RULES = [
   ['高速-奠儀',             /奠儀/],
   ['高速-尾牙',             /尾牙/],
   ['高速-紅包',             /紅包/],
-  ['高速-年節禮盒',         /^(?!.*代墊).*(蒔心田|禮盒|粽子)/],   // 年節送全體同仁；「代墊翔悅禮盒」屬代墊→雜支
-  ['高速-雜支',             /雜支|聯誼|福利|帆布|帳差|影印機|代墊|割草|鋤草|抽水肥|扣分板|制服|監視器|擴音機|計分器|告示牌|水槽|LED|消防|水電|禮盒/i],
+  ['高速-年節禮盒',         /蒔心田|禮盒|粽子/],   // 年節送全體同仁；翔悅禮盒（含代墊）也算，排在雜支「代墊」之前
+  ['高速-雜支',             /雜支|聯誼|福利|帆布|帳差|影印機|代墊|割草|鋤草|抽水肥|扣分板|制服|監視器|擴音機|計分器|告示牌|水槽|LED|消防|水電/i],
 ];
 const GSMTH_EXP_CATS = [...GS_EXP, '高速-材料B'];
 function gsMthExpCat(name){
