@@ -2040,11 +2040,11 @@ const bonusLbl   = co => BONUS_CAT_BY_CO[co||activeCo] || '包租費';
 const CAILIAOB_CAT = '高速-材料B';
 const hasCailiaob = co => co === 'gaoshu';
 
-// 蒔心田投資獨立列計，不計入收入與損益：股東投資（+）、對外投資（以負數記於收入側）
+// 蒔心田投資獨立列計，不計入收入與損益：股東投資（+）、對外投資（以負數記於收入側，另列、不扣減股東投資）
 const SHIXIN_INV_CATS = ['蒔-股東投資','蒔-對外投資'];
 const isSXInvCat = c => SHIXIN_INV_CATS.includes(c);
 const hasShixinInv = co => co === 'shixin';
-function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'&&isSXInvCat(r.category)).reduce((s,r)=>s+r.amount,0); }
+function sumShixinInv(arr){ return approvedOnly(arr).filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[0]).reduce((s,r)=>s+r.amount,0); }
 
 // Sum expense excluding or including bonus
 function sumExp(arr, mode){
@@ -2768,7 +2768,7 @@ function renderReport(){
   const gSSXInv=(d,cat)=>{const k=mk(d);return all.filter(r=>r.type==='income'&&(cat?r.category===cat:isSXInvCat(r.category))&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
   const totCat=(t,c)=>all.filter(r=>r.type===t&&r.category===c&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totInc=all.filter(r=>r.type==='income'&&!isSXInvCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
-  const totSXInv=all.filter(r=>r.type==='income'&&isSXInvCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+  const totSXInv=all.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[0]&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totExpReg=all.filter(r=>r.type==='expense'&&!isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
   const totBonus=all.filter(r=>r.type==='expense'&&isBonusCat(r.category)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
 
@@ -2810,9 +2810,10 @@ function renderReport(){
     SHIXIN_INV_CATS.forEach(cat=>{
       const tot=all.filter(r=>r.type==='income'&&r.category===cat&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
       if(!tot&&cat!==SHIXIN_INV_CATS[0]) return;
-      h+=`<tr style="background:#f5f3ff"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">${cat}</span></td>`;
-      h+=`<td class="r" style="color:#7c3aed;font-weight:600">${fc(tot)}</td>`;
-      h+=months.map(d=>`<td class="r" style="color:#7c3aed;font-weight:600">${fc(gSSXInv(d,cat))}</td>`).join('');
+      const sg=cat===SHIXIN_INV_CATS[0]?1:-1;  // 對外投資存負數，顯示為流出金額
+      h+=`<tr style="background:#f5f3ff"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">${cat}${sg<0?'（資金流出）':''}</span></td>`;
+      h+=`<td class="r" style="color:#7c3aed;font-weight:600">${fc(sg*tot)}</td>`;
+      h+=months.map(d=>`<td class="r" style="color:#7c3aed;font-weight:600">${fc(sg*gSSXInv(d,cat))}</td>`).join('');
       h+=`</tr>`;
     });
   }
@@ -4563,7 +4564,7 @@ function runRangeQuery(){
 
   // ── 包租費/材料B/投資 total badge ──
   const _rqBTA = document.getElementById('rqBonusTotalAmt');
-  if(_rqBTA) _rqBTA.textContent=showB?`區間${bonusLbl()}：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間投資淨額：${fmt(totalSXInvAmt)}`:'';
+  if(_rqBTA) _rqBTA.textContent=showB?`區間${bonusLbl()}：${fmt(totalBonusAmt)}`:showCailiaobRQ?`區間材料B：${fmt(totalCailiaobAmt)}`:showSXInvRQ?`區間股東投資：${fmt(totalSXInvAmt)}`:'';
 
   // ── KPI grid ──
   const rocM=ym=>{const[y,m]=ym.split('-');return`${parseInt(y)-1911}年${parseInt(m)}月`;};
@@ -4583,7 +4584,7 @@ function runRangeQuery(){
       <div class="kch" style="color:#c2410c">不計入損益</div>
     </div>` : showSXInvRQ&&totalSXInvAmt!==0 ? `
     <div class="kc" style="border-top:3px solid #7c3aed">
-      <div class="kl">投資淨額（獨立）</div>
+      <div class="kl">股東投資（獨立）</div>
       <div class="kv" style="font-size:18px;color:#7c3aed">${fmt(totalSXInvAmt)}</div>
       <div class="kch" style="color:#7c3aed">不計入損益</div>
     </div>` : '';
@@ -5316,7 +5317,7 @@ function _mrRenderDataCards(co){
   if(cb>0) cards.push({ label:'材料B', val:cb, prev:0, yoy:0, icon:'🔧', custom: _mrFmt(cb)+'元' });
   const sxInvCur = hasShixinInv(co) ? sumShixinInv(rCur) : 0;
   const sxInvPrev = hasShixinInv(co) ? sumShixinInv(rPrev) : 0;
-  if(hasShixinInv(co) && (sxInvCur||sxInvPrev)) cards.push({ label:'投資淨額（獨立）', val:sxInvCur, prev:sxInvPrev, yoy:0, icon:'💼', good:()=>true });
+  if(hasShixinInv(co) && (sxInvCur||sxInvPrev)) cards.push({ label:'股東投資（獨立）', val:sxInvCur, prev:sxInvPrev, yoy:0, icon:'💼', good:()=>true });
 
   const container = document.getElementById('mrDataCards');
   container.innerHTML = cards.map(c=>{
@@ -5671,7 +5672,7 @@ function generateMonthReportText(){
     lines.push(`（本月材料B：${N(cb)}元，獨立列計，不計入上述損益）`);
   }
   if(sxInv){
-    lines.push(`（本月投資淨額：${N(sxInv)}元，獨立列計，不計入上述損益）`);
+    lines.push(`（本月股東投資：${N(sxInv)}元，獨立列計，不計入上述損益）`);
   }
   lines.push('');
 
