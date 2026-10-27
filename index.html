@@ -2719,11 +2719,12 @@ function renderRecs(){
   recs.sort((a,b)=> a.date<b.date?1 : a.date>b.date?-1 : (b.id||0)-(a.id||0));
 
   // ── 摘要：筆數＋收支合計，一眼看出有沒有篩到東西 ──
-  //    蒔心田投資不算收入，另列
-  const inc=recs.filter(r=>r.type==='income'&&!isSXInvCat(r.category)).reduce((s,r)=>s+r.amount,0);
-  const exp=recs.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
-  const shInv=recs.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[0]).reduce((s,r)=>s+r.amount,0);
-  const outInv=-recs.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[1]).reduce((s,r)=>s+r.amount,0);
+  //    只算已核准（與報表一致）；蒔心田投資不算收入，另列
+  const apr=approvedOnly(recs), nonApr=recs.length-apr.length;
+  const inc=apr.filter(r=>r.type==='income'&&!isSXInvCat(r.category)).reduce((s,r)=>s+r.amount,0);
+  const exp=apr.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amount,0);
+  const shInv=apr.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[0]).reduce((s,r)=>s+r.amount,0);
+  const outInv=-apr.filter(r=>r.type==='income'&&r.category===SHIXIN_INV_CATS[1]).reduce((s,r)=>s+r.amount,0);
   const subEl=document.getElementById('recSub');
   if(subEl){
     const parts=[];
@@ -2735,7 +2736,8 @@ function renderRecs(){
     if(cat) parts.push(cat);
     if(kwRaw) parts.push(`關鍵字「${kwRaw}」`);
     subEl.textContent=`${parts.join(' · ')} — ${recs.length} 筆 · 收入 ${fmt(inc)} · 支出 ${fmt(exp)}`
-      +(shInv?` · 股東投資 ${fmt(shInv)}（不計收入）`:'')+(outInv?` · 對外投資 ${fmt(outInv)}（不計支出）`:'');
+      +(shInv?` · 股東投資 ${fmt(shInv)}（不計收入）`:'')+(outInv?` · 對外投資 ${fmt(outInv)}（不計支出）`:'')
+      +(nonApr?` · 另有 ${nonApr} 筆待核/退回不計入合計`:'');
   }
 
   // ── 渲染（大範圍查詢設上限，避免一次塞上千個節點）──
