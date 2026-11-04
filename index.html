@@ -3207,13 +3207,15 @@ function _catSugNorm(s){
     .replace(/\d+\s*(年|月份|月|期)?/g,'')          // 11506、8月、2代 這類每期不同的字
     .replace(/[\s\p{P}\p{S}]/gu,'');
 }
+// 建議只從這份清單出：蒔心田的股東投資／對外投資不算營收，不主動建議（要記投資請手動選）
+function _catSugCats(co,type){ return getCats(co,type).filter(c=>!isSXInvCat(c)); }
 function _catSugState(k){ return _catSug[k]||(_catSug[k]={touched:false,sug:null,seq:0}); }
 
 // 歷史比對：相同名稱 4 分、相同對象 2 分、名稱互相包含 1.5 分、對象互相包含 1 分；越近的記錄權重越高
 function catSugLocal(co, type, title, cp, selfId){
   const t=_catSugNorm(title), c=_catSugNorm(cp);
   if(t.length<2&&c.length<2) return null;
-  const valid=new Set(getCats(co,type));
+  const valid=new Set(_catSugCats(co,type));
   const now=Date.now(), by={};
   let total=0, exactN=0;
   for(const r of getRecs(co)){
@@ -3243,7 +3245,7 @@ function catSugLocal(co, type, title, cp, selfId){
 
 // 常用類別（近一年）給快速點選
 function catSugFrequent(co, type, limit=6){
-  const valid=new Set(getCats(co,type)), since=new Date(Date.now()-365*864e5).toISOString().slice(0,10), cnt={};
+  const valid=new Set(_catSugCats(co,type)), since=new Date(Date.now()-365*864e5).toISOString().slice(0,10), cnt={};
   for(const r of getRecs(co)){
     if(r.type!==type||r.status==='rejected'||r.date<since||!valid.has(r.category)||GS_DETAIL_CATS.includes(r.category)) continue;
     cnt[r.category]=(cnt[r.category]||0)+1;
@@ -3254,7 +3256,7 @@ function catSugFrequent(co, type, limit=6){
 async function catSugAI(co, type, title, cp){
   const key=[co,type,title,cp].join('|');
   if(key in _catSugAiCache) return _catSugAiCache[key];
-  const cats=getCats(co,type);
+  const cats=_catSugCats(co,type);
   // 給 AI 看這家公司最近的分法（不同名稱各一筆），讓它照公司習慣分
   const seen=new Set(), examples=[];
   for(const r of [...getRecs(co)].sort((a,b)=>(b.date||'').localeCompare(a.date||''))){
