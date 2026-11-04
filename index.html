@@ -1543,8 +1543,9 @@ function gsRepairOf(ym){
 function _gsYm(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 
 // Shared categories for 小日常 & 翔悅
-const SHARED_INC = ['租金收入','電費收入','其他收入'];
-const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕費用','維護保養','設備投資','稅費','行政管理費','A206事件費用','其他費用'];
+const SHARED_INC = ['租金收入','電費收入','訂金收入','其他收入'];
+// v3.23 類別整理（2026-11-04 使用者確認）：維護保養＋修繕費用→修繕維護費；垃圾清運＋資源回收＋清潔用品→清潔費；獎金併入薪資
+const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕維護費','清潔費','設備投資','稅費','行政管理費','系統費','廣告費','保險費','交際及福利','董事長家用','A206事件費用','其他費用'];
 
 // 蒔心田 categories
 const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-其他電商','蒔-其他','蒔-股東投資','蒔-對外投資'];
@@ -1563,9 +1564,10 @@ const PERSONAL_INC = ['私-薪資','私-投資','私-其他收入'];
 const PERSONAL_EXP = ['私-餐飲','私-日用品','私-交通','私-醫療','私-居家','私-娛樂','私-教育','私-保險','私-稅費','私-其他支出'];
 
 const CAT_ICONS = {
-  '租金收入':'🏠','電費收入':'⚡','其他收入':'💰',
+  '租金收入':'🏠','電費收入':'⚡','訂金收入':'🧾','其他收入':'💰',
   '薪資':'💼','勞健保':'🏥','電費':'💡','水費':'💧','電信費':'📱','包租費':'🔑','分紅':'💰',
-  '車貸':'🚗','退押金':'📦','修繕費用':'🔧','維護保養':'⚙️','設備投資':'🖥',
+  '車貸':'🚗','退押金':'📦','修繕維護費':'🔧','清潔費':'🧹','設備投資':'🖥',
+  '系統費':'💻','廣告費':'📣','保險費':'🛡️','交際及福利':'☕','董事長家用':'🏡',
   '稅費':'📑','行政管理費':'🗂','A206事件費用':'⚠️','其他費用':'📌',
 };
 const PERSONAL_CAT_ICONS = {
@@ -2029,12 +2031,14 @@ const COLORS=['#1a56db','#0d9488','#e11d48','#d97706','#7c3aed','#0891b2','#16a3
 // 同一套機制，各公司叫法不同——小日常＝包租費、翔悅建設＝分紅。
 // 兩者互不交叉（DB 實查：包租費只在 xiaori、分紅只在 xiangyue），故可依公司對應。
 const BONUS_CAT_BY_CO = { xiaori:'包租費', xiangyue:'分紅' };
-const BONUS_CATS = Object.values(BONUS_CAT_BY_CO);
+// 董事長家用（v3.23）：公司代付董事長家裡的費用，視同給股東的款項，兩家都獨立列計、不算損益
+const OWNER_CAT = '董事長家用';
+const BONUS_CATS = [...Object.values(BONUS_CAT_BY_CO), OWNER_CAT];
 const BONUS_COS  = Object.keys(BONUS_CAT_BY_CO);
 const hasBonus   = co => !!BONUS_CAT_BY_CO[co];
 const isBonusCat = c  => BONUS_CATS.includes(c);
 // 顯示用名稱（未指定公司時取目前檢視的公司）
-const bonusLbl   = co => BONUS_CAT_BY_CO[co||activeCo] || '包租費';
+const bonusLbl   = co => (BONUS_CAT_BY_CO[co||activeCo] || '包租費') + '／' + OWNER_CAT;
 
 // 高速駕訓班「材料B」獨立列計，不計入支出（同包租費邏輯）
 const CAILIAOB_CAT = '高速-材料B';
@@ -2797,10 +2801,15 @@ function renderReport(){
   // ── 包租費 / 材料B 獨立區塊 ──
   if(showBonusRow){
     h+=`<tr class="shd" style="background:#fffbeb"><td colspan="${3+months.length}" style="color:#92400e">${bonusLbl()} — 獨立列計，不計入支出與損益</td></tr>`;
-    h+=`<tr style="background:#fffbeb"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${bonusLbl()}</span></td>`;
-    h+=`<td class="r" style="color:#b45309;font-weight:600">${fc(totBonus)}</td>`;
-    h+=months.map(d=>`<td class="r" style="color:#b45309;font-weight:600">${fc(gSBonus(d))}</td>`).join('');
-    h+=`</tr>`;
+    for(const bc of [BONUS_CAT_BY_CO[activeCo], OWNER_CAT]){
+      const gSB=d=>{const k=mk(d);return all.filter(r=>r.type==='expense'&&r.category===bc&&r.date.startsWith(k)&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);};
+      const totB=all.filter(r=>r.type==='expense'&&r.category===bc&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
+      if(bc===OWNER_CAT&&!totB) continue;
+      h+=`<tr style="background:#fffbeb"><td></td><td><span style="display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fde68a">${bc}</span></td>`;
+      h+=`<td class="r" style="color:#b45309;font-weight:600">${fc(totB)}</td>`;
+      h+=months.map(d=>`<td class="r" style="color:#b45309;font-weight:600">${fc(gSB(d))}</td>`).join('');
+      h+=`</tr>`;
+    }
   }
   if(showCailiaobRow){
     const totCailiaob=all.filter(r=>r.type==='expense'&&r.category===CAILIAOB_CAT&&(r.status||'approved')==='approved').reduce((s,r)=>s+r.amount,0);
@@ -3022,6 +3031,7 @@ function copyRec(id, co){
     set('cat',rec.category); set('title',bumpRocYm(rec.title||'')); set('cp',rec.counterparty||'');
     set('amt',rec.amount); set('date',t); set('note',rec.note||'');
     const dn=document.getElementById(p?'si-docno':'se-docno'); if(dn) dn.textContent=generateDocNo(t);
+    catSugTouch(p?'si':'se');
     const focusEl=document.getElementById(p?'si-title':'se-title');
     if(focusEl) focusEl.scrollIntoView({behavior:'smooth',block:'center'});
     toast('📋 已帶入複製內容，請確認金額與名稱後送出');
@@ -3033,6 +3043,7 @@ function copyRec(id, co){
       const o=document.createElement('option'); o.textContent=rec.category; catSel.appendChild(o);
     }
     catSel.value=rec.category;
+    catSugTouch('m');
     document.getElementById('m-amt').value=rec.amount;
     document.getElementById('m-date').value=t;
     document.getElementById('m-docno').textContent=generateDocNo(t);
@@ -3175,6 +3186,197 @@ function _sbWriteErrMsg(e, fallback){
 }
 
 // ═══════════════════════════════════════════
+// 類別建議（v3.23，參考家計簿）：依名稱／對象比對過去同公司同收支的記錄，最常用的類別優先；
+// 沒有相近記錄才問 AI（經 finance-ai）。類別還沒手動選過→自動選好；已選→只給「套用」。
+// 送出時若與歷史強烈不符（≥2 筆相同名稱/對象、占 70% 以上）會再確認一次。
+// ═══════════════════════════════════════════
+const CATSUG_FORMS = {
+  m:   { cat:'m-cat',  title:'m-title',  cp:'m-cp',  type:()=>moType, co:()=>activeCo },
+  si:  { cat:'si-cat', title:'si-title', cp:'si-cp', type:()=>'income',  co:()=>activeCo },
+  se:  { cat:'se-cat', title:'se-title', cp:'se-cp', type:()=>'expense', co:()=>activeCo },
+  ge:  { cat:'ge-cat', title:'ge-title', cp:'ge-cp', edit:true, co:()=>_gmEditCo,
+         type:()=>getRecs(_gmEditCo||activeCo).find(r=>r.id===_gmEditId)?.type||'expense', self:()=>_gmEditId },
+  ste: { cat:'steCat', title:'steTitle', cp:'steCp', edit:true, co:()=>activeCo,
+         type:()=>document.getElementById('steType').value, self:()=>stEditId },
+};
+const _catSug = {};          // k → {touched, sug, timer, aiTimer, seq}
+const _catSugAiCache = {};   // co|type|title|cp → {category, reason} | null
+
+function _catSugNorm(s){
+  return String(s||'').toLowerCase()
+    .replace(/\d+\s*(年|月份|月|期)?/g,'')          // 11506、8月、2代 這類每期不同的字
+    .replace(/[\s\p{P}\p{S}]/gu,'');
+}
+function _catSugState(k){ return _catSug[k]||(_catSug[k]={touched:false,sug:null,seq:0}); }
+
+// 歷史比對：相同名稱 4 分、相同對象 2 分、名稱互相包含 1.5 分、對象互相包含 1 分；越近的記錄權重越高
+function catSugLocal(co, type, title, cp, selfId){
+  const t=_catSugNorm(title), c=_catSugNorm(cp);
+  if(t.length<2&&c.length<2) return null;
+  const valid=new Set(getCats(co,type));
+  const now=Date.now(), by={};
+  let total=0, exactN=0;
+  for(const r of getRecs(co)){
+    if(r.type!==type||r.status==='rejected'||r.id===selfId||!valid.has(r.category)||GS_DETAIL_CATS.includes(r.category)) continue;
+    const rt=_catSugNorm(r.title), rc=_catSugNorm(r.counterparty);
+    let s=0, exact=false;
+    if(t.length>=2&&rt===t){ s+=4; exact=true; }
+    else if(t.length>=2&&rt.length>=2&&(rt.includes(t)||t.includes(rt))) s+=1.5;
+    if(c.length>=2&&rc===c){ s+=2; exact=true; }
+    else if(c.length>=3&&rc.length>=3&&(rc.includes(c)||c.includes(rc))) s+=1;
+    if(!s) continue;
+    const ageY=Math.max(0,(now-new Date(r.date).getTime())/31536e6)||0;
+    const w=s/(1+ageY);
+    const b=by[r.category]||(by[r.category]={w:0,n:0,exact:0});
+    b.w+=w; b.n++; if(exact){ b.exact++; exactN++; }
+    total+=w;
+  }
+  const ranked=Object.entries(by).sort((a,b)=>b[1].w-a[1].w);
+  if(!ranked.length) return null;
+  const [category,b]=ranked[0];
+  const share=b.w/total;
+  return { category, n:b.n, share, src:'hist',
+           strong: b.exact>=2&&share>=0.7,
+           reason: b.exact?`過去相同名稱／對象 ${exactN} 筆中有 ${b.exact} 筆用這個類別`
+                          :`過去 ${b.n} 筆相近名稱用這個類別` };
+}
+
+// 常用類別（近一年）給快速點選
+function catSugFrequent(co, type, limit=6){
+  const valid=new Set(getCats(co,type)), since=new Date(Date.now()-365*864e5).toISOString().slice(0,10), cnt={};
+  for(const r of getRecs(co)){
+    if(r.type!==type||r.status==='rejected'||r.date<since||!valid.has(r.category)||GS_DETAIL_CATS.includes(r.category)) continue;
+    cnt[r.category]=(cnt[r.category]||0)+1;
+  }
+  return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,limit).map(e=>e[0]);
+}
+
+async function catSugAI(co, type, title, cp){
+  const key=[co,type,title,cp].join('|');
+  if(key in _catSugAiCache) return _catSugAiCache[key];
+  const cats=getCats(co,type);
+  // 給 AI 看這家公司最近的分法（不同名稱各一筆），讓它照公司習慣分
+  const seen=new Set(), examples=[];
+  for(const r of [...getRecs(co)].sort((a,b)=>(b.date||'').localeCompare(a.date||''))){
+    if(r.type!==type||r.status==='rejected'||!cats.includes(r.category)||GS_DETAIL_CATS.includes(r.category)) continue;
+    const n=_catSugNorm(r.title); if(!n||seen.has(n)) continue;
+    seen.add(n); examples.push(`${r.title}／${r.counterparty||''} → ${r.category}`);
+    if(examples.length>=60) break;
+  }
+  const coNm=COMPANIES[co]?.name||co, tyNm=type==='income'?'收入':'支出';
+  const system=`你是${coNm}的會計，替一筆${tyNm}挑類別。只能從類別清單挑一個，照這家公司過去的分法。`+
+    `只回一行 JSON：{"category":"清單內的類別","reason":"15 字內理由"}；完全判斷不出來就回 {"category":"","reason":""}。`;
+  const user=`類別清單：\n${cats.join('\n')}\n\n過去的分法（名稱／對象 → 類別）：\n${examples.join('\n')||'（無）'}\n\n`+
+    `這一筆：名稱「${title}」、對象「${cp||'未填'}」`;
+  let out=null;
+  try{
+    const txt=await aiFetch(system,user,600);
+    const m=String(txt).match(/\{[\s\S]*\}/);
+    const j=m?JSON.parse(m[0]):null;
+    if(j&&cats.includes(j.category)) out={category:j.category, reason:String(j.reason||'').slice(0,40), src:'ai', strong:false};
+  }catch(e){ console.warn('catSugAI',e); return null; }   // 失敗不快取，下次再試
+  _catSugAiCache[key]=out;
+  return out;
+}
+
+function _catSugBox(k){
+  const f=CATSUG_FORMS[k], sel=document.getElementById(f.cat);
+  if(!sel) return null;
+  let box=document.getElementById(k+'-catsug');
+  if(!box){
+    box=document.createElement('div');
+    box.id=k+'-catsug';
+    box.style.cssText='margin-top:6px;font-size:12px;line-height:1.5';
+    sel.insertAdjacentElement('afterend',box);
+  }
+  return box;
+}
+
+function catSugSet(k, cat){
+  const sel=document.getElementById(CATSUG_FORMS[k].cat);
+  if(!sel) return;
+  if(![...sel.options].some(o=>o.value===cat)){ const o=document.createElement('option'); o.textContent=cat; sel.appendChild(o); }
+  sel.value=cat;
+  _catSugState(k).touched=true;
+  catSugRender(k);
+}
+function catSugTouch(k){ _catSugState(k).touched=true; catSugRender(k); }
+
+function catSugRender(k){
+  const f=CATSUG_FORMS[k], st=_catSugState(k), box=_catSugBox(k);
+  if(!box) return;
+  const co=f.co(); if(!co){ box.innerHTML=''; return; }
+  const cur=document.getElementById(f.cat).value, s=st.sug;
+  let html='';
+  if(st.loading) html+=`<div style="color:var(--txt3)">🤖 AI 判斷類別中…</div>`;
+  else if(s){
+    const tag=s.src==='ai'?'🤖 AI 建議':'💡 依過去紀錄';
+    if(s.category===cur) html+=`<div style="color:var(--inc)">✓ ${tag}：${esc(s.reason||s.category)}</div>`;
+    else html+=`<div style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`+
+      `<span>${tag}：<b>${esc(s.category)}</b>${s.reason?`<span style="color:var(--txt3)">（${esc(s.reason)}）</span>`:''}</span>`+
+      `<button type="button" class="btn bsm" data-cat="${esc(s.category)}" onclick="catSugSet('${k}',this.dataset.cat)">套用</button></div>`;
+  }
+  if(!f.edit){
+    const fr=catSugFrequent(co,f.type()).filter(c=>c!==cur);
+    if(fr.length) html+=`<div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;align-items:center"><span style="color:var(--txt3)">常用：</span>`+
+      fr.map(c=>`<button type="button" data-cat="${esc(c)}" onclick="catSugSet('${k}',this.dataset.cat)" style="border:1px solid var(--bdr);background:var(--sur);border-radius:12px;padding:1px 9px;font-size:12px;cursor:pointer;color:var(--txt)">${esc(c)}</button>`).join('')+`</div>`;
+  }
+  box.innerHTML=html;
+}
+
+// 名稱／對象輸入停 0.3 秒跑歷史比對；歷史沒有、停 1.2 秒才問 AI（編輯中的舊單不問 AI）
+function catSugUpdate(k){
+  const f=CATSUG_FORMS[k], st=_catSugState(k);
+  clearTimeout(st.timer); clearTimeout(st.aiTimer);
+  st.timer=setTimeout(()=>{
+    const co=f.co(), type=f.type();
+    const title=document.getElementById(f.title).value.trim(), cp=document.getElementById(f.cp).value.trim();
+    const seq=++st.seq;
+    st.loading=false;
+    st.sug=co?catSugLocal(co,type,title,cp,f.self?.()):null;
+    if(st.sug&&!st.touched&&!f.edit) document.getElementById(f.cat).value=st.sug.category;
+    catSugRender(k);
+    if(st.sug||f.edit||!co||_catSugNorm(title).length<2) return;
+    st.aiTimer=setTimeout(async()=>{
+      st.loading=true; catSugRender(k);
+      const s=await catSugAI(co,type,title,cp);
+      if(seq!==st.seq) return;            // 這段時間又改了字，丟掉舊答案
+      st.loading=false; st.sug=s;
+      if(s&&!st.touched) document.getElementById(f.cat).value=s.category;
+      catSugRender(k);
+    },900);
+  },300);
+}
+
+// 開表單／換收支類型／送出後：重設狀態（edit 表單視同已選）
+function catSugReset(k){
+  const st=_catSugState(k);
+  clearTimeout(st.timer); clearTimeout(st.aiTimer);
+  st.seq++; st.sug=null; st.loading=false; st.touched=!!CATSUG_FORMS[k].edit;
+  catSugRender(k);
+  if(CATSUG_FORMS[k].edit) catSugUpdate(k);
+}
+
+// 送出前：與歷史強烈不符就問一次
+function catSugConfirm(k){
+  const f=CATSUG_FORMS[k], co=f.co();
+  if(!co) return true;
+  const cat=document.getElementById(f.cat).value;
+  const s=catSugLocal(co,f.type(),document.getElementById(f.title).value.trim(),document.getElementById(f.cp).value.trim(),f.self?.());
+  if(!s||!s.strong||s.category===cat) return true;
+  return confirm(`類別確認：${s.reason}「${s.category}」，\n這筆選的是「${cat}」。\n\n確定用「${cat}」嗎？（取消可回去改）`);
+}
+
+(function initCatSug(){
+  for(const k of Object.keys(CATSUG_FORMS)){
+    const f=CATSUG_FORMS[k];
+    document.getElementById(f.cat)?.addEventListener('change',()=>catSugTouch(k));
+    document.getElementById(f.title)?.addEventListener('input',()=>catSugUpdate(k));
+    document.getElementById(f.cp)?.addEventListener('input',()=>catSugUpdate(k));
+  }
+})();
+
+// ═══════════════════════════════════════════
 // TX MODAL (GM)
 // ═══════════════════════════════════════════
 document.getElementById('m-date').value=today();
@@ -3213,6 +3415,7 @@ function setMoType(t){
     :'支出對象 <span style="color:var(--exp)">*</span>';
   document.getElementById('m-title').placeholder=t==='income'?'請輸入收入名稱（必填）':'請輸入支出名稱（必填）';
   document.getElementById('m-cp').placeholder=t==='income'?'請輸入來源公司或對象（必填）':'請輸入支出對象或公司名稱（必填）';
+  catSugReset('m');
 }
 let _txMoSubmitting = false;
 async function submitTxMo(){
@@ -3230,6 +3433,7 @@ async function submitTxMo(){
     if(!amt||!date){toast('請填寫金額與日期',false);return;}
     if(!title){toast('請填寫名稱（必填）',false);return;}
     if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
+    if(!catSugConfirm('m')) return;
     const isGM=currentUser.role==='gm';
     // 私人帳免核簽：Mark/Debbie 記的都直接 approved（DB 端 RLS 亦允許）
     const directApprove=isGM||activeCo==='personal';
@@ -3374,6 +3578,7 @@ function populateStaffCats(){
   const iCats=getCats(activeCo,'income'),eCats=getCats(activeCo,'expense');
   document.getElementById('si-cat').innerHTML=iCats.map(c=>`<option>${c}</option>`).join('');
   document.getElementById('se-cat').innerHTML=eCats.map(c=>`<option>${c}</option>`).join('');
+  catSugReset('si'); catSugReset('se');
 }
 
 // ═══════════════════════════════════════════
@@ -3391,6 +3596,7 @@ async function staffSub(type){
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast(p?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
+  if(!catSugConfirm(p?'si':'se')) return;
   const attArr=p?_siAttFiles:_seAttFiles;
   const attachments=attArr.length>0?[...attArr]:null;
   const docNo=generateDocNo(date);
@@ -3408,6 +3614,7 @@ async function staffSub(type){
     document.getElementById(p?'si-note':'se-note').value='';
     document.getElementById(p?'si-title':'se-title').value='';
     document.getElementById(p?'si-cp':'se-cp').value='';
+    catSugReset(p?'si':'se');
     if(p){_siAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_siAttFiles=[];renderStAttList('income');}
     else {_seAttFiles.forEach(a=>{if(a._localUrl)URL.revokeObjectURL(a._localUrl);});_seAttFiles=[];renderStAttList('expense');}
     toast(`✅ 送出成功！「${title}」${type==='income'?'收入':'支出'} ${fmt(amt)} 已送交主管核簽`);
@@ -3551,13 +3758,13 @@ const RAGIC_CAT_MAP = {
   '水費':        '水費',
   '車貸':        '車貸',
   '退押金':      '退押金',
-  '修繕耗材':    '修繕費用',
-  '房間設備':    '修繕費用',
-  '公共區域設備':'維護保養',
-  '垃圾清潔費':  '維護保養',
-  '資源回收':    '維護保養',
-  '房間設備_維': '維護保養',
-  '資訊系統':    '行政管理費',
+  '修繕耗材':    '修繕維護費',
+  '房間設備':    '修繕維護費',
+  '公共區域設備':'修繕維護費',
+  '垃圾清潔費':  '清潔費',
+  '資源回收':    '清潔費',
+  '房間設備_維': '修繕維護費',
+  '資訊系統':    '系統費',
   '會計師費用':  '行政管理費',
   '仲介費':      '行政管理費',
   '雜項':        '其他費用',
@@ -3585,8 +3792,8 @@ function ragicMapCat(type, mainCat, subCat, coKey){
   if(RAGIC_CAT_MAP[subCat]) return RAGIC_CAT_MAP[subCat];
   // Fallback by mainCat
   if(mainCat==='薪資') return '薪資';
-  if(mainCat==='修繕') return '修繕費用';
-  if(mainCat==='維護保養') return '維護保養';
+  if(mainCat==='修繕') return '修繕維護費';
+  if(mainCat==='維護保養') return '修繕維護費';
   if(mainCat==='借貸') return '車貸';
   if(mainCat==='外包') return '行政管理費';
   if(mainCat==='行政') return '行政管理費';
@@ -6525,6 +6732,7 @@ function openGmEditMo(id, co){
   document.getElementById('gmEditTitle').textContent=isInc?'編輯收入記錄':'編輯支出記錄';
   document.getElementById('ge-title-lbl').innerHTML=(isInc?'收入名稱':'支出名稱')+' <span style="color:var(--exp)">*</span>';
   document.getElementById('ge-cp-lbl').innerHTML=(isInc?'收入來源':'支出對象')+' <span style="color:var(--exp)">*</span>';
+  catSugReset('ge');
   document.getElementById('gmEditMo').classList.add('open');
 }
 
@@ -6544,6 +6752,7 @@ async function submitGmEdit(){
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast('請填寫來源／對象（必填）',false);return;}
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
+  if(!catSugConfirm('ge')) return;
   try{
     await sbFetch(`records?id=eq.${_gmEditId}`,'PATCH',{
       category:cat, title, counterparty, amount:amt, date, note
@@ -6601,6 +6810,7 @@ function populateStEditCats(type, selected){
   const cats=getCats(activeCo,type);
   const sel=document.getElementById('steCat');
   sel.innerHTML=cats.map(c=>`<option${c===selected?' selected':''}>${c}</option>`).join('');
+  catSugReset('ste');
 }
 function closeStEditMo(){ document.getElementById('stEditMo').classList.remove('open'); stEditId=null; _steAttFiles=[]; }
 // PATCH 被 RLS 濾成 0 筆＝這筆單在 DB 端狀態已變（多半已被主管核簽）：同步真實狀態並誠實告知
@@ -6629,6 +6839,7 @@ async function submitStEdit(){
   if(!amt||!date){toast('請填寫金額與日期',false);return;}
   if(!title){toast('請填寫名稱（必填）',false);return;}
   if(!counterparty){toast(type==='income'?'請填寫收入來源（必填）':'請填寫支出對象（必填）',false);return;}
+  if(!catSugConfirm('ste')) return;
   const attachments = _steAttFiles.length > 0 ? [..._steAttFiles] : null;
 
   if(origStatus==='pending'){
