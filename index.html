@@ -1552,7 +1552,7 @@ const SX_EXP = [
   '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-銷貨成本-包材','蒔-銷貨成本-外購商品',
   '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局',
   '蒔-金流-官網手續費','蒔-金流-簡訊費','蒔-金流-刷卡手續費','蒔-金流-Line Pay手續費','蒔-金流-蝦皮手續費',
-  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google',
+  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-銷售佣金、分潤',
   '蒔-人事薪資','蒔-系統軟體','蒔-行銷製作-影片拍攝剪輯','蒔-網紅/KOL酬勞',
   '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊',
   '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他'
@@ -4830,6 +4830,7 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(key.includes('meta')||(key.includes('廣告')&&!key.includes('google'))) return '蒔-數位廣告投放-Meta';
   if(key.includes('google')) return '蒔-數位廣告投放-Google';
   if(key.includes('影音')||key.includes('剪輯')||key.includes('拍攝')) return '蒔-行銷製作-影片拍攝剪輯';
+  if(key.includes('抽成')||key.includes('佣金')||key.includes('分潤')) return '蒔-銷售佣金、分潤';
   if(key.includes('kol')||key.includes('網紅')||key.includes('口碑')||key.includes('部落客')) return '蒔-網紅/KOL酬勞';
   if(key.includes('設計')||key.includes('文宣')) return '蒔-文宣設計';
   if(key.includes('seo')) return '蒔-SEO';
