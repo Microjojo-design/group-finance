@@ -336,6 +336,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgfu{color:var(--txt3)}
 .bgmt td,.bgmt th{white-space:nowrap}
 .bgwg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px}.bgwg label{display:flex;flex-direction:column;gap:3px;color:var(--txt3)}
+.bgmeet-on{background:#3D1F01!important;color:#FEECD2!important;border-color:#3D1F01!important}
 .bgtools{display:flex;flex-wrap:wrap;gap:6px}
 .bgtog{border:0;background:none;color:#BA693D;font-size:12px;cursor:pointer;padding:4px 0 0;font-family:inherit}
 .bgtog:hover{text-decoration:underline}
@@ -717,6 +718,7 @@ span.bgst-ok{background:#f0fdfa}span.bgst-plan{background:#fffbeb}span.bgst-canc
             <button class="vt" data-v="month" onclick="bgSetView('month')">月份明細</button>
             <button class="vt" data-v="plan" id="bgTabPlan" style="display:none" onclick="bgSetView('plan')">預算設定</button>
           </div>
+          <button class="btn bsm" id="bgMeetBtn" onclick="bgToggleMeet()" title="開畫面跟員工討論時使用：隱藏銷貨成本、人事與結餘">🙈 會議模式</button>
         </div>
       </div>
       <div id="bgBody"><div class="empty">載入中…</div></div>
@@ -8668,7 +8670,12 @@ const bgItemYear=it=>bgSum(bgItemMonths(it));
 const bgItemsOf=l=>(l.items||[]);
 function bgCloneSuggest(id){ return (BG_SUGGEST[id]||[]).map(x=>({...x,id:bgItId()})); }
 
-let _bg = { year:null, view:'track', data:null, cfg:null, loading:false, open:new Set() };
+let _bg = { year:null, view:'track', data:null, cfg:null, loading:false, open:new Set(), meet:false };
+// v3.27 會議模式：開畫面跟員工討論時隱藏銷貨成本、人事；總支出與結餘可反推出這兩項，也一併隱藏。記在這台瀏覽器
+try{ _bg.meet=localStorage.getItem('bgMeet')==='1'; }catch(e){}
+const bgHidden=l=>_bg.meet&&l.kind==='expense'&&(l.group==='銷貨成本'||l.sens==='salary');
+function bgToggleMeet(){ _bg.meet=!_bg.meet; try{ localStorage.setItem('bgMeet',_bg.meet?'1':'0'); }catch(e){}
+  toast(_bg.meet?'已開啟會議模式':'已關閉會議模式'); renderBudget(false); }
 const bgFmt = n => Math.round(n||0).toLocaleString('zh-TW');
 const bgWan = n => { const v=(n||0)/1e4; return (Math.abs(v)>=100?Math.round(v).toLocaleString('zh-TW'):v.toFixed(1))+' 萬'; };
 const bgPct = (n,d=0) => (n==null||!isFinite(n)) ? '—' : (n*100).toFixed(d)+'%';
@@ -8744,6 +8751,7 @@ async function renderBudget(refetch=true){
   }
   const D=_bg.data;
   document.getElementById('bgTabPlan').style.display=D.can_edit?'':'none';
+  const mb=document.getElementById('bgMeetBtn'); if(mb){ mb.classList.toggle('bgmeet-on',_bg.meet); mb.textContent=_bg.meet?'🙈 會議模式：開（點此關閉）':'🙈 會議模式'; }
   if(_bg.view==='plan'&&!D.can_edit) _bg.view='track';
   if(_bg.view==='plan'){ bgRenderEditor(); return; }
   if(!D.plan){
@@ -8762,16 +8770,17 @@ function bgStartDraft(){ _bg.cfg=bgCfgFromTemplate(activeCo,_bg.year); _bg.view=
 function bgCompute(D){
   const P=D.plan, act=D.actual||{}, revCut=D.rev_cut||0, expCut=bgExpCut(_bg.year);
   const a12=cats=>{ const o=Array(12).fill(0); cats.forEach(c=>(act[c]||[]).forEach((v,i)=>o[i]+=+v)); return o; };
-  const lines=P.lines.map(l=>({...l, actual:a12(l.cats)}));
+  const allCats=new Set(P.lines.flatMap(l=>l.cats));
+  const lines=P.lines.filter(l=>!bgHidden(l)).map(l=>({...l, actual:a12(l.cats)}));
   const inc=lines.filter(l=>l.kind==='income'), exp=lines.filter(l=>l.kind==='expense');
   const incB=Array(12).fill(0), incA=Array(12).fill(0), expB=Array(12).fill(0), expA=Array(12).fill(0);
   inc.forEach(l=>l.months.forEach((v,i)=>{incB[i]+=v; incA[i]+=l.actual[i];}));
   exp.forEach(l=>l.months.forEach((v,i)=>{expB[i]+=v; expA[i]+=l.actual[i];}));
   // 有實際支出但沒編進任何預算線的類別（新類別或漏編），GM 版另列
-  const mapped=new Set(lines.flatMap(l=>l.cats)), incCats=new Set(getCats(activeCo,'income'));
+  const mapped=allCats, incCats=new Set(getCats(activeCo,'income'));
   const unb=Object.keys(act).filter(c=>!mapped.has(c)&&!incCats.has(c)&&!isSXInvCat(c)).map(c=>({label:c,actual:act[c].map(Number)}));
   unb.forEach(u=>u.actual.forEach((v,i)=>expA[i]+=v));
-  return {P,lines,inc,exp,unb,incB,incA,expB,expA,revCut,expCut};
+  return {P,lines,inc,exp,unb,incB,incA,expB,expA,revCut,expCut,hidCats:new Set(P.lines.filter(bgHidden).flatMap(l=>l.cats))};
 }
 function bgStatus(r){ return r==null?['bg-na','—']:r>1.15?['bg-bad','超支']:r>1?['bg-warn','注意']:['bg-ok','正常']; }
 function bgRevStatus(r,pace){ return r==null?['bg-na','—']:r>=1?['bg-ok','達標']:r>=0.9?['bg-warn','略落後']:['bg-bad','落後']; }
@@ -8805,7 +8814,7 @@ function bgStructHTML(D, C){
   C.exp.forEach(l=>l.cats.forEach(c=>catG[c]=l.group));
   const incCats=new Set(getCats(activeCo,'income')), pyExp={}; let pyUnb=0;
   approvedOnly(getRecs(activeCo)).forEach(r=>{
-    if(r.type!=='expense'||!(r.date||'').startsWith(py+'-')||+r.date.slice(5,7)>pc||isSXInvCat(r.category)||incCats.has(r.category)) return;
+    if(r.type!=='expense'||!(r.date||'').startsWith(py+'-')||+r.date.slice(5,7)>pc||isSXInvCat(r.category)||incCats.has(r.category)||C.hidCats.has(r.category)) return;
     const g=catG[r.category]; if(g) pyExp[g]=(pyExp[g]||0)+(+r.amount||0); else pyUnb+=(+r.amount||0); });
   const pyRev=base.sum;
   const row=(label,b,a,pa,cls='')=>{ const br=target?b/target:null, ar=nc&&revA?a/revA:null, pr=pyRev?pa/pyRev:null;
@@ -8820,13 +8829,15 @@ function bgStructHTML(D, C){
   opG.forEach(grpRow);
   const ua=C.unb.reduce((s,u)=>s+bgSum(u.actual,0,nc),0);
   if(ua||pyUnb){ ta+=ua; tp+=pyUnb; rows+=row('未編列預算的支出',0,ua,pyUnb); }
+  if(_bg.meet){ invG.forEach(grpRow); }
+  else{
   if(invG.length){ rows+=row('日常營運結餘',target-tb,revA-ta,pyRev-tp,'sub'); invG.forEach(grpRow); }
-  rows+=row('總支出',tb,ta,tp,'sub')+row(invG.length?'扣除新品投資後結餘':'預估結餘',target-tb,revA-ta,pyRev-tp,'sub');
+  rows+=row('總支出',tb,ta,tp,'sub')+row(invG.length?'扣除新品投資後結餘':'預估結餘',target-tb,revA-ta,pyRev-tp,'sub'); }
   const per=nc?`今年實際＝1–${nc} 月（營收與支出都已結算的月份）`:`今年還沒有收入、支出都結算完的月份，實際欄位待 ${_bg.year} 年 1 月官網營收匯入後出現`;
   return `<div class="card mb16"><div class="chd"><div class="ct">成本結構（佔營收比例）</div></div><div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>類別</th><th class="r">全年預算</th><th class="r">預算佔營收</th><th class="r">今年實際</th><th class="r">實際佔營收</th><th class="r">實際−預算</th><th class="r">${py} 年實際</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
-    <div style="font-size:11px;color:var(--txt3);margin-top:8px">${per}；${py} 年實際＝1–${pc} 月。比例都是「÷ 同期營收」，數字隨收支系統記錄自動更新。差異欄紅色＝成本佔比高於預算（結餘列相反）。<br>⚠️ 產品成本的「實際」是當期<b>進貨付款</b>（含囤貨、訂金），大批進貨的月份會偏高、沒進貨的月份偏低，要看全年累計才接近真實成本率。</div></div>`;
+    <div style="font-size:11px;color:var(--txt3);margin-top:8px">${per}；${py} 年實際＝1–${pc} 月。比例都是「÷ 同期營收」，數字隨收支系統記錄自動更新。差異欄紅色＝成本佔比高於預算${_bg.meet?'':'（結餘列相反）。<br>⚠️ 產品成本的「實際」是當期<b>進貨付款</b>（含囤貨、訂金），大批進貨的月份會偏高、沒進貨的月份偏低，要看全年累計才接近真實成本率'}。</div></div>`;
 }
 
 // 新品投資細項：專案類別的實際支出依標題關鍵字拆項目（記帳時標題寫「悅敏捷-原料」「悅敏捷-代言」…）
@@ -8876,7 +8887,7 @@ function bgTrackHTML(D){
   const expCutB=bgSum(C.expB,0,expCut), expCutA=bgSum(C.expA,0,expCut);
   const nc=Math.min(revCut,expCut), netA=bgSum(C.incA,0,nc)-bgSum(C.expA,0,nc), netB=bgSum(C.incB,0,nc)-bgSum(C.expB,0,nc);
   const pace=target?revCutB/target:0, cutR=revCutB?revCutA/revCutB:null, [rc,rt]=bgRevStatus(cutR);
-  const note=`官網營收資料截至 <b>${D.web_cutoff||'—'}</b>（約晚 2 個月匯入），營收達成率只比到第 ${revCut} 個月；支出統計到第 ${expCut} 個月。`;
+  const note=(_bg.meet?'<b>🙈 會議模式</b>：部分內部項目已隱藏，支出數字只含畫面上列出的類別。<br>':'')+`官網營收資料截至 <b>${D.web_cutoff||'—'}</b>（約晚 2 個月匯入），營收達成率只比到第 ${revCut} 個月；支出統計到第 ${expCut} 個月。`;
   // 通路
   const chRows=C.inc.map(l=>{ const b=bgSum(l.months), bc=bgSum(l.months,0,revCut), ac=bgSum(l.actual,0,revCut), r=bc?ac/bc:null, [c,t]=bgRevStatus(r);
     return `<tr><td>${esc(l.label)}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(bc)}</td><td class="r">${bgFmt(ac)}</td><td class="r">${bgPct(r,1)}</td><td class="r">${bgPct(b?bgSum(l.actual)/b:null,1)}</td><td><span class="bgp ${c}">${t}</span></td></tr>`; }).join('');
@@ -8904,11 +8915,11 @@ function bgTrackHTML(D){
   <div class="kg">
     <div class="kc bgk"><div class="kl">年度營收達成率</div><div class="kv">${bgPct(target?revA/target:null,1)}</div><div class="kch">目標 ${bgWan(target)} · 時間進度 ${bgPct(pace)}</div></div>
     <div class="kc bgk"><div class="kl">已結算月份達成（1–${revCut} 月）</div><div class="kv">${bgPct(cutR,1)}</div><div class="kch"><span class="bgp ${rc}">${rt}</span> 實際 ${bgWan(revCutA)} / 預算 ${bgWan(revCutB)}</div></div>
-    <div class="kc bgk"><div class="kl">支出使用率（1–${expCut} 月）</div><div class="kv">${bgPct(expCutB?expCutA/expCutB:null,1)}</div><div class="kch">實際 ${bgWan(expCutA)} / 預算 ${bgWan(expCutB)}</div></div>
-    <div class="kc bgk"><div class="kl">累計結餘（1–${nc} 月）</div><div class="kv" style="color:${netA>=0?'var(--inc)':'var(--exp)'}">${bgWan(netA)}</div><div class="kch">預算 ${bgWan(netB)} · 全年預估 ${bgWan(target-bgSum(C.expB))}</div></div>
+    <div class="kc bgk"><div class="kl">支出使用率（1–${expCut} 月${_bg.meet?'，畫面上的類別':''}）</div><div class="kv">${bgPct(expCutB?expCutA/expCutB:null,1)}</div><div class="kch">實際 ${bgWan(expCutA)} / 預算 ${bgWan(expCutB)}</div></div>
+    ${_bg.meet?'':`<div class="kc bgk"><div class="kl">累計結餘（1–${nc} 月）</div><div class="kv" style="color:${netA>=0?'var(--inc)':'var(--exp)'}">${bgWan(netA)}</div><div class="kch">預算 ${bgWan(netB)} · 全年預估 ${bgWan(target-bgSum(C.expB))}</div></div>`}
   </div>
   <div class="card mb16"><div class="chd"><div class="ct">每月實際 vs 預算</div></div>
-    <div class="bglg"><span><i style="background:#BA693D"></i>收入</span><span><i style="background:#D6B474"></i>支出</span><span><i style="background:#3D1F01;height:2px"></i>當月營收目標</span><span>淡色＝尚未結算（顯示預算）</span></div>
+    <div class="bglg"><span><i style="background:#BA693D"></i>收入</span><span><i style="background:#D6B474"></i>支出${_bg.meet?'（畫面上的類別）':''}</span><span><i style="background:#3D1F01;height:2px"></i>當月營收目標</span><span>淡色＝尚未結算（顯示預算）</span></div>
     ${bgChart(C.incB,C.expB,C.incA,C.expA,revCut,expCut)}</div>
   ${bgStructHTML(D,C)}
   ${bgInvHTML(C)}
@@ -8932,11 +8943,11 @@ function bgMonthHTML(D){
   const groups=[...new Set(C.exp.map(l=>l.group))];
   const gB=g=>{const o=Array(12).fill(0); C.exp.filter(l=>l.group===g).forEach(l=>l.months.forEach((v,i)=>o[i]+=v)); return o;};
   const gA=g=>{const o=Array(12).fill(0); C.exp.filter(l=>l.group===g).forEach(l=>l.actual.forEach((v,i)=>o[i]+=v)); return o;};
-  h+=row('營業支出',C.expB,C.expA,expCut,'shd');
+  h+=row(_bg.meet?'營業支出（畫面上的類別）':'營業支出',C.expB,C.expA,expCut,'shd');
   groups.forEach(g=>h+=row('　'+esc(g),gB(g),gA(g),expCut));
   if(C.unb.length){ const o=Array(12).fill(0); C.unb.forEach(u=>u.actual.forEach((v,i)=>o[i]+=v)); h+=row('　未編列',Array(12).fill(0),o,expCut); }
   const nB=C.incB.map((v,i)=>v-C.expB[i]), nA=C.incA.map((v,i)=>v-C.expA[i]);
-  h+=row('結餘',nB,nA,Math.min(revCut,expCut),'sub');
+  if(!_bg.meet) h+=row('結餘',nB,nA,Math.min(revCut,expCut),'sub');
   return `<div class="bgw"><div class="bgnote">已結算月份上行為實際、下行為預算；淡色為尚未結算（營收 ${revCut} 月、支出 ${expCut} 月以後）。</div>
   <div class="card"><div style="overflow-x:auto"><table class="tbl bgmt"><thead><tr><th>項目</th>${Array.from({length:12},(_,i)=>`<th class="r">${i+1}月</th>`).join('')}<th class="r">全年</th></tr></thead><tbody>${h}</tbody></table></div></div></div>`;
 }
@@ -8949,6 +8960,7 @@ function bgRenderEditor(){
   const inp=(id,val,on,w=90,step='any')=>`<input id="${id}" type="number" step="${step}" value="${val}" oninput="${on}" style="width:${w}px;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;text-align:right;font-family:'DM Mono',monospace">`;
   let er='', lastG='';
   c.expense.forEach((l,i)=>{
+    if(bgHidden({kind:'expense',...l})) return;
     if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="4">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
     const its=bgItemsOf(l), nIt=its.filter(x=>x.status!=='cancel').length, open=_bg.open.has(l.id);
     er+=`<tr><td style="padding-left:22px">${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
@@ -9051,7 +9063,7 @@ function bgExport(){
   const c=_bg.cfg||(_bg.data&&_bg.data.plan&&bgCfgFromPlan(_bg.data.plan)); if(!c){ toast('沒有預算可匯出',false); return; }
   const P=bgBuildPlan(c), M=Array.from({length:12},(_,k)=>`${k+1}月`);
   const rows=[['組別','類別','細項','狀態','負責人','方式','月份','全年預估',...M,'比對關鍵字']];
-  P.lines.filter(l=>l.kind==='expense').forEach(l=>{
+  P.lines.filter(l=>l.kind==='expense'&&!bgHidden(l)).forEach(l=>{
     rows.push([l.group,l.label,'（類別合計）','','',l.rule==='p'?`佔營收 ${l.value}%`:l.rule==='i'?'依細項加總':'固定金額','',bgSum(l.months),...l.months,'']);
     bgItemsOf(l).forEach(it=>{ const mo=bgItemMonths({...it,status:'ok'});
       rows.push([l.group,l.label,it.name,BG_ST[it.status]||'',it.owner||'',BG_MODE[it.mode]||'',it.mode==='o'?`${it.from}月`:`${it.from}–${it.to}月`,it.status==='cancel'?0:bgSum(mo),...mo,it.kw||'']); }); });
@@ -9082,7 +9094,7 @@ function bgRecalc(){
   c.income.forEach((l,i)=>document.getElementById('bgI'+i+'y').textContent=bgFmt(c.target*l.share/100));
   let okSum=0, planSum=0;
   P.lines.filter(l=>l.kind==='expense').forEach((l,i)=>{ const yr=bgSum(l.months), its=bgItemsOf(l);
-    document.getElementById('bgE'+i+'y').textContent=bgFmt(yr);
+    const ye=document.getElementById('bgE'+i+'y'); if(!ye) return; ye.textContent=bgFmt(yr);
     const al=its.reduce((s,it)=>s+bgItemYear(it),0), pl=its.filter(it=>it.status==='plan').reduce((s,it)=>s+bgItemYear(it),0);
     its.forEach((it,j)=>{ const e=document.getElementById(`bgI${i}_${j}y`); if(e) e.textContent=bgFmt(bgItemYear(it)); });
     const a=document.getElementById('bgE'+i+'a'), t=document.getElementById('bgE'+i+'it');
@@ -9093,6 +9105,9 @@ function bgRecalc(){
     if(l.rule==='i'){ planSum+=pl; okSum+=yr-pl; } else okSum+=yr; });
   const exp=P.lines.filter(l=>l.kind==='expense').reduce((s,l)=>s+bgSum(l.months),0), net=c.target-exp;
   const grp={}; P.lines.filter(l=>l.kind==='expense').forEach(l=>grp[l.group]=(grp[l.group]||0)+bgSum(l.months));
+  if(_bg.meet){ const vis=P.lines.filter(l=>l.kind==='expense'&&!bgHidden(l)).reduce((s,l)=>s+bgSum(l.months),0);
+    document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px"><span>🙈 會議模式</span><span>營收目標 <b>${bgWan(c.target)}</b></span><span>畫面上的支出預算 <b>${bgWan(vis)}</b></span></div>`;
+    document.getElementById('bgSaveBtn').disabled=!(okI&&okW&&c.target>0); return; }
   document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px">
     <span>營收 <b>${bgWan(c.target)}</b></span><span>支出 <b>${bgWan(exp)}</b>（${bgPct(exp/(c.target||1),1)}）</span>
     <span>預估結餘 <b style="color:${net>=0?'var(--inc)':'var(--exp)'}">${bgWan(net)}</b>（${bgPct(net/(c.target||1),1)}）</span></div>
