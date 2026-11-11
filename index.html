@@ -319,6 +319,26 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 /* ─ Misc ─ */
 .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:7px}
 .empty{text-align:center;padding:26px;color:var(--txt3);font-size:13px}
+.bgw{--vw:#BA693D;--vw-gold:#D6B474;--vw-dk:#3D1F01;--vw-bg:#FEECD2}
+.bgw .bgk::after{background:#BA693D}
+.bgnote{font-size:12px;color:#7A5A3E;background:#FEECD2;border:1px solid #EAD3B0;border-radius:8px;padding:8px 12px;margin-bottom:14px}
+.bgbtn{background:#BA693D;border-color:#BA693D;color:#fff;font-weight:700}
+.bgbtn:hover{background:#9c5631;color:#fff;border-color:#9c5631}
+.bgbtn:disabled{opacity:.45;cursor:not-allowed}
+.bgp{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;margin-right:6px;white-space:nowrap}
+.bg-ok{background:#e7f6ef;color:#0f7a55}.bg-warn{background:#fdf1dc;color:#b45309}.bg-bad{background:#fde8ea;color:#c81e3a}.bg-na{background:var(--sur2);color:var(--txt3)}
+.bgr{font-size:10px;color:#A88B70;border:1px solid #EAD3B0;border-radius:20px;padding:0 6px;margin-left:6px;white-space:nowrap}
+.bgm{position:relative;display:inline-block;width:90px;height:7px;background:var(--sur2);border-radius:4px;vertical-align:middle;overflow:hidden;margin-right:4px}
+.bgm b{position:absolute;left:0;top:0;bottom:0;border-radius:4px}.bgm i{position:absolute;top:-2px;bottom:-2px;width:2px;background:#3D1F01}
+.bglg{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--txt3);margin-bottom:6px}.bglg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.bgal{display:flex;flex-direction:column;gap:6px;font-size:13px}.bgal>div{background:#FFF8EE;border-radius:8px;padding:7px 10px}
+.bgsm{font-size:10px;color:var(--txt3);font-family:'Noto Sans TC',sans-serif}
+.bgfu{color:var(--txt3)}
+.bgmt td,.bgmt th{white-space:nowrap}
+.bgwg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px}.bgwg label{display:flex;flex-direction:column;gap:3px;color:var(--txt3)}
+.bgsave{display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;bottom:10px;z-index:5;box-shadow:var(--shm)}
+@media(max-width:600px){.bgwg{grid-template-columns:repeat(3,1fr)}}
+
 #toast{position:fixed;bottom:24px;right:24px;padding:10px 17px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .3s;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.15)}
 
 /* ─ Import ─ */
@@ -573,6 +593,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="ni" onclick="showPage('ai',this)"><span class="nic">🤖</span>AI 分析</div>
       <div class="ni" onclick="showPage('rangequery',this)"><span class="nic">🔍</span>區間統計查詢</div>
       <div class="ni" id="nav-gsrepair" style="display:none" onclick="showPage('gsrepair',this)"><span class="nic">🔧</span>維修材料費比較</div>
+      <div class="ni" id="nav-budget" style="display:none" onclick="showPage('budget',this)"><span class="nic">🎯</span>年度預算</div>
       <div class="nav-s">管理</div>
       <div class="ni" id="nav-approval" onclick="showPage('approval',this)"><span class="nic">✅</span>核簽管理 <span id="pendingBadge" style="display:none;background:#e11d48;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:9px;margin-left:4px">0</span></div>
       <div class="ni" id="nav-monthreport" onclick="showPage('monthreport',this)"><span class="nic">📝</span>一鍵月報</div>
@@ -665,6 +686,22 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
     </div>
 
     <!-- 高速：維修材料費比較 -->
+    <!-- 年度預算（v3.24） -->
+    <div id="page-budget" class="page">
+      <div class="topbar">
+        <div><div class="pt">🎯 年度預算</div><div class="ps">蒔心田生醫 · 營業目標與預算達成</div></div>
+        <div class="tbr">
+          <select id="bgYear" onchange="_bg.cfg=null;renderBudget()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur);font-size:13px"></select>
+          <div class="vts" id="bgTabs">
+            <button class="vt active" data-v="track" onclick="bgSetView('track')">達成率追蹤</button>
+            <button class="vt" data-v="month" onclick="bgSetView('month')">月份明細</button>
+            <button class="vt" data-v="plan" id="bgTabPlan" style="display:none" onclick="bgSetView('plan')">預算設定</button>
+          </div>
+        </div>
+      </div>
+      <div id="bgBody"><div class="empty">載入中…</div></div>
+    </div>
+
     <div id="page-gsrepair" class="page">
       <div class="topbar">
         <div><div class="pt">維修材料費比較</div><div class="ps">小客車／大重機 逐月與年度比較（民國110/06 起）</div></div>
@@ -1199,6 +1236,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
       <div class="stabs">
         <div class="stab active" onclick="showStTab('entry',this)">✏️ 新增記錄</div>
         <div class="stab" onclick="showStTab('history',this)">📋 我的歷史記錄</div>
+        <div class="stab" id="stTabBudget" style="display:none" onclick="showStTab('budget',this)">🎯 預算達成</div>
         <div class="stab" onclick="showStTab('settings',this)">⚙️ 帳號設定</div>
       </div>
       <!-- ENTRY -->
@@ -1276,6 +1314,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
           <div class="txl" id="stHistL" style="max-height:520px"><div class="empty">尚無記錄</div></div>
         </div>
       </div>
+      <!-- 預算達成（v3.24，蒔心田員工版） -->
+      <div class="spg" id="sp-budget"><div id="stBudgetBody"></div></div>
       <!-- SETTINGS -->
       <div class="spg" id="sp-settings">
         <div class="card" style="max-width:460px">
@@ -1548,7 +1588,7 @@ const SHARED_INC = ['租金收入','電費收入','訂金收入','其他收入']
 const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕維護費','清潔費','設備投資','稅費','行政管理費','系統費','廣告費','保險費','交際及福利','董事長家用','A206事件費用','其他費用'];
 
 // 蒔心田 categories
-const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-其他電商','蒔-其他','蒔-股東投資','蒔-對外投資'];
+const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-其他電商','蒔-通路經銷','蒔-其他','蒔-股東投資','蒔-對外投資'];
 const SX_EXP = [
   '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-銷貨成本-包材','蒔-銷貨成本-外購商品',
   '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局',
@@ -2166,6 +2206,7 @@ async function doLogin(){
       document.getElementById('stDept').textContent=user.dept;
       renderStaffCoTabs(allowed);
       populateStaffCats();
+      bgStaffTabSync();
       document.getElementById('si-date').value=today();
       document.getElementById('se-date').value=today();
       document.getElementById('si-by').value=user.name;
@@ -2228,6 +2269,7 @@ function renderStaffCoTabs(allowed){
 
 function switchStaffCo(co, el){
   activeCo=co;
+  bgStaffTabSync();
   applyStaffCoTheme();
   populateStaffCats();
   document.getElementById('si-by').value=currentUser.name;
@@ -2278,6 +2320,11 @@ function switchCo(co){
 function applyCoTheme(){
   const _gsr=document.getElementById('nav-gsrepair');
   if(_gsr) _gsr.style.display = activeCo==='gaoshu' ? '' : 'none';
+  const _bgn=document.getElementById('nav-budget');
+  if(_bgn) _bgn.style.display = bgCanSee() ? '' : 'none';
+  if(!bgCanSee() && document.getElementById('page-budget')?.classList.contains('active')){
+    showPage('dashboard', document.querySelector('.ni'));
+  } else if(bgCanSee() && document.getElementById('page-budget')?.classList.contains('active')){ _bg.cfg=null; renderBudget(); }
   // 切到別家公司時若正停在這頁，退回儀表板
   if(activeCo!=='gaoshu' && document.getElementById('page-gsrepair')?.classList.contains('active')){
     showPage('dashboard', document.querySelector('.ni'));
@@ -2328,6 +2375,7 @@ function showPage(name,el){
   if(name==='approval') renderApproval();
   if(name==='monthreport') renderMonthReport();
   if(name==='catmgmt') renderCatMgmt();
+  if(name==='budget'){ initBudgetPage(); renderBudget(); }
 }
 
 function changeMonth(d){
@@ -3574,6 +3622,7 @@ function showStTab(name,el){
   document.getElementById('sp-'+name).classList.add('active');
   el.classList.add('active');
   if(name==='history') renderStHist();
+  if(name==='budget') renderStaffBudget();
 }
 
 function populateStaffCats(){
@@ -5017,6 +5066,7 @@ function mapSXCatAll(type, mainCat, subCat, detail){
     if(SX_INC.includes(main)) return main;
     if(key.includes('蝦皮')) return '蒔-蝦皮';
     if(key.includes('官網')||key.includes('shopline')) return '蒔-官網';
+    if(['活力達康','幸康','宏道','陽明春天','經銷'].some(k=>key.includes(k))) return '蒔-通路經銷';
     if(key.includes('福報')||key.includes('素易')||key.includes('其他電商')) return '蒔-其他電商';
     return '蒔-親友團購';
   }
@@ -8530,6 +8580,338 @@ function rejectFromDetail(){
   document.addEventListener('mouseup',onEnd);
   document.addEventListener('touchend',onEnd);
 })();
+
+
+// ═══════════════════════════════════════════
+// 年度預算（v3.24，蒔心田）
+// 資料：budgets 表（Mark 可寫）＋ RPC budget_view（依登入者回傳；員工版在 DB 端就遮蔽）
+// 完整版：Mark／Debbie／Rich；員工版：蒔心田 staff（只看營收達成率％＋行銷預算）
+// 計畫存「每月金額」，達成率由 RPC 回傳的實際收支計算；官網營收約晚 2 個月匯入，達成率只比到已匯入的月份
+// ═══════════════════════════════════════════
+const BUDGET_COS = ['shixin'];
+const BG_SEAS = [1.05,.85,.85,.9,1.05,.95,.9,.95,1.1,1.0,1.2,1.2];   // 1月年節、5月母親節、9月中秋、11–12月雙11／年終
+function bgDefaultWeights(){
+  const r=BG_SEAS.map((s,i)=>s*(0.85+0.3*i/11)), t=r.reduce((a,b)=>a+b,0);
+  return r.map(x=>Math.round(x/t*10000)/100);
+}
+const BG_TEMPLATE = {
+  shixin: {
+    income: [
+      {id:'web',  label:'官網',           cats:['蒔-官網'],     share:70},
+      {id:'grp',  label:'親友／企業團購', cats:['蒔-親友團購'], share:14},
+      {id:'dist', label:'通路經銷',       cats:['蒔-通路經銷'], share:10},
+      {id:'ec',   label:'蝦皮＋其他電商', cats:['蒔-蝦皮','蒔-其他電商','蒔-其他'], share:6},
+    ],
+    expense: [
+      ['銷貨成本','gm',[['代工原料',['蒔-銷貨成本-代工原料'],'p',25.5],['紙盒',['蒔-銷貨成本-紙盒'],'p',2],['鋁袋',['蒔-銷貨成本-鋁袋'],'p',1.5],['包材',['蒔-銷貨成本-包材'],'p',1],['外購商品',['蒔-銷貨成本-外購商品'],'p',5]]],
+      ['行銷推廣','mkt',[['Meta 廣告',['蒔-數位廣告投放-Meta'],'p',10],['Google 廣告',['蒔-數位廣告投放-Google'],'p',5],['網紅/KOL、分潤',['蒔-網紅/KOL酬勞','蒔-銷售佣金、分潤'],'p',3],['SEO',['蒔-SEO'],'f',480000],['影片拍攝剪輯',['蒔-行銷製作-影片拍攝剪輯'],'f',300000],['部落客合作',['蒔-部落客合作'],'f',120000],['文宣設計',['蒔-文宣設計'],'f',100000],['新聞上刊',['蒔-新聞上刊'],'f',80000],['參賽/獎項',['蒔-參賽/獎項'],'f',100000]]],
+      ['人事','salary',[['人事薪資',['蒔-人事薪資'],'f',1060000]]],
+      ['物流','gm',[['黑貓',['蒔-物流-黑貓'],'p',1],['7-11',['蒔-物流-7-11'],'p',0.6],['全家',['蒔-物流-全家'],'p',0.2],['郵局',['蒔-物流-郵局'],'p',0.2]]],
+      ['金流手續費','gm',[['官網手續費',['蒔-金流-官網手續費'],'p',0.7],['刷卡手續費',['蒔-金流-刷卡手續費'],'p',0.6],['蝦皮手續費',['蒔-金流-蝦皮手續費'],'p',0.3],['簡訊費',['蒔-金流-簡訊費'],'p',0.15],['Line Pay',['蒔-金流-Line Pay手續費'],'p',0.05]]],
+      ['營運管理','gm',[['系統軟體',['蒔-系統軟體'],'f',120000],['會計記帳',['蒔-會計記帳費'],'f',36000],['郵電費',['蒔-郵電費'],'f',12000],['檢驗費',['蒔-檢驗費'],'f',150000],['雜項與其他',['蒔-雜項與其他'],'f',250000]]],
+    ],
+  },
+};
+
+let _bg = { year:null, view:'track', data:null, cfg:null, loading:false };
+const bgFmt = n => Math.round(n||0).toLocaleString('zh-TW');
+const bgWan = n => { const v=(n||0)/1e4; return (Math.abs(v)>=100?Math.round(v).toLocaleString('zh-TW'):v.toFixed(1))+' 萬'; };
+const bgPct = (n,d=0) => (n==null||!isFinite(n)) ? '—' : (n*100).toFixed(d)+'%';
+const bgSum = (a,from=0,to=12) => a.slice(from,to).reduce((s,x)=>s+(+x||0),0);
+
+function bgCanSee(){ return currentUser && (currentUser.role==='gm'||currentUser.role==='viewer') && BUDGET_COS.includes(activeCo); }
+function bgDefaultYear(){ const t=new Date(); return t.getFullYear()+(t.getMonth()>=9?1:0); }   // 10 月起預設看明年
+function bgExpCut(year){ const t=new Date(); return year<t.getFullYear()?12:year>t.getFullYear()?0:t.getMonth(); } // 已結束的月份數
+
+// 前一年營收年化（只算有官網資料的月份，避免把還沒匯入的月份當成 0）
+function bgBaseRevenue(co, year){
+  const py=year-1, recs=approvedOnly(getRecs(co)).filter(r=>r.type==='income'&&!isSXInvCat(r.category)&&(r.date||'').startsWith(py+'-'));
+  const webMonths=recs.filter(r=>r.category==='蒔-官網').map(r=>+r.date.slice(5,7));
+  const cut=webMonths.length?Math.max(...webMonths):12;
+  const sum=recs.filter(r=>+r.date.slice(5,7)<=cut).reduce((s,r)=>s+r.amount,0);
+  return { sum, cut, annual: Math.round(sum*12/cut) };
+}
+
+function bgCfgFromTemplate(co, year){
+  const T=BG_TEMPLATE[co], base=bgBaseRevenue(co,year);
+  const expense=[];
+  T.expense.forEach(([g,sens,items])=>items.forEach(([label,cats,rule,value],i)=>expense.push({id:g+'-'+i,group:g,sens,label,cats,rule,value})));
+  return { base:base.annual, baseNote:`${year-1} 年 1–${base.cut} 月 ${bgFmt(base.sum)} × 12/${base.cut}`,
+    target: base.annual*2, weights: bgDefaultWeights(),
+    income: T.income.map(x=>({...x})), expense };
+}
+function bgCfgFromPlan(plan){
+  return { base:plan.base, baseNote:plan.baseNote||'', target:plan.target, weights:[...plan.weights],
+    income: plan.lines.filter(l=>l.kind==='income').map(l=>({id:l.id,label:l.label,cats:l.cats,share:l.share})),
+    expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value})) };
+}
+// cfg → plan（每月金額寫死存檔，RPC 與畫面都只讀 months）
+function bgBuildPlan(cfg){
+  const wt=cfg.weights.reduce((a,b)=>a+b,0)||1, w=cfg.weights.map(x=>x/wt);
+  const lines=[];
+  cfg.income.forEach(l=>lines.push({kind:'income',id:l.id,label:l.label,cats:l.cats,share:l.share,
+    months:w.map(x=>Math.round(cfg.target*l.share/100*x))}));
+  cfg.expense.forEach(l=>lines.push({kind:'expense',id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,
+    months:l.rule==='p'?w.map(x=>Math.round(cfg.target*l.value/100*x)):Array(12).fill(Math.round(l.value/12))}));
+  // 四捨五入的尾差補在 12 月，讓全年合計＝年度金額
+  lines.forEach(l=>{ const want=l.kind==='income'?Math.round(cfg.target*l.share/100):l.rule==='p'?Math.round(cfg.target*l.value/100):Math.round(l.value);
+    l.months[11]+=want-l.months.reduce((a,b)=>a+b,0); });
+  return { version:1, base:cfg.base, baseNote:cfg.baseNote, target:cfg.target, weights:cfg.weights, lines };
+}
+
+async function bgFetch(co, year){
+  return await sbFetch('rpc/budget_view','POST',{p_co:co,p_year:year});
+}
+
+// ---------- GM／viewer 頁面 ----------
+function initBudgetPage(){
+  const sel=document.getElementById('bgYear');
+  if(!_bg.year) _bg.year=bgDefaultYear();
+  const t=new Date().getFullYear();
+  sel.innerHTML=[t-1,t,t+1].map(y=>`<option value="${y}" ${y===_bg.year?'selected':''}>${y} 年</option>`).join('');
+}
+function bgSetView(v){ _bg.view=v; renderBudget(false); }
+async function renderBudget(refetch=true){
+  if(!bgCanSee()){ document.getElementById('bgBody').innerHTML='<div class="empty">此公司尚未啟用年度預算</div>'; return; }
+  _bg.year=+document.getElementById('bgYear').value||_bg.year;
+  document.querySelectorAll('#bgTabs .vt').forEach(b=>b.classList.toggle('active',b.dataset.v===_bg.view));
+  const body=document.getElementById('bgBody');
+  if(refetch||!_bg.data||_bg.data._year!==_bg.year){
+    body.innerHTML='<div class="empty">載入中…</div>';
+    try{ _bg.data=await bgFetch(activeCo,_bg.year); _bg.data._year=_bg.year; }
+    catch(e){ console.error(e); body.innerHTML=`<div class="empty">讀取預算失敗：${esc(String(e.message||e).slice(0,120))}</div>`; return; }
+  }
+  const D=_bg.data;
+  document.getElementById('bgTabPlan').style.display=D.can_edit?'':'none';
+  if(_bg.view==='plan'&&!D.can_edit) _bg.view='track';
+  if(_bg.view==='plan'){ bgRenderEditor(); return; }
+  if(!D.plan){
+    body.innerHTML=`<div class="card bgw" style="text-align:center;padding:36px 20px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">${_bg.year} 年尚未建立預算</div>
+      ${D.can_edit?`<div style="color:var(--txt3);margin-bottom:14px">以 ${_bg.year-1} 年營收年化 ×2 為草案，各類別依已確認的比例與金額帶入，可再逐項調整。</div>
+        <button class="btn bgbtn" onclick="bgStartDraft()">建立 ${_bg.year} 年預算草案</button>`:'<div style="color:var(--txt3)">請總經理先建立預算。</div>'}
+    </div>`;
+    return;
+  }
+  body.innerHTML=_bg.view==='month'?bgMonthHTML(D):bgTrackHTML(D);
+}
+function bgStartDraft(){ _bg.cfg=bgCfgFromTemplate(activeCo,_bg.year); _bg.view='plan'; renderBudget(false); }
+
+// 依 plan＋actual 算出每條線的預算／實際陣列
+function bgCompute(D){
+  const P=D.plan, act=D.actual||{}, revCut=D.rev_cut||0, expCut=bgExpCut(_bg.year);
+  const a12=cats=>{ const o=Array(12).fill(0); cats.forEach(c=>(act[c]||[]).forEach((v,i)=>o[i]+=+v)); return o; };
+  const lines=P.lines.map(l=>({...l, actual:a12(l.cats)}));
+  const inc=lines.filter(l=>l.kind==='income'), exp=lines.filter(l=>l.kind==='expense');
+  const incB=Array(12).fill(0), incA=Array(12).fill(0), expB=Array(12).fill(0), expA=Array(12).fill(0);
+  inc.forEach(l=>l.months.forEach((v,i)=>{incB[i]+=v; incA[i]+=l.actual[i];}));
+  exp.forEach(l=>l.months.forEach((v,i)=>{expB[i]+=v; expA[i]+=l.actual[i];}));
+  // 有實際支出但沒編進任何預算線的類別（新類別或漏編），GM 版另列
+  const mapped=new Set(lines.flatMap(l=>l.cats)), incCats=new Set(getCats(activeCo,'income'));
+  const unb=Object.keys(act).filter(c=>!mapped.has(c)&&!incCats.has(c)&&!isSXInvCat(c)).map(c=>({label:c,actual:act[c].map(Number)}));
+  unb.forEach(u=>u.actual.forEach((v,i)=>expA[i]+=v));
+  return {P,lines,inc,exp,unb,incB,incA,expB,expA,revCut,expCut};
+}
+function bgStatus(r){ return r==null?['bg-na','—']:r>1.15?['bg-bad','超支']:r>1?['bg-warn','注意']:['bg-ok','正常']; }
+function bgRevStatus(r,pace){ return r==null?['bg-na','—']:r>=1?['bg-ok','達標']:r>=0.9?['bg-warn','略落後']:['bg-bad','落後']; }
+function bgMeter(r){ const w=Math.min(Math.max(r||0,0),1.3)/1.3*100, c=r>1.15?'var(--exp)':r>1?'#d97706':'var(--inc)';
+  return `<span class="bgm"><b style="width:${w}%;background:${c}"></b><i style="left:${100/1.3}%"></i></span>`; }
+
+function bgChart(incB,expB,incA,expA,revCut,expCut){
+  const W=760,H=240,L=50,R=10,T=12,B=26,cw=(W-L-R)/12,bw=cw*.32;
+  const vals=[...incB,...expB,...incA.slice(0,revCut),...expA.slice(0,expCut)];
+  const max=Math.max(1,...vals)*1.12, y=v=>T+(H-T-B)*(1-v/max);
+  const step=max>4e6?1e6:max>2e6?5e5:max>1e6?25e4:1e5;
+  let g='';
+  for(let v=0;v<=max;v+=step) g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--bdr)"/><text x="${L-6}" y="${y(v)+4}" font-size="10" text-anchor="end" fill="var(--txt3)">${v/1e4}萬</text>`;
+  for(let i=0;i<12;i++){
+    const x=L+i*cw+cw/2, ri=i<revCut, ei=i<expCut;
+    const vi=ri?incA[i]:incB[i], ve=ei?expA[i]:expB[i];
+    g+=`<rect x="${x-bw-1}" y="${y(vi)}" width="${bw}" height="${Math.max(0,y(0)-y(vi))}" rx="2" fill="#BA693D" ${ri?'':'opacity=".28"'}/>`;
+    g+=`<rect x="${x+1}" y="${y(ve)}" width="${bw}" height="${Math.max(0,y(0)-y(ve))}" rx="2" fill="#D6B474" ${ei?'':'opacity=".35"'}/>`;
+    if(ri) g+=`<line x1="${x-bw-4}" x2="${x+4}" y1="${y(incB[i])}" y2="${y(incB[i])}" stroke="#3D1F01" stroke-width="2" stroke-dasharray="3 2"/>`;
+    g+=`<text x="${x}" y="${H-8}" font-size="10" text-anchor="middle" fill="var(--txt3)">${i+1}月</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="每月收入與支出">${g}<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--txt3)"/></svg>`;
+}
+
+function bgTrackHTML(D){
+  const C=bgCompute(D), {P,revCut,expCut}=C;
+  const target=bgSum(C.incB), revA=bgSum(C.incA), revCutB=bgSum(C.incB,0,revCut), revCutA=bgSum(C.incA,0,revCut);
+  const expCutB=bgSum(C.expB,0,expCut), expCutA=bgSum(C.expA,0,expCut);
+  const nc=Math.min(revCut,expCut), netA=bgSum(C.incA,0,nc)-bgSum(C.expA,0,nc), netB=bgSum(C.incB,0,nc)-bgSum(C.expB,0,nc);
+  const pace=target?revCutB/target:0, cutR=revCutB?revCutA/revCutB:null, [rc,rt]=bgRevStatus(cutR);
+  const note=`官網營收資料截至 <b>${D.web_cutoff||'—'}</b>（約晚 2 個月匯入），營收達成率只比到第 ${revCut} 個月；支出統計到第 ${expCut} 個月。`;
+  // 通路
+  const chRows=C.inc.map(l=>{ const b=bgSum(l.months), bc=bgSum(l.months,0,revCut), ac=bgSum(l.actual,0,revCut), r=bc?ac/bc:null, [c,t]=bgRevStatus(r);
+    return `<tr><td>${esc(l.label)}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(bc)}</td><td class="r">${bgFmt(ac)}</td><td class="r">${bgPct(r,1)}</td><td class="r">${bgPct(b?bgSum(l.actual)/b:null,1)}</td><td><span class="bgp ${c}">${t}</span></td></tr>`; }).join('');
+  // 支出
+  const revInExp=bgSum(C.incA,0,Math.min(revCut,expCut));
+  let rows='', alerts=[], lastG='';
+  C.exp.forEach(l=>{
+    if(l.group!==lastG){ const gl=C.exp.filter(x=>x.group===l.group), gb=gl.reduce((s,x)=>s+bgSum(x.months,0,expCut),0), ga=gl.reduce((s,x)=>s+bgSum(x.actual,0,expCut),0);
+      rows+=`<tr class="shd"><td>${esc(l.group)}</td><td class="r">${bgFmt(gl.reduce((s,x)=>s+bgSum(x.months),0))}</td><td class="r">${bgFmt(gb)}</td><td class="r">${bgFmt(ga)}</td><td class="r">${bgPct(gb?ga/gb:null)}</td><td></td><td></td></tr>`; lastG=l.group; }
+    const b=bgSum(l.months,0,expCut), a=bgSum(l.actual,0,expCut), r=b?a/b:(a>0?9.99:null);
+    let [c,t]=bgStatus(r), pctRev='';
+    if(l.rule==='p'){ const ar=revInExp?bgSum(l.actual,0,Math.min(revCut,expCut))/revInExp:null; pctRev=`${bgPct(ar,1)} / ${l.value}%`;
+      if(r>1&&ar!=null&&ar<=l.value/100*1.05){ c='bg-ok'; t='隨業績'; } }
+    if(c==='bg-bad'||c==='bg-warn') alerts.push([c,t,`${l.label} 已用 ${bgPct(r)}（預算 ${bgFmt(b)}，實際 ${bgFmt(a)}）`]);
+    rows+=`<tr><td style="padding-left:22px">${esc(l.label)}<span class="bgr">${l.rule==='p'?'營收 '+l.value+'%':'固定'}</span></td><td class="r">${bgFmt(bgSum(l.months))}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(a)}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td class="r">${pctRev}</td><td><span class="bgp ${c}">${t}</span></td></tr>`;
+  });
+  if(C.unb.length){
+    rows+=`<tr class="shd"><td colspan="7">未編列預算的支出類別</td></tr>`+C.unb.map(u=>{ const a=bgSum(u.actual,0,expCut);
+      if(a) alerts.push(['bg-warn','未編列',`${u.label} 有支出 ${bgFmt(a)} 但沒有編列預算`]);
+      return `<tr><td style="padding-left:22px">${esc(u.label)}</td><td class="r">0</td><td class="r">0</td><td class="r">${bgFmt(a)}</td><td></td><td></td><td><span class="bgp bg-warn">未編列</span></td></tr>`; }).join('');
+  }
+  C.inc.forEach(l=>{ const bc=bgSum(l.months,0,revCut), ac=bgSum(l.actual,0,revCut); if(bc&&ac/bc<0.9) alerts.push(['bg-bad','落後',`${l.label} 營收達成 ${bgPct(ac/bc)}（1–${revCut} 月）`]); });
+  return `<div class="bgw">
+  <div class="bgnote">${note}</div>
+  <div class="kg">
+    <div class="kc bgk"><div class="kl">年度營收達成率</div><div class="kv">${bgPct(target?revA/target:null,1)}</div><div class="kch">目標 ${bgWan(target)} · 時間進度 ${bgPct(pace)}</div></div>
+    <div class="kc bgk"><div class="kl">已結算月份達成（1–${revCut} 月）</div><div class="kv">${bgPct(cutR,1)}</div><div class="kch"><span class="bgp ${rc}">${rt}</span> 實際 ${bgWan(revCutA)} / 預算 ${bgWan(revCutB)}</div></div>
+    <div class="kc bgk"><div class="kl">支出使用率（1–${expCut} 月）</div><div class="kv">${bgPct(expCutB?expCutA/expCutB:null,1)}</div><div class="kch">實際 ${bgWan(expCutA)} / 預算 ${bgWan(expCutB)}</div></div>
+    <div class="kc bgk"><div class="kl">累計結餘（1–${nc} 月）</div><div class="kv" style="color:${netA>=0?'var(--inc)':'var(--exp)'}">${bgWan(netA)}</div><div class="kch">預算 ${bgWan(netB)} · 全年預估 ${bgWan(target-bgSum(C.expB))}</div></div>
+  </div>
+  <div class="card mb16"><div class="chd"><div class="ct">每月實際 vs 預算</div></div>
+    <div class="bglg"><span><i style="background:#BA693D"></i>收入</span><span><i style="background:#D6B474"></i>支出</span><span><i style="background:#3D1F01;height:2px"></i>當月營收目標</span><span>淡色＝尚未結算（顯示預算）</span></div>
+    ${bgChart(C.incB,C.expB,C.incA,C.expA,revCut,expCut)}</div>
+  ${alerts.length?`<div class="card mb16"><div class="chd"><div class="ct">需要注意</div></div><div class="bgal">${alerts.map(a=>`<div><span class="bgp ${a[0]}">${a[1]}</span>${esc(a[2])}</div>`).join('')}</div></div>`:''}
+  <div class="card mb16"><div class="chd"><div class="ct">營收達成（依通路）</div></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>通路</th><th class="r">年度目標</th><th class="r">已結算預算</th><th class="r">已結算實際</th><th class="r">已結算達成</th><th class="r">年度達成</th><th>狀態</th></tr></thead><tbody>${chRows}
+    <tr class="sub"><td>合計</td><td class="r">${bgFmt(target)}</td><td class="r">${bgFmt(revCutB)}</td><td class="r">${bgFmt(revCutA)}</td><td class="r">${bgPct(cutR,1)}</td><td class="r">${bgPct(target?revA/target:null,1)}</td><td></td></tr></tbody></table></div></div>
+  <div class="card"><div class="chd"><div class="ct">支出預算使用率（1–${expCut} 月累計）</div></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>類別</th><th class="r">年度預算</th><th class="r">累計預算</th><th class="r">累計實際</th><th class="r">使用率（黑線＝100%）</th><th class="r">佔營收 實際/預算</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:8px">依營收比例編列的類別，若使用率超過但佔實際營收比例仍在預算內，標「隨業績」不算超支。</div></div>
+  </div>`;
+}
+
+function bgMonthHTML(D){
+  const C=bgCompute(D), {revCut,expCut}=C;
+  const cell=(b,a,done)=>done?`<td class="r"><div>${bgFmt(a)}</div><div class="bgsm">預 ${bgFmt(b)}</div></td>`:`<td class="r bgfu">${bgFmt(b)}</td>`;
+  const row=(label,B,A,cut,cls='')=>`<tr class="${cls}"><td>${label}</td>${B.map((b,i)=>cell(b,A[i],i<cut)).join('')}<td class="r">${bgFmt(bgSum(B))}</td></tr>`;
+  let h=row('營業收入',C.incB,C.incA,revCut,'shd');
+  C.inc.forEach(l=>h+=row('　'+esc(l.label),l.months,l.actual,revCut));
+  const groups=[...new Set(C.exp.map(l=>l.group))];
+  const gB=g=>{const o=Array(12).fill(0); C.exp.filter(l=>l.group===g).forEach(l=>l.months.forEach((v,i)=>o[i]+=v)); return o;};
+  const gA=g=>{const o=Array(12).fill(0); C.exp.filter(l=>l.group===g).forEach(l=>l.actual.forEach((v,i)=>o[i]+=v)); return o;};
+  h+=row('營業支出',C.expB,C.expA,expCut,'shd');
+  groups.forEach(g=>h+=row('　'+esc(g),gB(g),gA(g),expCut));
+  if(C.unb.length){ const o=Array(12).fill(0); C.unb.forEach(u=>u.actual.forEach((v,i)=>o[i]+=v)); h+=row('　未編列',Array(12).fill(0),o,expCut); }
+  const nB=C.incB.map((v,i)=>v-C.expB[i]), nA=C.incA.map((v,i)=>v-C.expA[i]);
+  h+=row('結餘',nB,nA,Math.min(revCut,expCut),'sub');
+  return `<div class="bgw"><div class="bgnote">已結算月份上行為實際、下行為預算；淡色為尚未結算（營收 ${revCut} 月、支出 ${expCut} 月以後）。</div>
+  <div class="card"><div style="overflow-x:auto"><table class="tbl bgmt"><thead><tr><th>項目</th>${Array.from({length:12},(_,i)=>`<th class="r">${i+1}月</th>`).join('')}<th class="r">全年</th></tr></thead><tbody>${h}</tbody></table></div></div></div>`;
+}
+
+// ---------- 預算設定（Mark） ----------
+function bgRenderEditor(){
+  const D=_bg.data, body=document.getElementById('bgBody');
+  if(!_bg.cfg||_bg.cfg._year!==_bg.year){ _bg.cfg=D.plan?bgCfgFromPlan(D.plan):bgCfgFromTemplate(activeCo,_bg.year); _bg.cfg._year=_bg.year; }
+  const c=_bg.cfg;
+  const inp=(id,val,on,w=90,step='any')=>`<input id="${id}" type="number" step="${step}" value="${val}" oninput="${on}" style="width:${w}px;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;text-align:right;font-family:'DM Mono',monospace">`;
+  let er='', lastG='';
+  c.expense.forEach((l,i)=>{
+    if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="4">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
+    er+=`<tr><td style="padding-left:22px">${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td>
+      <td><select id="bgE${i}r" onchange="bgEdit('e',${i},'rule',this.value)" style="padding:5px;border:1px solid var(--bdr);border-radius:6px">
+        <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option></select></td>
+      <td class="r">${inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}</td><td class="r" id="bgE${i}y"></td></tr>`;
+  });
+  body.innerHTML=`<div class="bgw">
+  <div class="card mb16"><div class="chd"><div class="ct">${_bg.year} 年營收目標</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      ${inp('bgTarget',c.target,"bgEdit('t',0,'target',this.value)",150,'1000')} 元
+      <span style="color:var(--txt3);font-size:12px">基準：${esc(c.baseNote||'')} ＝ ${bgFmt(c.base)}</span>
+      <span class="vts">${[1.5,2,2.5,3].map(m=>`<button class="vt" onclick="bgEdit('t',0,'mult',${m})">×${m}</button>`).join('')}</span>
+    </div></div>
+  <div class="g2 mb16">
+    <div class="card"><div class="chd"><div class="ct">收入依通路分配</div><div class="cbadge" id="bgIncSum"></div></div>
+      <table class="tbl"><tbody>${c.income.map((l,i)=>`<tr><td>${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td><td class="r">${inp('bgI'+i,l.share,`bgEdit('i',${i},'share',this.value)`,70)} %</td><td class="r" id="bgI${i}y"></td></tr>`).join('')}</tbody></table></div>
+    <div class="card"><div class="chd"><div class="ct">月份分配（%）</div><div class="cbadge" id="bgWSum"></div></div>
+      <div class="bgwg">${c.weights.map((w,i)=>`<label>${i+1}月${inp('bgW'+i,w,`bgEdit('w',${i},'w',this.value)`,64)}</label>`).join('')}</div>
+      <button class="btn bsm" style="margin-top:10px" onclick="bgEdit('w',0,'reset')">恢復淡旺季預設</button></div>
+  </div>
+  <div class="card mb16"><div class="chd"><div class="ct">支出預算</div></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>類別</th><th>編列方式</th><th class="r">比例／金額</th><th class="r">年度預算</th></tr></thead><tbody>${er}</tbody></table></div></div>
+  <div class="card bgsave"><div id="bgSummary" style="flex:1;min-width:0"></div>
+    <button class="btn" onclick="_bg.cfg=null;_bg.view='track';renderBudget(false)">取消</button>
+    <button class="btn bgbtn" id="bgSaveBtn" onclick="bgSave()">儲存預算</button></div>
+  </div>`;
+  bgRecalc();
+}
+function bgEdit(kind,i,field,val){
+  const c=_bg.cfg, v=+val;
+  if(kind==='t'){ if(field==='mult') c.target=Math.round(c.base*val); else c.target=v||0; if(field==='mult') document.getElementById('bgTarget').value=c.target; }
+  else if(kind==='i') c.income[i].share=v||0;
+  else if(kind==='w'){ if(field==='reset'){ c.weights=bgDefaultWeights(); c.weights.forEach((w,j)=>document.getElementById('bgW'+j).value=w); } else c.weights[i]=v||0; }
+  else if(kind==='e'){ const l=c.expense[i];
+    if(field==='rule'&&val!==l.rule){ const P=bgBuildPlan(c), yr=bgSum(P.lines.find(x=>x.id===l.id).months);
+      l.rule=val; l.value=val==='p'?Math.round(yr/(c.target||1)*1000)/10:Math.round(yr/1000)*1000; document.getElementById('bgE'+i+'v').value=l.value; }
+    else if(field==='value') l.value=v||0; }
+  bgRecalc();
+}
+function bgRecalc(){
+  const c=_bg.cfg, P=bgBuildPlan(c);
+  const incSum=c.income.reduce((s,l)=>s+l.share,0), wSum=c.weights.reduce((s,w)=>s+w,0);
+  const okI=Math.abs(incSum-100)<0.05, okW=Math.abs(wSum-100)<0.05;
+  document.getElementById('bgIncSum').innerHTML=`合計 ${incSum.toFixed(1)}% ${okI?'✓':'<b style="color:var(--exp)">需等於 100%</b>'}`;
+  document.getElementById('bgWSum').innerHTML=`合計 ${wSum.toFixed(2)}% ${okW?'✓':'<b style="color:var(--exp)">需等於 100%</b>'}`;
+  c.income.forEach((l,i)=>document.getElementById('bgI'+i+'y').textContent=bgFmt(c.target*l.share/100));
+  P.lines.filter(l=>l.kind==='expense').forEach((l,i)=>document.getElementById('bgE'+i+'y').textContent=bgFmt(bgSum(l.months)));
+  const exp=P.lines.filter(l=>l.kind==='expense').reduce((s,l)=>s+bgSum(l.months),0), net=c.target-exp;
+  const grp={}; P.lines.filter(l=>l.kind==='expense').forEach(l=>grp[l.group]=(grp[l.group]||0)+bgSum(l.months));
+  document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px">
+    <span>營收 <b>${bgWan(c.target)}</b></span><span>支出 <b>${bgWan(exp)}</b>（${bgPct(exp/(c.target||1),1)}）</span>
+    <span>預估結餘 <b style="color:${net>=0?'var(--inc)':'var(--exp)'}">${bgWan(net)}</b>（${bgPct(net/(c.target||1),1)}）</span></div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:4px">${Object.entries(grp).map(([g,v])=>`${g} ${bgPct(v/(c.target||1),1)}`).join(' · ')}</div>`;
+  document.getElementById('bgSaveBtn').disabled=!(okI&&okW&&c.target>0);
+}
+async function bgSave(){
+  const c=_bg.cfg, btn=document.getElementById('bgSaveBtn');
+  btn.disabled=true; btn.textContent='儲存中…';
+  try{
+    const plan=bgBuildPlan(c);
+    const rows=await sbFetch('budgets?on_conflict=co,year','POST',[{co:activeCo,year:_bg.year,plan,updated_by:currentUser.name,updated_at:new Date().toISOString()}],'resolution=merge-duplicates,return=representation');
+    if(!rows||!rows.length) throw new Error('沒有寫入任何資料');
+    _bg.cfg=null; _bg.view='track';
+    toast('預算已儲存');
+    renderBudget(true);
+  }catch(e){ console.error(e); btn.disabled=false; btn.textContent='儲存預算'; alert('儲存失敗：'+_sbWriteErrMsg(e,String(e.message||e).slice(0,120))); }
+}
+
+// ---------- 員工版（蒔心田 staff） ----------
+function bgStaffTabSync(){
+  const t=document.getElementById('stTabBudget'); if(!t) return;
+  const ok=currentUser&&currentUser.role==='staff'&&BUDGET_COS.includes(activeCo);
+  t.style.display=ok?'':'none';
+  if(!ok&&document.getElementById('sp-budget')?.classList.contains('active')) showStTab('entry',document.querySelector('.stabs .stab'));
+}
+async function renderStaffBudget(){
+  const box=document.getElementById('stBudgetBody'); if(!box) return;
+  box.innerHTML='<div class="empty">載入中…</div>';
+  let D, y=new Date().getFullYear();
+  try{
+    D=await bgFetch(activeCo,y);
+    if(!D.income&&D.plan===null){ const D2=await bgFetch(activeCo,y+1); if(D2.income){ D=D2; y=y+1; } }
+  }catch(e){ box.innerHTML=`<div class="empty">讀取失敗：${esc(String(e.message||e).slice(0,100))}</div>`; return; }
+  if(!D.income){ box.innerHTML=`<div class="empty">今年度預算尚未建立</div>`; return; }
+  const expCut=bgExpCut(y), [rc,rt]=bgRevStatus(D.rev_cut_ratio);
+  const ch=D.income.map(l=>{const [c,t]=bgRevStatus(l.cut_ratio); return `<tr><td>${esc(l.label)}</td><td class="r">${l.share}%</td><td class="r">${bgPct(l.cut_ratio,1)}</td><td class="r">${bgPct(l.year_ratio,1)}</td><td><span class="bgp ${c}">${t}</span></td></tr>`;}).join('');
+  const ex=D.expense.map(l=>{ const b=bgSum(l.months,0,expCut), a=bgSum(l.actual,0,expCut), r=b?a/b:(a>0?9.99:null), [c,t]=bgStatus(r);
+    return `<tr><td>${esc(l.label)}</td><td class="r">${bgFmt(bgSum(l.months))}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(a)}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td class="r">${bgFmt(bgSum(l.months)-bgSum(l.actual))}</td><td><span class="bgp ${c}">${t}</span></td></tr>`; }).join('');
+  box.innerHTML=`<div class="bgw">
+    <div class="bgnote">${y} 年度 · 官網營收資料截至 <b>${D.web_cutoff||'—'}</b>（約晚 2 個月匯入）；營收只顯示達成率，金額請洽主管。</div>
+    <div class="kg">
+      <div class="kc bgk"><div class="kl">年度營收達成率</div><div class="kv">${bgPct(D.rev_year_ratio,1)}</div><div class="kch">時間進度 ${bgPct(D.pace)}</div></div>
+      <div class="kc bgk"><div class="kl">已結算月份達成（1–${D.rev_cut} 月）</div><div class="kv">${bgPct(D.rev_cut_ratio,1)}</div><div class="kch"><span class="bgp ${rc}">${rt}</span></div></div>
+    </div>
+    <div class="card mb16"><div class="chd"><div class="ct">營收達成（依通路）</div></div><div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>通路</th><th class="r">目標佔比</th><th class="r">已結算達成</th><th class="r">年度達成</th><th>狀態</th></tr></thead><tbody>${ch}</tbody></table></div></div>
+    <div class="card"><div class="chd"><div class="ct">行銷預算使用（1–${expCut} 月）</div></div><div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>項目</th><th class="r">年度預算</th><th class="r">累計預算</th><th class="r">累計實際</th><th class="r">使用率</th><th class="r">全年剩餘</th><th>狀態</th></tr></thead><tbody>${ex}</tbody></table></div>
+      <div style="font-size:11px;color:var(--txt3);margin-top:8px">🔒 成本、人事、物流、金流與結餘僅主管可見。</div></div>
+  </div>`;
+}
 
 </script>
 </body>
