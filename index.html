@@ -336,6 +336,26 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgfu{color:var(--txt3)}
 .bgmt td,.bgmt th{white-space:nowrap}
 .bgwg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px}.bgwg label{display:flex;flex-direction:column;gap:3px;color:var(--txt3)}
+.bgtools{display:flex;flex-wrap:wrap;gap:6px}
+.bgtog{border:0;background:none;color:#BA693D;font-size:12px;cursor:pointer;padding:4px 0 0;font-family:inherit}
+.bgtog:hover{text-decoration:underline}
+.bgitr>td{background:#fbf6ef;padding:10px 12px 12px 22px!important}
+.bgitw{min-width:0}
+.bgit{font-size:12px;background:var(--sur)}
+.bgit td,.bgit th{padding:6px 6px!important;vertical-align:middle}
+.bgin{padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--sur);color:var(--txt)}
+.bgnum{width:96px;text-align:right;font-family:'DM Mono',monospace}
+.bgmo{padding:3px 2px}
+.bgst-ok{color:#0d9488}.bgst-plan{color:#b45309}.bgst-cancel{color:var(--txt3)}
+span.bgst-ok{background:#f0fdfa}span.bgst-plan{background:#fffbeb}span.bgst-cancel{background:var(--sur2)}
+.bgcx td{opacity:.5}.bgcx td:first-child input{text-decoration:line-through}
+.bgx{border:1px solid var(--bdr);background:var(--sur);color:var(--txt3);border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer}
+.bgx:hover{color:var(--exp);border-color:var(--exp)}
+.bgitf{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.bgadd{margin-top:14px;border-top:1px dashed var(--bdr);padding-top:12px}
+.bgadd summary{cursor:pointer;color:#BA693D;font-weight:700;font-size:13px}
+.bgaddf{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:10px}
+.bgaddf label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--txt3)}
 .bgsave{display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;bottom:10px;z-index:5;box-shadow:var(--shm)}
 @media(max-width:600px){.bgwg{grid-template-columns:repeat(3,1fr)}}
 
@@ -8617,7 +8637,38 @@ const BG_TEMPLATE = {
   },
 };
 
-let _bg = { year:null, view:'track', data:null, cfg:null, loading:false };
+// v3.26 預算細項：每條支出線可列細項 items:[{id,name,mode,amt,from,to,owner,status,kw}]
+//   mode：m＝每月金額（from–to 每月都花）、o＝單次（from 那個月）、t＝總額平均攤在 from–to
+//   status：ok 已確認／plan 規劃中／cancel 取消（不計入）；kw＝比對記帳標題的關鍵字（| 分隔），空白＝收「沒對到其他細項」的支出
+//   rule='i'＝類別預算＝細項加總；佔營收 % 的類別細項只是分配，顯示已分配／未分配
+const bgIt=(name,mode,amt,from,to,kw,status='ok')=>({name,mode,amt,from,to:to||from,kw,status,owner:''});
+const BG_SUGGEST = {   // 依 2026 實際付款紀錄擬的 2027 細項草稿（line id 對應 BG_TEMPLATE）
+  '行銷推廣-2':[bgIt('Q潤業配（KOC，每月約 1 支）','m',8000,1,12,'Q潤','plan'),bgIt('藻齡光業配（約 6 支）','t',48000,1,12,'藻齡光|藻油','plan'),bgIt('醫師／專業人士拍片','t',24000,1,12,'醫生|醫師','plan'),bgIt('團購分潤','t',60000,1,12,'抽成|分潤','plan')],
+  '行銷推廣-3':[bgIt('SEO 維護（偉利）','m',26805,1,12,'SEO維護|維護'),bgIt('藻油 SEO（偉利）','m',15150,1,12,'藻油')],
+  '行銷推廣-4':[bgIt('個人 IP 影片（二尾魚）','o',126000,7,7,'IP|二尾魚','plan'),bgIt('短影音（安創域，約每季一批）','t',126000,1,12,'短影音|安創域','plan')],
+  '行銷推廣-5':[bgIt('部落客體驗文（約 10 篇）','t',60000,1,12,'部落客|試媒體','plan'),bgIt('年底部落客專案','o',63000,12,12,'專案','plan')],
+  '行銷推廣-6':[bgIt('產品銷售頁設計（約 2 頁）','t',27000,1,12,'銷售頁','plan'),bgIt('節慶活動設計（母親節、週年慶、雙11 等 6 檔）','t',24000,1,12,'活動|快閃|週年','plan'),bgIt('形象照','o',8200,3,3,'形象照','plan'),bgIt('DM、小卡印刷','m',2000,1,12,'DM|小卡|印刷','plan')],
+  '行銷推廣-7':[bgIt('年初新聞稿','o',42000,1,1,'新聞','plan'),bgIt('媒體露出（宏將）','o',65700,10,10,'媒體|宏將','plan')],
+  '行銷推廣-8':[bgIt('玉山獎（報名＋決選）','o',100000,9,9,'玉山','plan'),bgIt('參賽交通費','o',3500,9,9,'計程車|交通','plan')],
+  '營運管理-0':[bgIt('Omnichat 全通路客服','m',28000,1,12,'Omnichat|全通路'),bgIt('官方 LINE 月費＋用量','m',1300,1,12,'line|LINE'),bgIt('ChatGPT','m',690,1,12,'GPT'),bgIt('Notion','m',390,1,12,'notion'),bgIt('Zotabox LINE 按鈕','m',399,1,12,'Zota'),bgIt('短網址（利害）','m',335,1,12,'利害|短'),bgIt('Canva 年費','o',3898,10,10,'Canva')],
+  '營運管理-1':[bgIt('會計記帳費（利商）','m',3000,1,12,'記帳')],
+  '營運管理-2':[bgIt('電話費（中華電信）','m',450,1,12,'電話')],
+  '營運管理-3':[bgIt('檢驗費儲值（台美）','o',100000,9,9,'檢驗|台美'),bgIt('其他送驗（預備）','t',50000,1,12,'','plan')],
+  '營運管理-4':[bgIt('國際條碼年費','o',27300,1,1,'條碼'),bgIt('信用卡年費','o',6000,1,1,'信用卡'),bgIt('印表機耗材、維修','t',4000,1,12,'列印|墨水|列表機|印表機'),bgIt('其他雜支','t',212700,1,12,'','plan')],
+  '新品投資-0':[bgIt('原料（已訂 4 項）','o',254035,1,1,'原料'),bgIt('紙盒、設計、代言、認證（詢價中）','t',245965,1,3,'','plan')],
+};
+let _bgItSeq=0; const bgItId=()=>'it'+Date.now().toString(36)+(_bgItSeq++);
+function bgItemMonths(it){ const o=Array(12).fill(0), a=+it.amt||0, f=Math.min(it.from||1,it.to||12), t=Math.max(it.from||1,it.to||12);
+  if(it.status==='cancel') return o;
+  if(it.mode==='o') o[(+it.from||1)-1]=Math.round(a);
+  else if(it.mode==='m') for(let m=f;m<=t;m++) o[m-1]=Math.round(a);
+  else { const n=t-f+1; for(let m=f;m<=t;m++) o[m-1]=Math.round(a/n); o[t-1]+=Math.round(a)-Math.round(a/n)*n; }
+  return o; }
+const bgItemYear=it=>bgSum(bgItemMonths(it));
+const bgItemsOf=l=>(l.items||[]);
+function bgCloneSuggest(id){ return (BG_SUGGEST[id]||[]).map(x=>({...x,id:bgItId()})); }
+
+let _bg = { year:null, view:'track', data:null, cfg:null, loading:false, open:new Set() };
 const bgFmt = n => Math.round(n||0).toLocaleString('zh-TW');
 const bgWan = n => { const v=(n||0)/1e4; return (Math.abs(v)>=100?Math.round(v).toLocaleString('zh-TW'):v.toFixed(1))+' 萬'; };
 const bgPct = (n,d=0) => (n==null||!isFinite(n)) ? '—' : (n*100).toFixed(d)+'%';
@@ -8639,7 +8690,8 @@ function bgBaseRevenue(co, year){
 function bgCfgFromTemplate(co, year){
   const T=BG_TEMPLATE[co], base=bgBaseRevenue(co,year);
   const expense=[];
-  T.expense.forEach(([g,sens,items])=>items.forEach(([label,cats,rule,value,span],i)=>expense.push({id:g+'-'+i,group:g,sens,label,cats,rule,value,span:span||[1,12]})));
+  T.expense.forEach(([g,sens,items])=>items.forEach(([label,cats,rule,value,span],i)=>{ const id=g+'-'+i, its=bgCloneSuggest(id);
+    expense.push({id,group:g,sens,label,cats,rule:its.length&&rule==='f'?'i':rule,value,span:span||[1,12],items:its}); }));
   return { base:base.annual, baseNote:`${year-1} 年 1–${base.cut} 月 ${bgFmt(base.sum)} × 12/${base.cut}`,
     target: base.annual*2, weights: bgDefaultWeights(),
     income: T.income.map(x=>({...x})), expense };
@@ -8647,7 +8699,7 @@ function bgCfgFromTemplate(co, year){
 function bgCfgFromPlan(plan){
   return { base:plan.base, baseNote:plan.baseNote||'', target:plan.target, weights:[...plan.weights],
     income: plan.lines.filter(l=>l.kind==='income').map(l=>({id:l.id,label:l.label,cats:l.cats,share:l.share})),
-    expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:l.span||[1,12]})) };
+    expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:l.span||[1,12],items:JSON.parse(JSON.stringify(l.items||[])),custom:!!l.custom})) };
 }
 // cfg → plan（每月金額寫死存檔，RPC 與畫面都只讀 months）
 function bgBuildPlan(cfg){
@@ -8657,12 +8709,15 @@ function bgBuildPlan(cfg){
     months:w.map(x=>Math.round(cfg.target*l.share/100*x))}));
   // 固定金額可指定月份區間 span=[起,迄]（例：新品上市前 1–3 月），平均攤在區間內
   cfg.expense.forEach(l=>{ const [f,t]=l.span||[1,12], n=t-f+1;
-    lines.push({kind:'expense',id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:[f,t],
+    const its=bgItemsOf(l), base={kind:'expense',id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:[f,t],items:its};
+    if(l.custom) base.custom=true;
+    if(l.rule==='i'){ const mo=Array(12).fill(0); its.forEach(it=>bgItemMonths(it).forEach((v,k)=>mo[k]+=v)); base.value=bgSum(mo); lines.push({...base,months:mo}); return; }
+    lines.push({...base,
       months:l.rule==='p'?w.map(x=>Math.round(cfg.target*l.value/100*x)):Array.from({length:12},(_,m)=>m+1>=f&&m+1<=t?Math.round(l.value/n):0)}); });
   // 四捨五入的尾差補在最後一個有金額的月份，讓全年合計＝年度金額
-  lines.forEach(l=>{ const want=l.kind==='income'?Math.round(cfg.target*l.share/100):l.rule==='p'?Math.round(cfg.target*l.value/100):Math.round(l.value);
+  lines.forEach(l=>{ if(l.rule==='i') return; const want=l.kind==='income'?Math.round(cfg.target*l.share/100):l.rule==='p'?Math.round(cfg.target*l.value/100):Math.round(l.value);
     const last=l.kind==='expense'&&l.rule==='f'?l.span[1]-1:11; l.months[last]+=want-l.months.reduce((a,b)=>a+b,0); });
-  return { version:1, base:cfg.base, baseNote:cfg.baseNote, target:cfg.target, weights:cfg.weights, lines };
+  return { version:2, base:cfg.base, baseNote:cfg.baseNote, target:cfg.target, weights:cfg.weights, lines };
 }
 
 async function bgFetch(co, year){
@@ -8795,6 +8850,26 @@ function bgInvHTML(C){
   }).join('');
 }
 
+// 細項追蹤：該線類別當年已核准支出，依細項關鍵字比對標題／對象／備註；沒對到的歸到「關鍵字空白」的細項，再沒有就列「沒對到細項」
+function bgItemsTrackHTML(C){
+  const L=C.exp.filter(l=>bgItemsOf(l).length); if(!L.length) return '';
+  const recsAll=approvedOnly(getRecs(activeCo)).filter(r=>r.type==='expense'&&(r.date||'').startsWith(_bg.year+'-'));
+  const body=L.map(l=>{
+    const its=bgItemsOf(l), res=its.map(()=>({a:0,c:0})), other={a:0,c:0};
+    const res2=its.map(it=>{ const k=(it.kw||'').split('|').map(x=>x.trim()).filter(Boolean); return k.length?new RegExp(k.map(x=>x.replace(/[.*+?^${}()[\]\\]/g,'\\$&')).join('|'),'i'):null; });
+    const catch_=its.findIndex(it=>!(it.kw||'').trim()&&it.status!=='cancel');
+    recsAll.filter(r=>l.cats.includes(r.category)).forEach(r=>{ const t=[r.title,r.counterparty,r.note].filter(Boolean).join(' ');
+      let k=res2.findIndex(re=>re&&re.test(t)); if(k<0) k=catch_; const o=k<0?other:res[k]; o.a+=+r.amount||0; o.c++; });
+    const bud=bgSum(l.months), act=res.reduce((s,x)=>s+x.a,0)+other.a;
+    const rows=its.map((it,j)=>{ const y=bgItemYear(it), r=y?res[j].a/y:null, [sc,st]=it.status==='cancel'?['bg-na','取消']:bgStatus(r);
+      return `<tr class="${it.status==='cancel'?'bgcx':''}"><td style="padding-left:22px">${esc(it.name||'（未命名）')}</td><td><span class="bgp bgst-${it.status}">${BG_ST[it.status]}</span></td><td>${esc(it.owner||'')}</td>
+        <td class="r">${bgFmt(y)}</td><td class="r">${res[j].c?bgFmt(res[j].a):'—'}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td><span class="bgp ${sc}">${st}</span></td></tr>`; }).join('')
+      +(other.c?`<tr><td style="padding-left:22px;color:var(--txt3)">沒對到細項的支出（${other.c} 筆）</td><td></td><td></td><td class="r">—</td><td class="r">${bgFmt(other.a)}</td><td></td><td><span class="bgp bg-warn">待歸類</span></td></tr>`:'');
+    return `<tr class="shd"><td>${esc(l.label)}</td><td></td><td></td><td class="r">${bgFmt(bud)}</td><td class="r">${bgFmt(act)}</td><td class="r">${bgPct(bud?act/bud:null)}</td><td></td></tr>${rows}`; }).join('');
+  return `<div class="card mb16"><div class="chd"><div class="ct">預算細項追蹤</div><button class="btn bsm" onclick="bgExport()">匯出 Excel</button></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>類別／細項</th><th>狀態</th><th>負責人</th><th class="r">全年預估</th><th class="r">已花費</th><th class="r">使用率</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:8px">已花費＝該類別今年的記帳，依記帳標題、對象、備註裡的關鍵字對到細項；對不到的歸到沒填關鍵字的細項（例如「其他雜支」），還是沒有就列「待歸類」。細項和關鍵字在「預算設定」修改。</div></div>`;
+}
 function bgTrackHTML(D){
   const C=bgCompute(D), {P,revCut,expCut}=C;
   const target=bgSum(C.incB), revA=bgSum(C.incA), revCutB=bgSum(C.incB,0,revCut), revCutA=bgSum(C.incA,0,revCut);
@@ -8816,7 +8891,7 @@ function bgTrackHTML(D){
     if(l.rule==='p'){ const ar=revInExp?bgSum(l.actual,0,Math.min(revCut,expCut))/revInExp:null; pctRev=`${bgPct(ar,1)} / ${l.value}%`;
       if(r>1&&ar!=null&&ar<=l.value/100*1.05){ c='bg-ok'; t='隨業績'; } }
     if(c==='bg-bad'||c==='bg-warn') alerts.push([c,t,`${l.label} 已用 ${bgPct(r)}（預算 ${bgFmt(b)}，實際 ${bgFmt(a)}）`]);
-    rows+=`<tr><td style="padding-left:22px">${esc(l.label)}<span class="bgr">${l.rule==='p'?'營收 '+l.value+'%':'固定'}</span></td><td class="r">${bgFmt(bgSum(l.months))}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(a)}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td class="r">${pctRev}</td><td><span class="bgp ${c}">${t}</span></td></tr>`;
+    rows+=`<tr><td style="padding-left:22px">${esc(l.label)}<span class="bgr">${l.rule==='p'?'營收 '+l.value+'%':l.rule==='i'?'細項 '+bgItemsOf(l).filter(x=>x.status!=='cancel').length+' 項':'固定'}</span></td><td class="r">${bgFmt(bgSum(l.months))}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(a)}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td class="r">${pctRev}</td><td><span class="bgp ${c}">${t}</span></td></tr>`;
   });
   if(C.unb.length){
     rows+=`<tr class="shd"><td colspan="7">未編列預算的支出類別</td></tr>`+C.unb.map(u=>{ const a=bgSum(u.actual,0,expCut);
@@ -8837,6 +8912,7 @@ function bgTrackHTML(D){
     ${bgChart(C.incB,C.expB,C.incA,C.expA,revCut,expCut)}</div>
   ${bgStructHTML(D,C)}
   ${bgInvHTML(C)}
+  ${bgItemsTrackHTML(C)}
   ${alerts.length?`<div class="card mb16"><div class="chd"><div class="ct">需要注意</div></div><div class="bgal">${alerts.map(a=>`<div><span class="bgp ${a[0]}">${a[1]}</span>${esc(a[2])}</div>`).join('')}</div></div>`:''}
   <div class="card mb16"><div class="chd"><div class="ct">營收達成（依通路）</div></div><div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>通路</th><th class="r">年度目標</th><th class="r">已結算預算</th><th class="r">已結算實際</th><th class="r">已結算達成</th><th class="r">年度達成</th><th>狀態</th></tr></thead><tbody>${chRows}
@@ -8874,10 +8950,13 @@ function bgRenderEditor(){
   let er='', lastG='';
   c.expense.forEach((l,i)=>{
     if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="4">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
-    er+=`<tr><td style="padding-left:22px">${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td>
+    const its=bgItemsOf(l), nIt=its.filter(x=>x.status!=='cancel').length, open=_bg.open.has(l.id);
+    er+=`<tr><td style="padding-left:22px">${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
+        <button class="bgtog" aria-expanded="${open}" onclick="bgToggle(${i})">${open?'▾':'▸'} 細項 ${nIt?`<b>${nIt}</b> 項`:'（尚未列）'}</button></td>
       <td><select id="bgE${i}r" onchange="bgEdit('e',${i},'rule',this.value)" style="padding:5px;border:1px solid var(--bdr);border-radius:6px">
-        <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option></select></td>
-      <td class="r">${inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}${l.rule==='f'?`<div class="bgsm" style="margin-top:4px">${bgMonSel(i,0,l.span[0])}–${bgMonSel(i,1,l.span[1])}</div>`:''}</td><td class="r" id="bgE${i}y"></td></tr>`;
+        <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option><option value="i" ${l.rule==='i'?'selected':''}>依細項加總</option></select></td>
+      <td class="r">${l.rule==='i'?`<span class="bgsm">由細項自動加總</span>`:inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}${l.rule==='f'?`<div class="bgsm" style="margin-top:4px">${bgMonSel(i,0,l.span[0])}–${bgMonSel(i,1,l.span[1])}</div>`:''}</td><td class="r"><b id="bgE${i}y"></b><div class="bgsm" id="bgE${i}a"></div></td></tr>`;
+    if(open) er+=`<tr class="bgitr"><td colspan="4">${bgItemsEditor(l,i)}</td></tr>`;
   });
   body.innerHTML=`<div class="bgw">
   <div class="card mb16"><div class="chd"><div class="ct">${_bg.year} 年營收目標</div></div>
@@ -8893,14 +8972,92 @@ function bgRenderEditor(){
       <div class="bgwg">${c.weights.map((w,i)=>`<label>${i+1}月${inp('bgW'+i,w,`bgEdit('w',${i},'w',this.value)`,64)}</label>`).join('')}</div>
       <button class="btn bsm" style="margin-top:10px" onclick="bgEdit('w',0,'reset')">恢復淡旺季預設</button></div>
   </div>
-  <div class="card mb16"><div class="chd"><div class="ct">支出預算</div></div><div style="overflow-x:auto"><table class="tbl">
-    <thead><tr><th>類別</th><th>編列方式</th><th class="r">比例／金額</th><th class="r">年度預算</th></tr></thead><tbody>${er}</tbody></table></div></div>
+  <div class="card mb16"><div class="chd"><div class="ct">支出預算</div>
+      <div class="bgtools"><button class="btn bsm" onclick="bgApplySuggest()">帶入建議細項（依 2026 實際）</button>
+        <button class="btn bsm" onclick="bgToggleAll()">${_bg.open.size?'全部收合':'全部展開細項'}</button>
+        <button class="btn bsm" onclick="bgExport()">匯出 Excel</button></div></div>
+    <div class="bgnote" style="margin-bottom:10px">點類別下方的「▸ 細項」可以列出明年要花的項目和金額。列了細項的固定金額類別，預算會改成「依細項加總」；佔營收 % 的類別，細項只是分配，會顯示還有多少未分配。狀態選「規劃中」代表還在討論，「取消」不計入預算。</div>
+    <div style="overflow-x:auto"><table class="tbl bged">
+    <thead><tr><th>類別</th><th>編列方式</th><th class="r">比例／金額</th><th class="r">年度預算</th></tr></thead><tbody>${er}</tbody></table></div>
+    ${bgAddLineForm(c)}</div>
   <div class="card bgsave"><div id="bgSummary" style="flex:1;min-width:0"></div>
     <button class="btn" onclick="_bg.cfg=null;_bg.view='track';renderBudget(false)">取消</button>
     <button class="btn bgbtn" id="bgSaveBtn" onclick="bgSave()">儲存預算</button></div>
   </div>`;
   bgRecalc();
 }
+function bgMSel(id,v,on){ return `<select id="${id}" onchange="${on}" class="bgin bgmo">${Array.from({length:12},(_,m)=>`<option value="${m+1}" ${m+1===+v?'selected':''}>${m+1}月</option>`).join('')}</select>`; }
+function bgItemsEditor(l,i){
+  const its=bgItemsOf(l);
+  const rows=its.map((it,j)=>{ const on=f=>`bgItem(${i},${j},'${f}',this.value)`;
+    return `<tr class="${it.status==='cancel'?'bgcx':''}">
+      <td><input id="bgI${i}_${j}n" class="bgin" style="width:100%;min-width:150px" value="${esc(it.name)}" placeholder="項目名稱" oninput="${on('name')}"></td>
+      <td><select id="bgI${i}_${j}m" class="bgin" onchange="${on('mode')}"><option value="m" ${it.mode==='m'?'selected':''}>每月</option><option value="o" ${it.mode==='o'?'selected':''}>單次</option><option value="t" ${it.mode==='t'?'selected':''}>總額攤提</option></select></td>
+      <td class="r"><input id="bgI${i}_${j}a" class="bgin bgnum" type="number" step="any" value="${+it.amt||0}" oninput="${on('amt')}"></td>
+      <td style="white-space:nowrap">${bgMSel(`bgI${i}_${j}f`,it.from||1,on('from'))}${it.mode==='o'?'':` – ${bgMSel(`bgI${i}_${j}t`,it.to||12,on('to'))}`}</td>
+      <td class="r"><b id="bgI${i}_${j}y">${bgFmt(bgItemYear(it))}</b></td>
+      <td><select id="bgI${i}_${j}s" class="bgin bgst-${it.status}" onchange="${on('status')}"><option value="ok" ${it.status==='ok'?'selected':''}>已確認</option><option value="plan" ${it.status==='plan'?'selected':''}>規劃中</option><option value="cancel" ${it.status==='cancel'?'selected':''}>取消</option></select></td>
+      <td><input id="bgI${i}_${j}o" class="bgin" style="width:76px" value="${esc(it.owner||'')}" placeholder="負責人" oninput="${on('owner')}"></td>
+      <td><input id="bgI${i}_${j}k" class="bgin" style="width:110px" value="${esc(it.kw||'')}" placeholder="比對關鍵字" title="記帳標題含這些字就算這個細項的實際花費，多個用 | 分隔" oninput="${on('kw')}"></td>
+      <td><button class="bgx" title="刪除這個細項" onclick="bgItemDel(${i},${j})">✕</button></td></tr>`; }).join('');
+  return `<div class="bgitw"><table class="tbl bgit"><thead><tr><th>細項</th><th>方式</th><th class="r">金額</th><th>月份</th><th class="r">全年</th><th>狀態</th><th>負責人</th><th>比對關鍵字</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="9" class="bgsm" style="padding:10px">還沒有細項。按下方按鈕新增，或用上方「帶入建議細項」。</td></tr>`}</tbody></table>
+    <div class="bgitf"><button class="btn bsm bgbtn" onclick="bgItemAdd(${i})">＋ 新增細項</button><span class="bgsm" id="bgE${i}it"></span></div></div>`;
+}
+function bgToggle(i){ const id=_bg.cfg.expense[i].id; _bg.open.has(id)?_bg.open.delete(id):_bg.open.add(id); bgRenderEditor(); }
+function bgToggleAll(){ if(_bg.open.size) _bg.open.clear(); else _bg.cfg.expense.forEach(l=>_bg.open.add(l.id)); bgRenderEditor(); }
+function bgItem(i,j,f,v){ const l=_bg.cfg.expense[i], it=l.items[j];
+  if(f==='amt') it.amt=+v||0; else if(f==='from'||f==='to') it[f]=+v; else it[f]=v;
+  if(f==='from'&&it.mode!=='o'&&it.to<it.from) it.to=it.from;
+  if(f==='to'&&it.to<it.from) it.from=it.to;
+  if(['mode','status','from','to'].includes(f)) { bgRenderEditor(); return; }
+  bgRecalc(); }
+function bgItemAdd(i){ const l=_bg.cfg.expense[i]; l.items=l.items||[];
+  l.items.push({id:bgItId(),name:'',mode:'t',amt:0,from:1,to:12,status:'plan',owner:'',kw:''});
+  if(l.rule==='f'){ if(l.items.length===1&&l.value>0) l.items.unshift({id:bgItId(),name:'原本的預算（尚未拆細項）',mode:'t',amt:l.value,from:l.span[0],to:l.span[1],status:'ok',owner:'',kw:''}); l.rule='i'; }
+  _bg.open.add(l.id); bgRenderEditor();
+  const n=document.getElementById(`bgI${i}_${l.items.length-1}n`); if(n) n.focus(); }
+function bgItemDel(i,j){ const l=_bg.cfg.expense[i]; l.items.splice(j,1);
+  if(l.rule==='i'&&!l.items.length){ l.rule='f'; l.value=0; }
+  bgRenderEditor(); }
+function bgApplySuggest(){ let n=0;
+  _bg.cfg.expense.forEach(l=>{ if(bgItemsOf(l).length||!BG_SUGGEST[l.id]) return; l.items=bgCloneSuggest(l.id); n+=l.items.length; if(l.rule==='f') l.rule='i'; _bg.open.add(l.id); });
+  toast(n?`已帶入 ${n} 個建議細項（已有細項的類別不動）`:'每個類別都已經有細項了，沒有再帶入'); bgRenderEditor(); }
+function bgAddLineForm(c){
+  const groups=[...new Set(c.expense.map(l=>l.group))], used=new Set(c.expense.flatMap(l=>l.cats));
+  const cats=getCats(activeCo,'expense').filter(x=>!used.has(x));
+  return `<details class="bgadd"><summary>＋ 新增預算類別</summary><div class="bgaddf">
+    <label>類別名稱<input id="bgNlName" class="bgin" placeholder="例：展覽參展"></label>
+    <label>放在哪一組<select id="bgNlGroup" class="bgin">${groups.map(g=>`<option>${esc(g)}</option>`).join('')}<option value="__new">（新的一組）</option></select></label>
+    <label>新組名（選「新的一組」才填）<input id="bgNlGroupNew" class="bgin" placeholder="例：通路拓展"></label>
+    <label>對應記帳類別<select id="bgNlCat" class="bgin"><option value="">（先不對應，之後再補）</option>${cats.map(x=>`<option>${esc(x)}</option>`).join('')}</select></label>
+    <button class="btn bsm bgbtn" onclick="bgAddLine()">新增</button></div>
+    <div class="bgsm" style="margin-top:6px">新類別預設「依細項加總」，新增後直接列細項。對應記帳類別後，記在那個類別的支出會算進實際花費。</div></details>`;
+}
+function bgAddLine(){ const c=_bg.cfg, name=document.getElementById('bgNlName').value.trim();
+  if(!name){ toast('請先填類別名稱',false); return; }
+  let g=document.getElementById('bgNlGroup').value; if(g==='__new') g=document.getElementById('bgNlGroupNew').value.trim();
+  if(!g){ toast('請填新組名',false); return; }
+  const cat=document.getElementById('bgNlCat').value, id='custom-'+Date.now().toString(36);
+  const line={id,group:g,sens:g==='行銷推廣'?'mkt':'gm',label:name,cats:cat?[cat]:[],rule:'i',value:0,span:[1,12],items:[{id:bgItId(),name:'',mode:'t',amt:0,from:1,to:12,status:'plan',owner:'',kw:''}],custom:true};
+  let at=-1; c.expense.forEach((l,k)=>{ if(l.group===g) at=k; });
+  if(at<0) c.expense.push(line); else c.expense.splice(at+1,0,line);
+  _bg.open.add(id); toast(`已新增「${name}」，請填細項金額`); bgRenderEditor(); }
+function bgDelLine(i,b){ const l=_bg.cfg.expense[i];
+  if(b&&b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='再按一次確認刪除'; setTimeout(()=>{ if(b.isConnected){ b.dataset.sure=''; b.textContent='刪除'; } },3000); return; }
+  _bg.cfg.expense.splice(i,1); _bg.open.delete(l.id); toast(`已刪除「${l.label}」（按儲存才生效）`); bgRenderEditor(); }
+const BG_MODE={m:'每月',o:'單次',t:'總額攤提'}, BG_ST={ok:'已確認',plan:'規劃中',cancel:'取消'};
+function bgExport(){
+  const c=_bg.cfg||(_bg.data&&_bg.data.plan&&bgCfgFromPlan(_bg.data.plan)); if(!c){ toast('沒有預算可匯出',false); return; }
+  const P=bgBuildPlan(c), M=Array.from({length:12},(_,k)=>`${k+1}月`);
+  const rows=[['組別','類別','細項','狀態','負責人','方式','月份','全年預估',...M,'比對關鍵字']];
+  P.lines.filter(l=>l.kind==='expense').forEach(l=>{
+    rows.push([l.group,l.label,'（類別合計）','','',l.rule==='p'?`佔營收 ${l.value}%`:l.rule==='i'?'依細項加總':'固定金額','',bgSum(l.months),...l.months,'']);
+    bgItemsOf(l).forEach(it=>{ const mo=bgItemMonths({...it,status:'ok'});
+      rows.push([l.group,l.label,it.name,BG_ST[it.status]||'',it.owner||'',BG_MODE[it.mode]||'',it.mode==='o'?`${it.from}月`:`${it.from}–${it.to}月`,it.status==='cancel'?0:bgSum(mo),...mo,it.kw||'']); }); });
+  if(typeof XLSX==='undefined'){ toast('這個畫面無法下載檔案；正式系統會直接下載 Excel',false); return; }
+  const ws=XLSX.utils.aoa_to_sheet(rows), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`${_bg.year}預算細項`);
+  XLSX.writeFile(wb,`蒔心田_${_bg.year}_預算細項.xlsx`); toast('已匯出 Excel'); }
 function bgMonSel(i,k,v){ return `<select onchange="bgEdit('e',${i},'span${k}',this.value)" style="padding:2px;border:1px solid var(--bdr);border-radius:5px;font-size:11px">${Array.from({length:12},(_,m)=>`<option value="${m+1}" ${m+1===v?'selected':''}>${m+1}月</option>`).join('')}</select>`; }
 function bgEdit(kind,i,field,val){
   const c=_bg.cfg, v=+val;
@@ -8909,7 +9066,8 @@ function bgEdit(kind,i,field,val){
   else if(kind==='w'){ if(field==='reset'){ c.weights=bgDefaultWeights(); c.weights.forEach((w,j)=>document.getElementById('bgW'+j).value=w); } else c.weights[i]=v||0; }
   else if(kind==='e'){ const l=c.expense[i];
     if(field==='rule'&&val!==l.rule){ const P=bgBuildPlan(c), yr=bgSum(P.lines.find(x=>x.id===l.id).months);
-      l.rule=val; l.value=val==='p'?Math.round(yr/(c.target||1)*1000)/10:Math.round(yr/1000)*1000; l.span=l.span||[1,12]; bgRenderEditor(); return; }
+      if(val==='i'){ l.items=l.items||[]; if(!l.items.length) l.items.push({id:bgItId(),name:'原本的預算（尚未拆細項）',mode:'t',amt:yr,from:1,to:12,status:'ok',owner:'',kw:''}); _bg.open.add(l.id); }
+      l.rule=val; if(val!=='i') l.value=val==='p'?Math.round(yr/(c.target||1)*1000)/10:Math.round(yr/1000)*1000; l.span=l.span||[1,12]; bgRenderEditor(); return; }
     else if(field==='value') l.value=v||0;
     else if(field==='span0'||field==='span1'){ l.span=l.span||[1,12]; l.span[field==='span0'?0:1]=v;
       if(l.span[0]>l.span[1]){ l.span=[Math.min(...l.span),Math.max(...l.span)]; } bgRenderEditor(); return; } }
@@ -8922,13 +9080,23 @@ function bgRecalc(){
   document.getElementById('bgIncSum').innerHTML=`合計 ${incSum.toFixed(1)}% ${okI?'✓':'<b style="color:var(--exp)">需等於 100%</b>'}`;
   document.getElementById('bgWSum').innerHTML=`合計 ${wSum.toFixed(2)}% ${okW?'✓':'<b style="color:var(--exp)">需等於 100%</b>'}`;
   c.income.forEach((l,i)=>document.getElementById('bgI'+i+'y').textContent=bgFmt(c.target*l.share/100));
-  P.lines.filter(l=>l.kind==='expense').forEach((l,i)=>document.getElementById('bgE'+i+'y').textContent=bgFmt(bgSum(l.months)));
+  let okSum=0, planSum=0;
+  P.lines.filter(l=>l.kind==='expense').forEach((l,i)=>{ const yr=bgSum(l.months), its=bgItemsOf(l);
+    document.getElementById('bgE'+i+'y').textContent=bgFmt(yr);
+    const al=its.reduce((s,it)=>s+bgItemYear(it),0), pl=its.filter(it=>it.status==='plan').reduce((s,it)=>s+bgItemYear(it),0);
+    its.forEach((it,j)=>{ const e=document.getElementById(`bgI${i}_${j}y`); if(e) e.textContent=bgFmt(bgItemYear(it)); });
+    const a=document.getElementById('bgE'+i+'a'), t=document.getElementById('bgE'+i+'it');
+    let msg='';
+    if(its.length&&l.rule!=='i'){ const d=yr-al; msg=`已分配 ${bgFmt(al)}，${d>=0?'未分配 '+bgFmt(d):'<b style="color:var(--exp)">超出 '+bgFmt(-d)+'</b>'}`; }
+    else if(pl) msg=`其中規劃中 ${bgFmt(pl)}`;
+    if(a) a.innerHTML=msg; if(t) t.innerHTML=its.length?`細項合計 ${bgFmt(al)}${pl?`（已確認 ${bgFmt(al-pl)}、規劃中 ${bgFmt(pl)}）`:''}`:'';
+    if(l.rule==='i'){ planSum+=pl; okSum+=yr-pl; } else okSum+=yr; });
   const exp=P.lines.filter(l=>l.kind==='expense').reduce((s,l)=>s+bgSum(l.months),0), net=c.target-exp;
   const grp={}; P.lines.filter(l=>l.kind==='expense').forEach(l=>grp[l.group]=(grp[l.group]||0)+bgSum(l.months));
   document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px">
     <span>營收 <b>${bgWan(c.target)}</b></span><span>支出 <b>${bgWan(exp)}</b>（${bgPct(exp/(c.target||1),1)}）</span>
     <span>預估結餘 <b style="color:${net>=0?'var(--inc)':'var(--exp)'}">${bgWan(net)}</b>（${bgPct(net/(c.target||1),1)}）</span></div>
-    <div style="font-size:11px;color:var(--txt3);margin-top:4px">${Object.entries(grp).map(([g,v])=>`${g} ${bgPct(v/(c.target||1),1)}`).join(' · ')}</div>`;
+    <div style="font-size:11px;color:var(--txt3);margin-top:4px">${planSum?`支出中已確認 ${bgWan(okSum)}、規劃中 ${bgWan(planSum)}（規劃中都不做的話，結餘 ${bgWan(net+planSum)}）　`:''}${Object.entries(grp).map(([g,v])=>`${g} ${bgPct(v/(c.target||1),1)}`).join(' · ')}</div>`;
   document.getElementById('bgSaveBtn').disabled=!(okI&&okW&&c.target>0);
 }
 async function bgSave(){
