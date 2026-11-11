@@ -1596,7 +1596,8 @@ const SX_EXP = [
   '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-銷售佣金、分潤',
   '蒔-人事薪資','蒔-系統軟體','蒔-行銷製作-影片拍攝剪輯','蒔-網紅/KOL酬勞',
   '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊',
-  '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他'
+  '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他',
+  '蒔-專案-悅敏捷上市'   // v3.25：2027/3 新品，上市前原料、紙盒、設計、代言、認證都記這裡，不混進日常預算
 ];
 
 // 私人帳 categories
@@ -5073,6 +5074,7 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(SX_EXP.includes(sub)) return sub;
   if(SX_EXP.includes(main)) return main;
   if(['薪資','健保費','勞保費','勞保退休金','二代健保','端午節獎金'].some(k=>key.includes(k))) return '蒔-人事薪資';
+  if(key.includes('悅敏捷')) return '蒔-專案-悅敏捷上市';
   if(['膠原蛋白','益菌盾','優兒護','穀胱甘肽','蒔-藻油','代工','原料'].some(k=>(sub+main).includes(k))) return '蒔-銷貨成本-代工原料';
   if(key.includes('紙盒')) return '蒔-銷貨成本-紙盒';
   if(key.includes('鋁袋')) return '蒔-銷貨成本-鋁袋';
@@ -8609,6 +8611,8 @@ const BG_TEMPLATE = {
       ['物流','gm',[['黑貓',['蒔-物流-黑貓'],'p',1],['7-11',['蒔-物流-7-11'],'p',0.6],['全家',['蒔-物流-全家'],'p',0.2],['郵局',['蒔-物流-郵局'],'p',0.2]]],
       ['金流手續費','gm',[['官網手續費',['蒔-金流-官網手續費'],'p',0.7],['刷卡手續費',['蒔-金流-刷卡手續費'],'p',0.6],['蝦皮手續費',['蒔-金流-蝦皮手續費'],'p',0.3],['簡訊費',['蒔-金流-簡訊費'],'p',0.15],['Line Pay',['蒔-金流-Line Pay手續費'],'p',0.05]]],
       ['營運管理','gm',[['系統軟體',['蒔-系統軟體'],'f',120000],['會計記帳',['蒔-會計記帳費'],'f',36000],['郵電費',['蒔-郵電費'],'f',12000],['檢驗費',['蒔-檢驗費'],'f',150000],['雜項與其他',['蒔-雜項與其他'],'f',250000]]],
+      // 新品投資：純素關節保健新品，屬於一次性投資，追蹤頁與日常營運分開看（先算日常營運結餘，再扣投資）
+      ['新品投資','inv',[['悅敏捷上市（暫估，詢價中）',['蒔-專案-悅敏捷上市'],'f',500000,[1,3]]]],
     ],
   },
 };
@@ -8635,7 +8639,7 @@ function bgBaseRevenue(co, year){
 function bgCfgFromTemplate(co, year){
   const T=BG_TEMPLATE[co], base=bgBaseRevenue(co,year);
   const expense=[];
-  T.expense.forEach(([g,sens,items])=>items.forEach(([label,cats,rule,value],i)=>expense.push({id:g+'-'+i,group:g,sens,label,cats,rule,value})));
+  T.expense.forEach(([g,sens,items])=>items.forEach(([label,cats,rule,value,span],i)=>expense.push({id:g+'-'+i,group:g,sens,label,cats,rule,value,span:span||[1,12]})));
   return { base:base.annual, baseNote:`${year-1} 年 1–${base.cut} 月 ${bgFmt(base.sum)} × 12/${base.cut}`,
     target: base.annual*2, weights: bgDefaultWeights(),
     income: T.income.map(x=>({...x})), expense };
@@ -8643,7 +8647,7 @@ function bgCfgFromTemplate(co, year){
 function bgCfgFromPlan(plan){
   return { base:plan.base, baseNote:plan.baseNote||'', target:plan.target, weights:[...plan.weights],
     income: plan.lines.filter(l=>l.kind==='income').map(l=>({id:l.id,label:l.label,cats:l.cats,share:l.share})),
-    expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value})) };
+    expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:l.span||[1,12]})) };
 }
 // cfg → plan（每月金額寫死存檔，RPC 與畫面都只讀 months）
 function bgBuildPlan(cfg){
@@ -8651,11 +8655,13 @@ function bgBuildPlan(cfg){
   const lines=[];
   cfg.income.forEach(l=>lines.push({kind:'income',id:l.id,label:l.label,cats:l.cats,share:l.share,
     months:w.map(x=>Math.round(cfg.target*l.share/100*x))}));
-  cfg.expense.forEach(l=>lines.push({kind:'expense',id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,
-    months:l.rule==='p'?w.map(x=>Math.round(cfg.target*l.value/100*x)):Array(12).fill(Math.round(l.value/12))}));
-  // 四捨五入的尾差補在 12 月，讓全年合計＝年度金額
+  // 固定金額可指定月份區間 span=[起,迄]（例：新品上市前 1–3 月），平均攤在區間內
+  cfg.expense.forEach(l=>{ const [f,t]=l.span||[1,12], n=t-f+1;
+    lines.push({kind:'expense',id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:[f,t],
+      months:l.rule==='p'?w.map(x=>Math.round(cfg.target*l.value/100*x)):Array.from({length:12},(_,m)=>m+1>=f&&m+1<=t?Math.round(l.value/n):0)}); });
+  // 四捨五入的尾差補在最後一個有金額的月份，讓全年合計＝年度金額
   lines.forEach(l=>{ const want=l.kind==='income'?Math.round(cfg.target*l.share/100):l.rule==='p'?Math.round(cfg.target*l.value/100):Math.round(l.value);
-    l.months[11]+=want-l.months.reduce((a,b)=>a+b,0); });
+    const last=l.kind==='expense'&&l.rule==='f'?l.span[1]-1:11; l.months[last]+=want-l.months.reduce((a,b)=>a+b,0); });
   return { version:1, base:cfg.base, baseNote:cfg.baseNote, target:cfg.target, weights:cfg.weights, lines };
 }
 
@@ -8735,6 +8741,60 @@ function bgChart(incB,expB,incA,expA,revCut,expCut){
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="每月收入與支出">${g}<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--txt3)"/></svg>`;
 }
 
+// 成本結構（佔營收）：預算 vs 今年實際 vs 去年實際；實際只比「收入、支出都已結算」的月份，比例才不會失真
+function bgStructHTML(D, C){
+  const P=C.P, nc=Math.min(C.revCut,C.expCut), groups=[...new Set(C.exp.map(l=>l.group))];
+  const target=bgSum(C.incB), revA=bgSum(C.incA,0,nc);
+  // 去年：用本機已載入的紀錄，月份截到去年官網資料最後一個月
+  const py=_bg.year-1, base=bgBaseRevenue(activeCo,_bg.year), pc=base.cut, catG={};
+  C.exp.forEach(l=>l.cats.forEach(c=>catG[c]=l.group));
+  const incCats=new Set(getCats(activeCo,'income')), pyExp={}; let pyUnb=0;
+  approvedOnly(getRecs(activeCo)).forEach(r=>{
+    if(r.type!=='expense'||!(r.date||'').startsWith(py+'-')||+r.date.slice(5,7)>pc||isSXInvCat(r.category)||incCats.has(r.category)) return;
+    const g=catG[r.category]; if(g) pyExp[g]=(pyExp[g]||0)+(+r.amount||0); else pyUnb+=(+r.amount||0); });
+  const pyRev=base.sum;
+  const row=(label,b,a,pa,cls='')=>{ const br=target?b/target:null, ar=nc&&revA?a/revA:null, pr=pyRev?pa/pyRev:null;
+    const d=label!=='營收'&&ar!=null&&br!=null?(ar-br)*100:null, dc=d==null?'':(/結餘/.test(label)?(d<0?'var(--exp)':'var(--inc)'):(d>0?'var(--exp)':'var(--inc)'));
+    return `<tr class="${cls}"><td>${label}</td><td class="r">${bgFmt(b)}</td><td class="r"><b>${bgPct(br,1)}</b></td>
+      <td class="r">${nc?bgFmt(a):'—'}</td><td class="r"><b>${bgPct(ar,1)}</b></td>
+      <td class="r" style="color:${dc}">${d==null?'—':(d>0?'+':'')+d.toFixed(1)+' 點'}</td><td class="r" style="color:var(--txt3)">${bgPct(pr,1)}</td></tr>`; };
+  let rows=row('營收',target,revA,pyRev,'shd'), tb=0, ta=0, tp=0;
+  const invG=groups.filter(g=>C.exp.some(l=>l.group===g&&l.sens==='inv')), opG=groups.filter(g=>!invG.includes(g));
+  const grpRow=g=>{ const gl=C.exp.filter(l=>l.group===g), b=gl.reduce((s,l)=>s+bgSum(l.months),0), a=gl.reduce((s,l)=>s+bgSum(l.actual,0,nc),0), pa=pyExp[g]||0;
+    tb+=b; ta+=a; tp+=pa; rows+=row(g==='銷貨成本'?'產品成本（銷貨成本）':g,b,a,pa); };
+  opG.forEach(grpRow);
+  const ua=C.unb.reduce((s,u)=>s+bgSum(u.actual,0,nc),0);
+  if(ua||pyUnb){ ta+=ua; tp+=pyUnb; rows+=row('未編列預算的支出',0,ua,pyUnb); }
+  if(invG.length){ rows+=row('日常營運結餘',target-tb,revA-ta,pyRev-tp,'sub'); invG.forEach(grpRow); }
+  rows+=row('總支出',tb,ta,tp,'sub')+row(invG.length?'扣除新品投資後結餘':'預估結餘',target-tb,revA-ta,pyRev-tp,'sub');
+  const per=nc?`今年實際＝1–${nc} 月（營收與支出都已結算的月份）`:`今年還沒有收入、支出都結算完的月份，實際欄位待 ${_bg.year} 年 1 月官網營收匯入後出現`;
+  return `<div class="card mb16"><div class="chd"><div class="ct">成本結構（佔營收比例）</div></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>類別</th><th class="r">全年預算</th><th class="r">預算佔營收</th><th class="r">今年實際</th><th class="r">實際佔營收</th><th class="r">實際−預算</th><th class="r">${py} 年實際</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:8px">${per}；${py} 年實際＝1–${pc} 月。比例都是「÷ 同期營收」，數字隨收支系統記錄自動更新。差異欄紅色＝成本佔比高於預算（結餘列相反）。<br>⚠️ 產品成本的「實際」是當期<b>進貨付款</b>（含囤貨、訂金），大批進貨的月份會偏高、沒進貨的月份偏低，要看全年累計才接近真實成本率。</div></div>`;
+}
+
+// 新品投資細項：專案類別的實際支出依標題關鍵字拆項目（記帳時標題寫「悅敏捷-原料」「悅敏捷-代言」…）
+const BG_INV_ITEMS=[['原料',/原料|代工|粉|膠囊|錠/],['紙盒、包材',/紙盒|包材|鋁袋|包裝|貼紙|印刷/],['設計',/設計|攝影|拍攝/],['代言、網紅',/代言|網紅|KOL|KOC|業配|藝人/i],['認證、檢驗',/認證|檢驗|驗證|SGS|素食|商標|專利/i]];
+function bgInvHTML(C){
+  const invL=C.exp.filter(l=>l.sens==='inv'); if(!invL.length) return '';
+  return invL.map(l=>{
+    const recs=approvedOnly(getRecs(activeCo)).filter(r=>r.type==='expense'&&l.cats.includes(r.category)&&(r.date||'').startsWith(_bg.year+'-'));
+    const items=BG_INV_ITEMS.map(([n])=>({n,a:0,c:0})).concat([{n:'其他（標題沒寫項目）',a:0,c:0}]);
+    // 比對優先序：原料→代言→設計→認證→包材（「包裝設計」算設計）
+    recs.forEach(r=>{ const t=(r.title||'')+' '+(r.note||''); let k=[0,3,2,4,1].find(j=>BG_INV_ITEMS[j][1].test(t)); if(k==null) k=items.length-1; items[k].a+=+r.amount||0; items[k].c++; });
+    const bud=bgSum(l.months), tot=items.reduce((s,x)=>s+x.a,0), r=bud?tot/bud:null, [sc,st]=bgStatus(r);
+    const [f,t]=l.span||[1,12];
+    return `<div class="card mb16"><div class="chd"><div class="ct">新品投資細項：${esc(l.label)}</div><div class="cbadge">預算 ${bgFmt(bud)}（${f}–${t} 月）</div></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>項目</th><th class="r">筆數</th><th class="r">已花費</th><th class="r">佔已花費</th></tr></thead><tbody>
+      ${items.filter(x=>x.c||x.n!=='其他（標題沒寫項目）').map(x=>`<tr><td>${x.n}</td><td class="r">${x.c}</td><td class="r">${bgFmt(x.a)}</td><td class="r">${tot?bgPct(x.a/tot,1):'—'}</td></tr>`).join('')}
+      <tr class="sub"><td>合計</td><td class="r">${recs.length}</td><td class="r">${bgFmt(tot)}</td><td class="r"></td></tr>
+      <tr><td>預算剩餘</td><td></td><td class="r" style="color:${bud-tot>=0?'var(--inc)':'var(--exp)'}">${bgFmt(bud-tot)}</td><td class="r">${bgMeter(r)} <span class="bgp ${sc}">${st}</span></td></tr>
+      </tbody></table></div>
+      <div style="font-size:11px;color:var(--txt3);margin-top:8px">記在「${l.cats.map(esc).join('、')}」的支出，依標題關鍵字自動分項；標題請寫「悅敏捷-原料」「悅敏捷-代言」等。預算金額可在「預算設定」修改。</div></div>`;
+  }).join('');
+}
+
 function bgTrackHTML(D){
   const C=bgCompute(D), {P,revCut,expCut}=C;
   const target=bgSum(C.incB), revA=bgSum(C.incA), revCutB=bgSum(C.incB,0,revCut), revCutA=bgSum(C.incA,0,revCut);
@@ -8775,6 +8835,8 @@ function bgTrackHTML(D){
   <div class="card mb16"><div class="chd"><div class="ct">每月實際 vs 預算</div></div>
     <div class="bglg"><span><i style="background:#BA693D"></i>收入</span><span><i style="background:#D6B474"></i>支出</span><span><i style="background:#3D1F01;height:2px"></i>當月營收目標</span><span>淡色＝尚未結算（顯示預算）</span></div>
     ${bgChart(C.incB,C.expB,C.incA,C.expA,revCut,expCut)}</div>
+  ${bgStructHTML(D,C)}
+  ${bgInvHTML(C)}
   ${alerts.length?`<div class="card mb16"><div class="chd"><div class="ct">需要注意</div></div><div class="bgal">${alerts.map(a=>`<div><span class="bgp ${a[0]}">${a[1]}</span>${esc(a[2])}</div>`).join('')}</div></div>`:''}
   <div class="card mb16"><div class="chd"><div class="ct">營收達成（依通路）</div></div><div style="overflow-x:auto"><table class="tbl">
     <thead><tr><th>通路</th><th class="r">年度目標</th><th class="r">已結算預算</th><th class="r">已結算實際</th><th class="r">已結算達成</th><th class="r">年度達成</th><th>狀態</th></tr></thead><tbody>${chRows}
@@ -8815,7 +8877,7 @@ function bgRenderEditor(){
     er+=`<tr><td style="padding-left:22px">${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td>
       <td><select id="bgE${i}r" onchange="bgEdit('e',${i},'rule',this.value)" style="padding:5px;border:1px solid var(--bdr);border-radius:6px">
         <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option></select></td>
-      <td class="r">${inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}</td><td class="r" id="bgE${i}y"></td></tr>`;
+      <td class="r">${inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}${l.rule==='f'?`<div class="bgsm" style="margin-top:4px">${bgMonSel(i,0,l.span[0])}–${bgMonSel(i,1,l.span[1])}</div>`:''}</td><td class="r" id="bgE${i}y"></td></tr>`;
   });
   body.innerHTML=`<div class="bgw">
   <div class="card mb16"><div class="chd"><div class="ct">${_bg.year} 年營收目標</div></div>
@@ -8839,6 +8901,7 @@ function bgRenderEditor(){
   </div>`;
   bgRecalc();
 }
+function bgMonSel(i,k,v){ return `<select onchange="bgEdit('e',${i},'span${k}',this.value)" style="padding:2px;border:1px solid var(--bdr);border-radius:5px;font-size:11px">${Array.from({length:12},(_,m)=>`<option value="${m+1}" ${m+1===v?'selected':''}>${m+1}月</option>`).join('')}</select>`; }
 function bgEdit(kind,i,field,val){
   const c=_bg.cfg, v=+val;
   if(kind==='t'){ if(field==='mult') c.target=Math.round(c.base*val); else c.target=v||0; if(field==='mult') document.getElementById('bgTarget').value=c.target; }
@@ -8846,8 +8909,10 @@ function bgEdit(kind,i,field,val){
   else if(kind==='w'){ if(field==='reset'){ c.weights=bgDefaultWeights(); c.weights.forEach((w,j)=>document.getElementById('bgW'+j).value=w); } else c.weights[i]=v||0; }
   else if(kind==='e'){ const l=c.expense[i];
     if(field==='rule'&&val!==l.rule){ const P=bgBuildPlan(c), yr=bgSum(P.lines.find(x=>x.id===l.id).months);
-      l.rule=val; l.value=val==='p'?Math.round(yr/(c.target||1)*1000)/10:Math.round(yr/1000)*1000; document.getElementById('bgE'+i+'v').value=l.value; }
-    else if(field==='value') l.value=v||0; }
+      l.rule=val; l.value=val==='p'?Math.round(yr/(c.target||1)*1000)/10:Math.round(yr/1000)*1000; l.span=l.span||[1,12]; bgRenderEditor(); return; }
+    else if(field==='value') l.value=v||0;
+    else if(field==='span0'||field==='span1'){ l.span=l.span||[1,12]; l.span[field==='span0'?0:1]=v;
+      if(l.span[0]>l.span[1]){ l.span=[Math.min(...l.span),Math.max(...l.span)]; } bgRenderEditor(); return; } }
   bgRecalc();
 }
 function bgRecalc(){
