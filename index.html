@@ -341,6 +341,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgref{color:var(--txt3);font-size:12px;white-space:nowrap}.bgref b{color:var(--txt2);font-weight:600}
 .bgrefc{background:rgba(186,105,61,.05)}
 .bgw .g2>*{min-width:0}
+.bgest{color:#BA693D}.bgest b{font-weight:600}
+.bgrefg{margin-top:12px;font-size:12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .bgtog{border:0;background:none;color:#BA693D;font-size:12px;cursor:pointer;padding:4px 0 0;font-family:inherit}
 .bgtog:hover{text-decoration:underline}
 .bgitr>td{background:#fbf6ef;padding:10px 12px 12px 22px!important}
@@ -8760,7 +8762,7 @@ async function renderBudget(refetch=true){
   if(!D.plan){
     body.innerHTML=`<div class="card bgw" style="text-align:center;padding:36px 20px">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px">${_bg.year} 年尚未建立預算</div>
-      ${D.can_edit?`<div style="color:var(--txt3);margin-bottom:14px">以 ${_bg.year-1} 年營收年化 ×2 為草案，各類別依已確認的比例與金額帶入，可再逐項調整。</div>
+      ${D.can_edit?`<div style="color:var(--txt3);margin-bottom:14px">以 ${_bg.year-1} 年全年營收（實際＋預估）×2 為草案，各類別依已確認的比例與金額帶入，可再逐項調整。</div>
         <button class="btn bgbtn" onclick="bgStartDraft()">建立 ${_bg.year} 年預算草案</button>`:'<div style="color:var(--txt3)">請總經理先建立預算。</div>'}
     </div>`;
     return;
@@ -8957,46 +8959,80 @@ function bgMonthHTML(D){
 
 // ---------- 預算設定（Mark） ----------
 // v3.28 編預算時固定顯示去年實際（月份截到去年官網資料最後一個月，比例才能跟營收對齊）
-function bgRefData(){
-  const py=_bg.year-1, base=bgBaseRevenue(activeCo,_bg.year), cut=base.cut, by={};
-  approvedOnly(getRecs(activeCo)).forEach(r=>{ if(!(r.date||'').startsWith(py+'-')||+r.date.slice(5,7)>cut) return;
-    if(r.type==='income'&&isSXInvCat(r.category)) return; const k=r.type+'|'+r.category; by[k]=(by[k]||0)+(+r.amount||0); });
-  const amt=(type,cats)=>(cats||[]).reduce((s,c)=>s+(by[type+'|'+c]||0),0);
-  return { py, cut, rev:base.sum, amt };
+// v3.29 加「去年全年預估」：營收＝實際到 cut 月＋之後每月用最後三個月中位數×(1+成長%)（中位數避開單月暴衝）；
+//   支出＝已過完的月份全用實際，剩下月份：人事用最後一個完整月、銷貨成本用預估營收×35%（依各線實際比重分）、
+//   新品投資不推估、其餘用近三個完整月平均；當月已記的金額比推估大就用實際
+const BG_REF_COGS=0.35;
+function bgRefG(){ try{ return +localStorage.getItem('bgRefG')||0; }catch(e){ return 0; } }
+function bgSetRefG(v){ try{ localStorage.setItem('bgRefG',String(+v||0)); }catch(e){} setTimeout(bgRenderEditor,0); }
+function bgRefData(c){
+  const py=_bg.year-1, base=bgBaseRevenue(activeCo,_bg.year), cut=base.cut, mon={}, now=new Date();
+  const A=py<now.getFullYear()?12:py===now.getFullYear()?now.getMonth():0;  // 已過完的月份數
+  approvedOnly(getRecs(activeCo)).forEach(r=>{ if(!(r.date||'').startsWith(py+'-')) return;
+    if(r.type==='income'&&isSXInvCat(r.category)) return; const k=r.type+'|'+r.category;
+    (mon[k]=mon[k]||Array(12).fill(0))[+r.date.slice(5,7)-1]+=(+r.amount||0); });
+  const M=(type,c)=>mon[type+'|'+c]||Array(12).fill(0);
+  const amt=(type,cats,to=cut)=>(cats||[]).reduce((s,c)=>s+M(type,c).slice(0,to).reduce((a,b)=>a+b,0),0);
+  const g=bgRefG(), med=a=>{ const x=[...a].sort((p,q)=>p-q); return x.length?x[Math.floor(x.length/2)]:0; };
+  const incM=c=>{ const a=M('income',c), m=med(a.slice(Math.max(0,cut-3),cut))*(1+g/100); return a.map((v,k)=>k<cut?v:Math.max(v,Math.round(m))); };
+  const incCats=Object.keys(mon).filter(k=>k.startsWith('income|')).map(k=>k.slice(7));
+  const revM=Array(12).fill(0); incCats.forEach(c=>incM(c).forEach((v,k)=>revM[k]+=v));
+  const estInc=cats=>(cats||[]).reduce((s,c)=>s+incM(c).reduce((a,b)=>a+b,0),0);
+  const lineM=l=>{ const a=Array(12).fill(0); l.cats.forEach(c=>M('expense',c).forEach((v,k)=>a[k]+=v)); return a; };
+  const cogs=(c&&c.expense||[]).filter(l=>l.group==='銷貨成本'), cogsAct=cogs.reduce((s,l)=>s+lineM(l).slice(0,A).reduce((x,y)=>x+y,0),0);
+  const estLine=l=>{ const a=lineM(l); if(l.sens==='inv'||A<=0) return a.reduce((x,y)=>x+y,0);
+    let e;
+    if(l.group==='銷貨成本'){ const sh=cogsAct?a.slice(0,A).reduce((x,y)=>x+y,0)/cogsAct:(cogs.length?1/cogs.length:0); e=k=>revM[k]*BG_REF_COGS*sh; }
+    else if(l.sens==='salary'){ const v=a[A-1]; e=()=>v; }
+    else { const w=a.slice(Math.max(0,A-3),A), v=w.reduce((x,y)=>x+y,0)/(w.length||1); e=()=>v; }
+    return a.reduce((s,v,k)=>s+(k<A?v:Math.max(v,Math.round(e(k)))),0); };
+  return { py, cut, A, g, rev:base.sum, amt, est:{ rev:revM.reduce((a,b)=>a+b,0), inc:estInc, line:estLine } };
 }
 function bgRefCell(R,a){ const r=R.rev?a/R.rev:null;
-  return a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">佔營收 ${bgPct(r,1)}</div><div class="bgref">全年約 ${bgWan(a*12/R.cut)}</div>`:`<span class="bgref">—</span>`; }
+  return a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">佔營收 ${bgPct(r,1)}</div>`:`<span class="bgref">—</span>`; }
+function bgRefEstCell(R,l){ const e=R.est.line(l);
+  return e?`<div class="bgref"><b>${bgFmt(e)}</b></div><div class="bgref">佔營收 ${bgPct(R.est.rev?e/R.est.rev:null,1)}</div>`:`<span class="bgref">—</span>`; }
 function bgRefCard(c,R){
   const vis=c.expense.filter(l=>!bgHidden({kind:'expense',...l})), groups=[...new Set(vis.map(l=>l.group))];
-  const allExp=c.expense.reduce((s,l)=>s+R.amt('expense',l.cats),0);
-  const pct=a=>R.rev?bgPct(a/R.rev,1):'—';
-  const cells=groups.map(g=>{ const a=vis.filter(l=>l.group===g).reduce((s,l)=>s+R.amt('expense',l.cats),0);
-    if(!a) return ''; return `<div class="kc"><div class="kl">${esc(g)}</div><div class="kv" style="font-size:16px">${bgWan(a)}</div><div class="kch">佔營收 ${pct(a)}</div></div>`; }).join('');
-  return `<div class="card mb16 bgrefc"><div class="chd"><div class="ct">📌 ${R.py} 年實際參考（1–${R.cut} 月）</div><div class="cbadge">固定顯示，不會因為修改預算而改變</div></div>
-    <div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:0">
-      <div class="kc"><div class="kl">營收</div><div class="kv" style="font-size:16px">${bgWan(R.rev)}</div><div class="kch">全年約 ${bgWan(R.rev*12/R.cut)}</div></div>
+  const allExp=c.expense.reduce((s,l)=>s+R.amt('expense',l.cats),0), allEst=c.expense.reduce((s,l)=>s+R.est.line(l),0);
+  const pct=(a,b)=>b?bgPct(a/b,1):'—', ER=R.est.rev;
+  const kc=(lab,a,e,col)=>`<div class="kc"><div class="kl">${lab}</div><div class="kv" style="font-size:16px${col?';color:'+col:''}">${bgWan(a)}</div><div class="kch">佔營收 ${pct(a,R.rev)}</div>
+    <div class="kch bgest">全年預估 <b>${bgWan(e)}</b>（${pct(e,ER)}）</div></div>`;
+  const cells=groups.map(g=>{ const gl=vis.filter(l=>l.group===g), a=gl.reduce((s,l)=>s+R.amt('expense',l.cats),0), e=gl.reduce((s,l)=>s+R.est.line(l),0);
+    return a||e?kc(esc(g),a,e):''; }).join('');
+  const nm=R.cut<12?`${R.cut+1}–12 月`:'';
+  return `<div class="card mb16 bgrefc"><div class="chd"><div class="ct">📌 ${R.py} 年實際參考（1–${R.cut} 月）＋全年預估</div><div class="cbadge">固定顯示，不會因為修改預算而改變</div></div>
+    <div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:0">
+      <div class="kc"><div class="kl">營收</div><div class="kv" style="font-size:16px">${bgWan(R.rev)}</div><div class="kch">1–${R.cut} 月實際</div>
+        <div class="kch bgest">全年預估 <b>${bgWan(ER)}</b></div></div>
       ${cells}
-      ${_bg.meet?'':`<div class="kc"><div class="kl">支出合計</div><div class="kv" style="font-size:16px">${bgWan(allExp)}</div><div class="kch">佔營收 ${pct(allExp)}</div></div>
-      <div class="kc"><div class="kl">結餘</div><div class="kv" style="font-size:16px;color:${R.rev-allExp>=0?'var(--inc)':'var(--exp)'}">${bgWan(R.rev-allExp)}</div><div class="kch">佔營收 ${pct(R.rev-allExp)}</div></div>`}
+      ${_bg.meet?'':kc('支出合計',allExp,allEst)+`<div class="kc"><div class="kl">結餘</div><div class="kv" style="font-size:16px;color:${R.rev-allExp>=0?'var(--inc)':'var(--exp)'}">${bgWan(R.rev-allExp)}</div><div class="kch">佔營收 ${pct(R.rev-allExp,R.rev)}</div>
+        <div class="kch bgest">全年預估 <b>${bgWan(ER-allEst)}</b>（${pct(ER-allEst,ER)}）</div></div>`}
     </div>
-    <div class="bgsm" style="font-size:11px;margin-top:8px">下方每個類別旁邊的「${R.py} 實際」欄也是同一份資料。月份截到 ${R.cut} 月是因為官網營收只匯入到 ${R.cut} 月，這樣佔營收比例才準；「全年約」＝ ×12/${R.cut} 推估。數字跟著收支系統的記錄自動更新。</div></div>`;
+    ${nm?`<div class="bgrefg">預估 ${nm}營收：每月＝${R.cut-2}–${R.cut} 月的中位數，再加成長 <input type="number" step="1" value="${R.g}" class="bgin bgnum" style="width:64px" onchange="bgSetRefG(this.value)"> %
+      <span class="bgsm">（0＝跟最近持平；Q4 有雙 11、年節可以填 10～20）</span></div>`:''}
+    <div class="bgsm" style="font-size:11px;margin-top:8px;line-height:1.6">「實際」截到 ${R.cut} 月，因為官網營收只匯入到 ${R.cut} 月，這樣佔營收比例才準，比較時以實際為主。
+      「全年預估」：營收如上；支出已過完的月份（1–${R.A} 月）全用實際記帳，剩下的月份${_bg.meet?'用近三個月平均推估':'人事用最後一個月、銷貨成本用預估營收 × 35%、其餘用近三個月平均推估'}，新品投資不推估。12 月官網營收匯入後，預估就會等於實際。</div></div>`;
 }
 function bgRenderEditor(){
   const D=_bg.data, body=document.getElementById('bgBody');
   if(!_bg.cfg||_bg.cfg._year!==_bg.year){ _bg.cfg=D.plan?bgCfgFromPlan(D.plan):bgCfgFromTemplate(activeCo,_bg.year); _bg.cfg._year=_bg.year; }
-  const c=_bg.cfg, R=bgRefData();
+  const c=_bg.cfg, R=bgRefData(c);
+  // v3.29 營收基準＝去年全年預估（1–cut 月實際＋之後月份推估）；目標若還是舊基準 ×2（沒手動改過）就跟著更新
+  { const nb=Math.round(R.est.rev), note=R.cut<12?`${R.py} 年 1–${R.cut} 月實際 ${bgFmt(R.rev)}＋${R.cut+1}–12 月預估（${R.cut-2}–${R.cut} 月中位數${R.g?` +${R.g}%`:''}）`:`${R.py} 年全年實際`;
+    if(nb>0&&(c.base!==nb||c.baseNote!==note)){ const follow=Math.abs(c.target-c.base*2)<=2; c.base=nb; c.baseNote=note; if(follow) c.target=nb*2; } }
   const inp=(id,val,on,w=90,step='any')=>`<input id="${id}" type="number" step="${step}" value="${val}" oninput="${on}" style="width:${w}px;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;text-align:right;font-family:'DM Mono',monospace">`;
   let er='', lastG='';
   c.expense.forEach((l,i)=>{
     if(bgHidden({kind:'expense',...l})) return;
-    if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="5">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
+    if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="6">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
     const its=bgItemsOf(l), nIt=its.filter(x=>x.status!=='cancel').length, open=_bg.open.has(l.id);
     er+=`<tr><td style="padding-left:22px">${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
         <button class="bgtog" aria-expanded="${open}" onclick="bgToggle(${i})">${open?'▾':'▸'} 細項 ${nIt?`<b>${nIt}</b> 項`:'（尚未列）'}</button></td>
       <td><select id="bgE${i}r" onchange="bgEdit('e',${i},'rule',this.value)" style="padding:5px;border:1px solid var(--bdr);border-radius:6px">
         <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option><option value="i" ${l.rule==='i'?'selected':''}>依細項加總</option></select></td>
-      <td class="r">${l.rule==='i'?`<span class="bgsm">由細項自動加總</span>`:inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}${l.rule==='f'?`<div class="bgsm" style="margin-top:4px">${bgMonSel(i,0,l.span[0])}–${bgMonSel(i,1,l.span[1])}</div>`:''}</td><td class="r"><b id="bgE${i}y"></b><div class="bgsm" id="bgE${i}p"></div><div class="bgsm" id="bgE${i}a"></div></td><td class="r bgrefc">${bgRefCell(R,R.amt('expense',l.cats))}</td></tr>`;
-    if(open) er+=`<tr class="bgitr"><td colspan="5">${bgItemsEditor(l,i)}</td></tr>`;
+      <td class="r">${l.rule==='i'?`<span class="bgsm">由細項自動加總</span>`:inp('bgE'+i+'v',l.value,`bgEdit('e',${i},'value',this.value)`,110)}${l.rule==='f'?`<div class="bgsm" style="margin-top:4px">${bgMonSel(i,0,l.span[0])}–${bgMonSel(i,1,l.span[1])}</div>`:''}</td><td class="r"><b id="bgE${i}y"></b><div class="bgsm" id="bgE${i}p"></div><div class="bgsm" id="bgE${i}a"></div></td><td class="r bgrefc">${bgRefCell(R,R.amt('expense',l.cats))}</td><td class="r bgrefc">${bgRefEstCell(R,l)}</td></tr>`;
+    if(open) er+=`<tr class="bgitr"><td colspan="6">${bgItemsEditor(l,i)}</td></tr>`;
   });
   body.innerHTML=`<div class="bgw">
   ${bgRefCard(c,R)}
@@ -9008,7 +9044,7 @@ function bgRenderEditor(){
     </div></div>
   <div class="g2 mb16">
     <div class="card"><div class="chd"><div class="ct">收入依通路分配</div><div class="cbadge" id="bgIncSum"></div></div>
-      <div style="overflow-x:auto"><table class="tbl"><tbody>${c.income.map((l,i)=>`<tr><td>${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td><td class="r">${inp('bgI'+i,l.share,`bgEdit('i',${i},'share',this.value)`,70)} %</td><td class="r" id="bgI${i}y"></td><td class="r bgrefc">${(a=>a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">${R.py} 佔 ${bgPct(R.rev?a/R.rev:null,1)}</div>`:'<span class="bgref">—</span>')(R.amt('income',l.cats))}</td></tr>`).join('')}</tbody></table></div>
+      <div style="overflow-x:auto"><table class="tbl"><tbody>${c.income.map((l,i)=>`<tr><td>${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td><td class="r">${inp('bgI'+i,l.share,`bgEdit('i',${i},'share',this.value)`,70)} %</td><td class="r" id="bgI${i}y"></td><td class="r bgrefc">${(a=>a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">${R.py} 佔 ${bgPct(R.rev?a/R.rev:null,1)}</div><div class="bgref">全年預估 ${bgWan(R.est.inc(l.cats))}</div>`:'<span class="bgref">—</span>')(R.amt('income',l.cats))}</td></tr>`).join('')}</tbody></table></div>
       <div class="bgsm" style="margin-top:6px">最右欄＝${R.py} 年 1–${R.cut} 月實際，可對照今年要怎麼分配。</div></div>
     <div class="card"><div class="chd"><div class="ct">月份分配（%）</div><div class="cbadge" id="bgWSum"></div></div>
       <div class="bgwg">${c.weights.map((w,i)=>`<label>${i+1}月${inp('bgW'+i,w,`bgEdit('w',${i},'w',this.value)`,64)}</label>`).join('')}</div>
@@ -9020,7 +9056,7 @@ function bgRenderEditor(){
         <button class="btn bsm" onclick="bgExport()">匯出 Excel</button></div></div>
     <div class="bgnote" style="margin-bottom:10px">點類別下方的「▸ 細項」可以列出明年要花的項目和金額。列了細項的固定金額類別，預算會改成「依細項加總」；佔營收 % 的類別，細項只是分配，會顯示還有多少未分配。狀態選「規劃中」代表還在討論，「取消」不計入預算。</div>
     <div style="overflow-x:auto"><table class="tbl bged">
-    <thead><tr><th>類別</th><th>編列方式</th><th class="r">比例／金額</th><th class="r">${_bg.year} 年度預算</th><th class="r bgrefc">${R.py} 實際（1–${R.cut} 月）</th></tr></thead><tbody>${er}</tbody></table></div>
+    <thead><tr><th>類別</th><th>編列方式</th><th class="r">比例／金額</th><th class="r">${_bg.year} 年度預算</th><th class="r bgrefc">${R.py} 實際（1–${R.cut} 月）</th><th class="r bgrefc">${R.py} 全年預估</th></tr></thead><tbody>${er}</tbody></table></div>
     ${bgAddLineForm(c)}</div>
   <div class="card bgsave"><div id="bgSummary" style="flex:1;min-width:0"></div>
     <button class="btn" onclick="_bg.cfg=null;_bg.view='track';renderBudget(false)">取消</button>
