@@ -1219,6 +1219,33 @@ span.bgst-ok{background:#f0fdfa}span.bgst-plan{background:#fffbeb}span.bgst-canc
       <!-- 預警區 -->
       <div id="mrAlerts" style="margin-bottom:16px"></div>
 
+      <!-- 月報學習（v3.30）：小日常＋翔悅合報、高速 -->
+      <div class="card" id="mrlCard" style="display:none;margin-bottom:16px">
+        <div class="chd" style="flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ct">🧠 月報草稿</div>
+            <button class="btn bsm" onclick="mrlShiftMonth(-1)" title="上個月">◀</button>
+            <span id="mrlStatus" class="aibadge"></span>
+            <button class="btn bsm" onclick="mrlShiftMonth(1)" title="下個月">▶</button>
+          </div>
+          <div style="font-size:12px;color:var(--txt3)">AI 依數據、你的定稿範例與寫作規則擬稿；你修改定稿後會提出新規則請你確認</div>
+        </div>
+        <div style="padding:0 16px 16px">
+          <div id="mrlPendingSeed"></div>
+          <label style="font-size:12.5px;color:var(--txt2);display:block;margin:8px 0 4px">本月背景（選填：數字看不出來的事，例如退租原因、維修狀況、已交辦事項）</label>
+          <textarea id="mrlCtx" rows="3" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid var(--bdr);border-radius:8px;background:var(--bg2);color:var(--txt1)" placeholder="例：9 月買了一台二手大重機；A607 因噪音糾紛退租，已租出"></textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+            <button class="btn bp" id="mrlGenBtn" onclick="mrlGenerate()">✨ 產生草稿</button>
+            <button class="btn" id="mrlSaveBtn" onclick="mrlSave()" style="background:var(--bg2);border:1px solid var(--bdr);color:var(--txt1)">💾 儲存</button>
+            <button class="btn" id="mrlFinBtn" onclick="mrlFinalize()" style="background:#0d9488;color:#fff">✅ 定稿並複製</button>
+          </div>
+          <textarea id="mrlText" rows="20" style="width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;line-height:1.8;padding:10px;border:1px solid var(--bdr);border-radius:8px;background:var(--bg2);color:var(--txt1)" placeholder="按「產生草稿」，或直接在這裡撰寫"></textarea>
+          <div id="mrlProposals"></div>
+          <details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:var(--txt2)">📏 寫作規則</summary><div id="mrlRules" style="margin-top:8px"></div></details>
+          <details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px;color:var(--txt2)">📚 歷史定稿</summary><div id="mrlHist" style="margin-top:8px"></div></details>
+        </div>
+      </div>
+
       <!-- 月報文字輸出 -->
       <div class="card" id="mrOutputCard" style="display:none">
         <div class="chd">
@@ -5557,6 +5584,7 @@ function renderMonthReport(){
   document.getElementById('mrCopyBtn').style.display='none';
   document.getElementById('mrGenBtn').textContent='✨ AI 生成月報';
   document.getElementById('mrGenBtn').disabled=false;
+  mrlRender();
 }
 
 function _mrGetMonthRecs(co, d){
@@ -6569,6 +6597,377 @@ ${trend12.join('\n')}`;
     document.getElementById('mrOutputCard').style.display='';
     btn.textContent='✨ AI 生成月報'; btn.disabled=false;
   }
+}
+
+// ═══════════════════════════════════════════
+// 月報學習（v3.30）：AI 擬稿 → 使用者定稿 → 歸納規則請使用者確認
+// 表：mr_reports（report_key xx/gaoshu × ym）、mr_rules（scope all/xx/gaoshu）
+// ═══════════════════════════════════════════
+const MRL_KEY = {xiaori_xiangyue:'xx', gaoshu:'gaoshu'};
+const MRL_SCOPE_LBL = {all:'兩份共用', xx:'小日常翔悅', gaoshu:'高速'};
+const MRL_ONEOFF_XX = ['退押金','稅費','設備投資'];
+const MRL_EXAMPLES = 3;
+let _mrl = {key:null, ym:null, reports:null, rules:null, busy:false};
+
+const _mrlRoc = ym => { const [y,m]=ym.split('-'); return `${+y-1911}年${+m}月`; };
+const _mrlNorm = s => String(s||'').replace(/\s+/g,'');
+function _mrlRep(key,ym){ return (_mrl.reports||[]).find(r=>r.report_key===key&&r.ym===ym)||null; }
+function _mrlUpsertLocal(rows){
+  (rows||[]).forEach(row=>{
+    const i=(_mrl.reports||[]).findIndex(r=>r.id===row.id);
+    if(i>=0) _mrl.reports[i]=row; else (_mrl.reports=_mrl.reports||[]).push(row);
+  });
+}
+function _mrlRuleLocal(row){
+  const i=(_mrl.rules||[]).findIndex(r=>r.id===row.id);
+  if(i>=0) _mrl.rules[i]=row; else (_mrl.rules=_mrl.rules||[]).push(row);
+}
+const _mrlRulesOf = (key,status) => (_mrl.rules||[]).filter(r=>(r.scope==='all'||r.scope===key)&&r.status===status);
+
+async function mrlLoad(force){
+  if(_mrl.reports && _mrl.rules && !force) return;
+  const [reps, rules] = await Promise.all([
+    sbFetch('mr_reports?select=*&order=ym.desc'),
+    sbFetch('mr_rules?select=*&order=id.asc')
+  ]);
+  _mrl.reports=reps; _mrl.rules=rules;
+}
+
+async function mrlRender(){
+  const card=document.getElementById('mrlCard'); if(!card) return;
+  const key=MRL_KEY[document.getElementById('mrCoSel')?.value]||null;
+  if(!key){ card.style.display='none'; return; }
+  card.style.display='';
+  const ym=_gsYm(curDate);
+  const switched=_mrl.key!==key||_mrl.ym!==ym;
+  if(switched && _mrl.key && _mrlDirty()){
+    const keep=_mrlDirtyBuf=_mrlDirtyBuf||{};
+    keep[_mrl.key+'|'+_mrl.ym]={text:document.getElementById('mrlText').value, ctx:document.getElementById('mrlCtx').value};
+  }
+  _mrl.key=key; _mrl.ym=ym;
+  try{ await mrlLoad(); }
+  catch(e){ _mrl.key=null; _mrl.ym=null; document.getElementById('mrlStatus').textContent='讀取失敗，請重新整理'; toast('月報資料讀取失敗：'+e.message,false); return; }
+  if(_mrl.key!==key||_mrl.ym!==ym) return;
+  if(switched){
+    const buf=(_mrlDirtyBuf||{})[key+'|'+ym];
+    if(buf){
+      document.getElementById('mrlCtx').value=buf.ctx; document.getElementById('mrlText').value=buf.text;
+      delete _mrlDirtyBuf[key+'|'+ym];
+      document.getElementById('mrlProposals').innerHTML='<div style="font-size:12.5px;color:#d97706;margin-top:8px">↩︎ 已帶回你上次離開前未儲存的內容（尚未存檔）</div>';
+      _mrlRenderAll(); return;
+    }
+    const r=_mrlRep(key,ym);
+    document.getElementById('mrlCtx').value=r?.context_note||'';
+    document.getElementById('mrlText').value=r?(r.final_text||r.ai_draft||''):'';
+    document.getElementById('mrlProposals').innerHTML='';
+  }
+  _mrlRenderAll();
+}
+let _mrlDirtyBuf=null;   // 切換公司／月份時暫存未儲存的編輯（key|ym → {text,ctx}），切回來自動帶回
+function _mrlDirty(){
+  if(!_mrl.key||!_mrl.reports) return false;
+  const r=_mrlRep(_mrl.key,_mrl.ym);
+  const t=document.getElementById('mrlText')?.value||'', c=document.getElementById('mrlCtx')?.value||'';
+  return t!==(r?(r.final_text||r.ai_draft||''):'') || c.trim()!==(r?.context_note||'');
+}
+function mrlShiftMonth(d){ changeMonth(d); renderMonthReport(); }
+function _mrlRenderAll(){ _mrlRenderStatus(); _mrlRenderPending(); _mrlRenderRules(); _mrlRenderHist(); }
+
+function _mrlRenderStatus(){
+  const r=_mrlRep(_mrl.key,_mrl.ym);
+  const st=document.getElementById('mrlStatus');
+  const isFinal=r?.status==='final';
+  st.textContent = `${_mrlRoc(_mrl.ym)} · ` + (isFinal?`已定稿 ${String(r.finalized_at||'').slice(0,10)}`:(r?'草稿已存':'尚未開始'));
+  document.getElementById('mrlSaveBtn').style.display = isFinal?'none':'';
+  document.getElementById('mrlFinBtn').textContent = isFinal?'✅ 更新定稿並複製':'✅ 定稿並複製';
+}
+
+function _mrlRenderPending(){
+  const box=document.getElementById('mrlPendingSeed');
+  const list=_mrlRulesOf(_mrl.key,'proposed');
+  if(!list.length){ box.innerHTML=''; return; }
+  const typed={}; box.querySelectorAll('textarea[id^="mrlR"]').forEach(t=>{ typed[t.id]=t.value; });
+  box.innerHTML=`<div style="border:1px solid #f59e0b;background:rgba(245,158,11,.08);border-radius:10px;padding:10px 12px;margin:8px 0">
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">📝 待你確認的寫作規則（${list.length}）— 採用後下次擬稿才會套用，可先改字再採用</div>
+    ${list.map(r=>`<div style="border-top:1px dashed var(--bdr);padding:8px 0">
+      <div style="font-size:11.5px;color:var(--txt3);margin-bottom:4px">${esc(MRL_SCOPE_LBL[r.scope]||r.scope)} · ${r.origin==='seed'?'從歷史報告整理':'從你的修改歸納'}${r.reason?' · '+esc(r.reason):''}</div>
+      <textarea id="mrlR${r.id}" rows="2" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:6px;border:1px solid var(--bdr);border-radius:6px;background:var(--bg2);color:var(--txt1)">${esc(r.rule)}</textarea>
+      <div style="display:flex;gap:6px;margin-top:4px"><button class="btn bsm" style="background:#0d9488;color:#fff" onclick="mrlDecide(${r.id},true)">✅ 採用</button><button class="btn bsm" onclick="mrlDecide(${r.id},false)">❌ 不要</button></div>
+    </div>`).join('')}
+  </div>`;
+  Object.entries(typed).forEach(([id,v])=>{ const t=document.getElementById(id); if(t) t.value=v; });
+}
+
+function _mrlRenderRules(){
+  const box=document.getElementById('mrlRules'); const key=_mrl.key;
+  const act=_mrlRulesOf(key,'active');
+  const off=(_mrl.rules||[]).filter(r=>(r.scope==='all'||r.scope===key)&&(r.status==='archived'||r.status==='rejected'));
+  box.innerHTML=`
+    <div style="font-size:12px;color:var(--txt3);margin-bottom:6px">目前套用 ${act.length} 條（含兩份共用）</div>
+    ${act.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--bdr)">
+      <span style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-top:2px">${esc(MRL_SCOPE_LBL[r.scope]||r.scope)}</span>
+      <div style="flex:1;font-size:13px" id="mrlA${r.id}">${esc(r.rule)}</div>
+      <button class="btn bsm" onclick="mrlEditRule(${r.id})">✏️</button>
+      <button class="btn bsm" onclick="mrlSetRule(${r.id},'archived')">停用</button>
+    </div>`).join('')||'<div style="font-size:13px;color:var(--txt3)">尚無</div>'}
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <select id="mrlNewScope" class="btn" style="padding:4px 8px"><option value="${key}">${MRL_SCOPE_LBL[key]}</option><option value="all">兩份共用</option></select>
+      <input id="mrlNewRule" placeholder="自己新增一條規則" style="flex:1;min-width:180px;font:inherit;font-size:13px;padding:6px;border:1px solid var(--bdr);border-radius:6px;background:var(--bg2);color:var(--txt1)">
+      <button class="btn bsm" onclick="mrlAddRule()">＋ 新增</button>
+    </div>
+    ${off.length?`<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--txt3)">已停用／不採用（${off.length}）</summary>
+      ${off.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;font-size:12.5px;color:var(--txt3)">
+        <span style="white-space:nowrap">${r.status==='rejected'?'不採用':'停用'}</span><div style="flex:1">${esc(r.rule)}</div>
+        <button class="btn bsm" onclick="mrlSetRule(${r.id},'active')">恢復</button></div>`).join('')}</details>`:''}`;
+}
+
+function _mrlRenderHist(){
+  const box=document.getElementById('mrlHist');
+  const list=(_mrl.reports||[]).filter(r=>r.report_key===_mrl.key&&r.status==='final').sort((a,b)=>b.ym.localeCompare(a.ym));
+  box.innerHTML=list.map(r=>`<details style="border-bottom:1px solid var(--bdr);padding:4px 0">
+    <summary style="cursor:pointer;font-size:13px">${_mrlRoc(r.ym)} <span style="font-size:11px;color:var(--txt3)">${r.source==='history'?'歷史匯入':'系統定稿'}${(r.versions||[]).length?' · 改過 '+r.versions.length+' 次':''}</span></summary>
+    <div style="white-space:pre-wrap;font-size:12.5px;line-height:1.7;padding:6px 0;color:var(--txt2)">${esc(r.final_text)}</div></details>`).join('')
+    ||'<div style="font-size:13px;color:var(--txt3)">尚無</div>';
+}
+
+function _mrlDataBlock(key){
+  const cur=curDate;
+  const prevD=new Date(cur.getFullYear(),cur.getMonth()-1,1), yoyD=new Date(cur.getFullYear()-1,cur.getMonth(),1);
+  const N=n=>Math.round(Number(n)).toLocaleString('zh-TW');
+  const figs=(co,d)=>{const r=_mrGetMonthRecs(co,d);const inc=sumT(r,'income'),exp=sumExp(r,'exclude'),bon=sumBonus(r);return{inc,exp,bon,net:inc-exp-bon,has:approvedOnly(r).length>0};};
+  const ytd=co=>{let s=0;for(let m=0;m<=cur.getMonth();m++) s+=figs(co,new Date(cur.getFullYear(),m,1)).net;return s;};
+  const byCat=(co,d,type)=>{const m={};approvedOnly(_mrGetMonthRecs(co,d)).filter(r=>r.type===type&&!GS_DETAIL_CATS.includes(r.category)&&r.category!==CAILIAOB_CAT).forEach(r=>{m[r.category]=(m[r.category]||0)+r.amount;});return m;};
+  const catTable=(co,type)=>{
+    const c=byCat(co,cur,type),p=byCat(co,prevD,type),y=byCat(co,yoyD,type);
+    return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`  ${k}：本月${N(v)}｜上月${p[k]?N(p[k]):'無'}｜去年同月${y[k]?N(y[k]):'無'}`).join('\n')||'  （無）';
+  };
+  const items=co=>approvedOnly(_mrGetMonthRecs(co,cur))
+    .filter(r=>r.type==='expense'&&!GS_DETAIL_CATS.includes(r.category)&&r.category!==CAILIAOB_CAT&&r.amount>=3000)
+    .sort((a,b)=>b.amount-a.amount).slice(0,15)
+    .map(r=>`  ${r.category}｜${r.title||''}${r.counterparty?'（'+r.counterparty+'）':''}${r.note?'｜備註：'+String(r.note).slice(0,60):''}｜${N(r.amount)}元`).join('\n')||'  （無）';
+  const fl=f=>f.has?`收入${N(f.inc)} 支出${N(f.exp+f.bon)} 結餘${N(f.net)}`:'系統無資料';
+  const coBlock=(co,name)=>{
+    const c=figs(co,cur),p=figs(co,prevD),y=figs(co,yoyD);
+    let s=`■ ${name}\n本月：收入${N(c.inc)}元／支出${N(c.exp+c.bon)}元／結餘${N(c.net)}元\n今年累計結餘：${N(ytd(co))}元\n上月：${fl(p)}\n去年同月：${fl(y)}\n`;
+    if(c.bon) s+=`其中${bonusLbl(co)}：${N(c.bon)}元（已含在上面支出內）\n`;
+    if(key==='xx'){
+      const cm=byCat(co,cur,'expense');
+      const parts=MRL_ONEOFF_XX.filter(k=>cm[k]).map(k=>`${k}${N(cm[k])}`);
+      if(c.bon) parts.push(`${bonusLbl(co)}${N(c.bon)}`);
+      const one=MRL_ONEOFF_XX.reduce((t,k)=>t+(cm[k]||0),0)+c.bon;
+      s+=`一次性項目：${parts.join('、')||'無'} → 扣除後日常性支出約 ${N(c.exp+c.bon-one)}元\n`;
+    }
+    if(co==='gaoshu'){
+      const g=d=>gsRepairOf(_gsYm(d));
+      const gf=x=>x?`小客車${N(x.xk)}元、大重機${N(x.dj)}元`:'無資料';
+      s+=`維修＋材料費：本月 ${gf(g(cur))}｜上月 ${gf(g(prevD))}｜去年同月 ${gf(g(yoyD))}\n`;
+      const cb=sumCailiaob(_mrGetMonthRecs('gaoshu',cur));
+      if(cb) s+=`材料B（獨立列計，不計入上面支出與損益）：${N(cb)}元\n`;
+    }
+    s+=`收入類別：\n${catTable(co,'income')}\n支出類別：\n${catTable(co,'expense')}\n本月 3,000 元以上支出明細（前 15 筆，類別｜標題（對象）｜金額）：\n${items(co)}\n`;
+    return s;
+  };
+  const blocks = key==='xx' ? coBlock('xiaori','小日常')+'\n'+coBlock('xiangyue','翔悅建設') : coBlock('gaoshu','高速駕訓班');
+  const cos = key==='xx'?['xiaori','xiangyue']:['gaoshu'];
+  const trend=[];
+  for(let i=11;i>=0;i--){
+    const d=new Date(cur.getFullYear(),cur.getMonth()-i,1);
+    trend.push(`${rocLbl(d)}：`+cos.map(co=>{const f=figs(co,d);return f.has?`${COMPANIES[co].name}收${N(f.inc)}/支${N(f.exp+f.bon)}/餘${N(f.net)}`:`${COMPANIES[co].name}系統無資料`;}).join('；'));
+  }
+  return `【${_mrlRoc(_gsYm(cur))}】\n${blocks}\n【近 12 個月】\n${trend.join('\n')}`;
+}
+
+function _mrlSystem(key, rules){
+  const head = key==='xx'
+    ? '第1行「爸媽午安：」，第2行「XXX年X月小日常及翔悅建設報表如上，重點如下：」，空一行。分「一、小日常」「二、翔悅建設」兩段，每段先寫「X月收入：…元，支出：…元，結餘：…元。」與「累計結餘：…元」，再寫該公司重點。'
+    : '第1行「爸媽午安：」，第2行「XXX年X月高速駕訓班報表如上，重點如下：」，空一行。接著寫「X月收入：…元，支出：…元，結餘：…元。」與「累計結餘：…元」，再寫重點。';
+  return `你在幫一位台灣家族企業的管理者擬每月財務報告初稿，他會修改後用 LINE 傳給父母（董事長）。
+
+格式：${head}最後一行「以上提供爸媽參考～」。
+
+寫作原則：
+- 挑 3～5 個最值得父母知道的重點，用 (1)(2)(3) 編號。
+- 語氣親切精簡，像家族群組訊息；不要用 Markdown 符號（**、#、-）。
+- 金額只能取自資料區或背景筆記，增減自行計算時要正確；百分比取整數。
+- 原因只能來自背景筆記或支出明細的標題；無法判斷原因時寫【待補：原因】讓他補，不可編造。
+- 「系統無資料」代表系統沒有該期資料，不代表沒有營運，不可推測。
+- 範例是他親自修改過的定稿，模仿其語氣、結構與詳略。${rules.length?`
+
+他確認過的寫作規則（必須遵守，與上面衝突時以規則為準）：
+${rules.map((r,i)=>`${i+1}. ${r.rule}`).join('\n')}`:''}
+
+只輸出報告本文。`;
+}
+
+async function mrlGenerate(){
+  const key=_mrl.key, ym=_mrl.ym; if(!key||_mrl.busy) return;
+  const r=_mrlRep(key,ym);
+  const ta=document.getElementById('mrlText');
+  if(ta.value.trim() && !confirm(r?.status==='final'
+      ? '本月已定稿。新草稿會取代編輯框內容（定稿要再按「更新定稿」才會改變），確定？'
+      : '新草稿會取代編輯框目前的內容，確定？')) return;
+  const btn=document.getElementById('mrlGenBtn');
+  _mrl.busy=true; btn.disabled=true; btn.textContent='⏳ 擬稿中…（約 20～60 秒）';
+  try{
+    const rules=_mrlRulesOf(key,'active');
+    const ctx=document.getElementById('mrlCtx').value.trim();
+    const data=_mrlDataBlock(key);
+    const ex=(_mrl.reports||[]).filter(x=>x.report_key===key&&x.status==='final'&&x.ym<ym&&x.final_text)
+      .sort((a,b)=>b.ym.localeCompare(a.ym)).slice(0,MRL_EXAMPLES);
+    const system=_mrlSystem(key,rules);
+    if(system.length>7800) throw new Error('寫作規則太多（超過長度上限），請停用部分規則');
+    const user=`【範例：他過去的定稿（由近到遠）】
+${ex.map(x=>`=== ${_mrlRoc(x.ym)} ===\n${x.final_text}`).join('\n\n')||'（尚無）'}
+
+【本月背景筆記】
+${ctx||'（無）'}
+
+【本月數據】
+${data}
+
+請撰寫 ${_mrlRoc(ym)} 的報告初稿。`;
+    const text=String(await aiFetch(system,user,4000)).trim();
+    if(_mrl.key!==key||_mrl.ym!==ym){ toast('已切換報告或月份，這份草稿未套用',false); return; }
+    ta.value=text;
+    const row={report_key:key, ym, ai_draft:text, context_note:ctx,
+      data_snapshot:{data, examples:ex.map(x=>x.ym)}, rules_used:rules.map(x=>x.id),
+      updated_at:new Date().toISOString()};
+    if(_mrlRep(key,ym)?.status!=='final') row.final_text=text;   // 草稿狀態：編輯稿＝新草稿；已定稿則不動定稿
+    const saved=await sbFetch('mr_reports?on_conflict=report_key,ym','POST',[row],'resolution=merge-duplicates,return=representation');
+    if(!saved?.length) throw new Error('草稿未寫入資料庫（0 筆）');
+    _mrlUpsertLocal(saved);
+    _mrlRenderStatus();
+    toast('草稿已產生並儲存');
+  }catch(e){
+    toast('擬稿失敗：'+e.message,false);
+  }finally{
+    _mrl.busy=false; btn.disabled=false; btn.textContent='✨ 產生草稿';
+  }
+}
+
+async function mrlSave(){
+  const key=_mrl.key, ym=_mrl.ym; if(!key) return;
+  if(_mrlRep(key,ym)?.status==='final'){ toast('本月已定稿，請用「更新定稿」',false); return; }
+  try{
+    const saved=await sbFetch('mr_reports?on_conflict=report_key,ym','POST',[{
+      report_key:key, ym, final_text:document.getElementById('mrlText').value,
+      context_note:document.getElementById('mrlCtx').value.trim(), updated_at:new Date().toISOString()
+    }],'resolution=merge-duplicates,return=representation');
+    if(!saved?.length) throw new Error('0 筆寫入');
+    _mrlUpsertLocal(saved); _mrlRenderStatus(); toast('已儲存');
+  }catch(e){ toast('儲存失敗：'+e.message,false); }
+}
+
+async function mrlFinalize(){
+  const key=_mrl.key, ym=_mrl.ym; if(!key||_mrl.busy) return;
+  const text=document.getElementById('mrlText').value.trim();
+  if(!text){ toast('內容是空的',false); return; }
+  const copied=_mrlCopy(text);   // 在點擊當下同步複製，await 之後瀏覽器可能不再允許寫剪貼簿
+  const r=_mrlRep(key,ym);
+  if(r?.status==='final' && r.final_text===text){ const ok=await copied; toast(ok?'內容未變，已複製':'內容未變；複製失敗，請手動複製',ok); return; }
+  const now=new Date().toISOString();
+  const versions=[...(r?.versions||[])];
+  if(r?.status==='final') versions.push({final_text:r.final_text, finalized_at:r.finalized_at});
+  const learnedBefore=r?.data_snapshot?.learned_draft;
+  const btn=document.getElementById('mrlFinBtn');
+  _mrl.busy=true; btn.disabled=true;
+  let saved;
+  try{
+    saved=await sbFetch('mr_reports?on_conflict=report_key,ym','POST',[{
+      report_key:key, ym, final_text:text, context_note:document.getElementById('mrlCtx').value.trim(),
+      status:'final', finalized_at:now, versions, updated_at:now,
+      data_snapshot:{...(r?.data_snapshot||{}), learned_draft:r?.ai_draft||''}
+    }],'resolution=merge-duplicates,return=representation');
+    if(!saved?.length) throw new Error('0 筆寫入');
+    _mrlUpsertLocal(saved); _mrlRenderStatus(); _mrlRenderHist();
+    const ok=await copied;
+    toast(ok?'已定稿並複製，可直接貼到 LINE':'已定稿，但複製失敗，請手動複製編輯框內容',ok);
+  }catch(e){ toast('定稿失敗：'+e.message,false); _mrl.busy=false; btn.disabled=false; return; }
+  try{
+    const rep=saved[0];
+    // 只有「這份草稿還沒學過」才歸納，避免更新定稿時拿同一份草稿重複提規則
+    if(rep.ai_draft && rep.ai_draft!==learnedBefore && _mrlNorm(rep.ai_draft)!==_mrlNorm(rep.final_text)) await mrlLearn(rep);
+    else document.getElementById('mrlProposals').innerHTML='';
+  }finally{ _mrl.busy=false; btn.disabled=false; }
+}
+
+async function mrlLearn(rep){
+  const box=document.getElementById('mrlProposals');
+  const note=(t,c)=>{ box.innerHTML=`<div style="font-size:12.5px;color:${c||'var(--txt3)'};margin-top:8px">${esc(t)}</div>`; };
+  note('🔍 正在比對草稿與你的定稿，歸納寫作規則…');
+  const key=rep.report_key;
+  const pick=st=>(_mrlRulesOf(key,st).map(r=>`- ${r.rule}`).join('\n')||'（無）').slice(0,4000);
+  const system=`你在分析一位使用者如何修改 AI 擬的月報草稿，歸納「下次擬稿時應遵守的寫作規則」。
+- 只歸納可以套用到未來每個月的偏好（結構、詳略、要不要列某類資訊、用詞、語氣），不可把本月特定事件、房號或金額寫成規則。
+- 單純補充事實（背景原因、事件經過）不是寫作偏好，不要歸納。
+- 規則要具體、可執行，一句話，繁體中文。
+- 與已採用、建議中、已拒絕的規則意思相同的不要再提。
+- 最多 3 條；沒有值得歸納的就回傳 []。
+- scope：兩份報告（小日常翔悅合報、高速駕訓班）都適用寫 "all"，只適用本報告寫 "${key}"。
+只輸出 JSON 陣列，例如 [{"scope":"all","rule":"…","reason":"草稿…，你改成…"}]，不要其他文字。`;
+  const user=`【已採用規則】\n${pick('active')}\n\n【建議中】\n${pick('proposed')}\n\n【已拒絕或停用】\n${[pick('rejected'),pick('archived')].join('\n')}\n\n【AI 草稿】\n${rep.ai_draft}\n\n【使用者定稿】\n${rep.final_text}`;
+  try{
+    if(user.length>29500) throw new Error('草稿與定稿過長，略過規則歸納');
+    const raw=String(await aiFetch(system,user,3000));
+    const m=raw.match(/\[[\s\S]*\]/);
+    let arr=m?JSON.parse(m[0]):[];
+    arr=(Array.isArray(arr)?arr:[]).filter(x=>x&&typeof x.rule==='string'&&x.rule.trim().length>=4&&x.rule.length<=300)
+      .slice(0,3).map(x=>({scope:(x.scope==='all'||x.scope===key)?x.scope:key, rule:x.rule.trim(),
+        reason:String(x.reason||'').slice(0,300), status:'proposed', origin:'learned', source_report_id:rep.id}));
+    const seen=new Set((_mrl.rules||[]).map(r=>_mrlNorm(r.rule)));
+    arr=arr.filter(x=>{ const k=_mrlNorm(x.rule); if(seen.has(k)) return false; seen.add(k); return true; });
+    if(!arr.length){ note('ℹ️ 這次的修改沒有歸納出新的寫作規則。'); return; }
+    const rows=await sbFetch('mr_rules','POST',arr);
+    if(!rows?.length) throw new Error('規則未寫入（0 筆）');
+    rows.forEach(_mrlRuleLocal);
+    note(`✨ 從你的修改歸納出 ${rows.length} 條規則，請在上方黃框確認。`,'#0d9488');
+    _mrlRenderPending();
+    document.getElementById('mrlPendingSeed').scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){ note('規則歸納失敗（定稿已儲存，不受影響）：'+e.message,'#e11d48'); }
+}
+
+async function mrlDecide(id, ok){
+  const body={status:ok?'active':'rejected', decided_at:new Date().toISOString()};
+  const txt=document.getElementById('mrlR'+id)?.value.trim();
+  if(ok){ if(!txt){ toast('規則內容是空的',false); return; } body.rule=txt; }
+  await _mrlPatchRule(id, body, ok?'已採用':'已標記不採用');
+}
+async function mrlSetRule(id, status){
+  await _mrlPatchRule(id, {status, decided_at:new Date().toISOString()}, status==='active'?'已恢復':'已停用');
+}
+function mrlEditRule(id){
+  const el=document.getElementById('mrlA'+id); const r=(_mrl.rules||[]).find(x=>x.id===id);
+  if(!el||!r) return;
+  el.innerHTML=`<textarea id="mrlE${id}" rows="2" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:6px;border:1px solid var(--bdr);border-radius:6px;background:var(--bg2);color:var(--txt1)">${esc(r.rule)}</textarea>
+    <div style="display:flex;gap:6px;margin-top:4px"><button class="btn bsm" onclick="mrlSaveRuleText(${id})">儲存</button><button class="btn bsm" onclick="_mrlRenderRules()">取消</button></div>`;
+}
+async function mrlSaveRuleText(id){
+  const t=document.getElementById('mrlE'+id)?.value.trim();
+  if(!t){ toast('規則內容是空的',false); return; }
+  await _mrlPatchRule(id, {rule:t}, '規則已更新');
+}
+async function _mrlPatchRule(id, body, okMsg){
+  try{
+    const rows=await sbFetch(`mr_rules?id=eq.${Number(id)}`,'PATCH',body);
+    if(!rows?.length) throw new Error('0 筆更新');
+    rows.forEach(_mrlRuleLocal); _mrlRenderPending(); _mrlRenderRules(); toast(okMsg);
+  }catch(e){ toast('更新失敗：'+e.message,false); }
+}
+async function mrlAddRule(){
+  const rule=document.getElementById('mrlNewRule')?.value.trim();
+  const scope=document.getElementById('mrlNewScope')?.value;
+  if(!rule) return;
+  try{
+    const rows=await sbFetch('mr_rules','POST',[{scope, rule, status:'active', origin:'manual', decided_at:new Date().toISOString()}]);
+    if(!rows?.length) throw new Error('0 筆寫入');
+    rows.forEach(_mrlRuleLocal); _mrlRenderRules(); toast('已新增規則');
+  }catch(e){ toast('新增失敗：'+e.message,false); }
+}
+function _mrlCopy(text){
+  const fb=()=>{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); return ok; };
+  if(navigator.clipboard) return navigator.clipboard.writeText(text).then(()=>true,()=>fb());
+  return Promise.resolve(fb());
 }
 
 function copyMonthReport(){
