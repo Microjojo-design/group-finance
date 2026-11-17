@@ -1642,12 +1642,12 @@ const SHARED_INC = ['租金收入','電費收入','訂金收入','其他收入']
 const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租費','分紅','車貸','退押金','修繕維護費','清潔費','設備投資','稅費','行政管理費','系統費','廣告費','保險費','交際及福利','董事長家用','A206事件費用','其他費用'];
 
 // 蒔心田 categories
-const SX_INC = ['蒔-親友團購','蒔-官網','蒔-蝦皮','蒔-其他電商','蒔-通路經銷','蒔-其他','蒔-股東投資','蒔-對外投資'];
+const SX_INC = ['蒔-親友團購','蒔-官網','蒔-官網香港','蒔-蝦皮','蒔-其他電商','蒔-通路經銷','蒔-其他','蒔-股東投資','蒔-對外投資'];
 const SX_EXP = [
   '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-銷貨成本-包材','蒔-銷貨成本-外購商品',
   '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局',
   '蒔-金流-官網手續費','蒔-金流-簡訊費','蒔-金流-刷卡手續費','蒔-金流-Line Pay手續費','蒔-金流-蝦皮手續費',
-  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-銷售佣金、分潤',
+  '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-數位廣告投放-香港','蒔-行銷推廣-香港','蒔-銷售佣金、分潤',   // v3.31 香港：廣告活動名稱含 HK 的花費記「投放-香港」，香港 KOL／活動記「行銷推廣-香港」
   '蒔-人事薪資','蒔-系統軟體','蒔-行銷製作-影片拍攝剪輯','蒔-網紅/KOL酬勞',
   '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊',
   '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他',
@@ -5120,6 +5120,7 @@ function mapSXCatAll(type, mainCat, subCat, detail){
     if(SX_INC.includes(sub)) return sub;
     if(SX_INC.includes(main)) return main;
     if(key.includes('蝦皮')) return '蒔-蝦皮';
+    if(key.includes('香港')&&(key.includes('官網')||key.includes('shopline')||key.includes('跨境'))) return '蒔-官網香港';
     if(key.includes('官網')||key.includes('shopline')) return '蒔-官網';
     if(['活力達康','幸康','宏道','陽明春天','經銷'].some(k=>key.includes(k))) return '蒔-通路經銷';
     if(key.includes('福報')||key.includes('素易')||key.includes('其他電商')) return '蒔-其他電商';
@@ -5142,6 +5143,8 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(key.includes('刷卡')) return '蒔-金流-刷卡手續費';
   if(key.includes('簡訊')) return '蒔-金流-簡訊費';
   if(key.includes('手續費')||key.includes('金流')) return '蒔-金流-官網手續費';
+  if(/香港|\bhk\b/.test(key)&&/廣告|投放|meta|google|fb|ig/.test(key)) return '蒔-數位廣告投放-香港';
+  if(/香港|\bhk\b/.test(key)&&/kol|網紅|業配|行銷|活動/.test(key)) return '蒔-行銷推廣-香港';
   if(key.includes('meta')||(key.includes('廣告')&&!key.includes('google'))) return '蒔-數位廣告投放-Meta';
   if(key.includes('google')) return '蒔-數位廣告投放-Google';
   if(key.includes('影音')||key.includes('剪輯')||key.includes('拍攝')) return '蒔-行銷製作-影片拍攝剪輯';
@@ -5403,6 +5406,7 @@ async function parseImportSXShoplineFiles(files){
       const headers=raw[hRow].map(h=>h?String(h).replace(/\n/g,'').trim():'');
       const cDate=headers.indexOf('訂單日期');
       const cAmt =headers.indexOf('入帳確認');
+      const cShip=headers.indexOf('送貨方式');   // v3.31：送貨方式含「香港」（香港跨境宅配）→ 蒔-官網香港
       if(cDate<0||cAmt<0) continue;
       for(let r=hRow+1;r<raw.length;r++){
         const row=raw[r]; if(!row) continue;
@@ -5410,7 +5414,8 @@ async function parseImportSXShoplineFiles(files){
         if(isNaN(amt)||amt<=0) continue;
         const date=parseSXDate(row[cDate],null);
         if(!date) continue;
-        allRecs.push({type:'income',category:'蒔-官網',amount:amt,date,ym:date.substring(0,7),note:'Shopline入帳'});
+        const hk=cShip>=0&&String(row[cShip]||'').includes('香港');
+        allRecs.push({type:'income',category:hk?'蒔-官網香港':'蒔-官網',amount:amt,date,ym:date.substring(0,7),note:hk?'Shopline入帳（香港跨境宅配）':'Shopline入帳'});
       }
     }
     if(!allRecs.length){
@@ -5439,12 +5444,12 @@ async function parseImportSXShoplineFiles(files){
     sxShoplineStaging=[...normalRecs,...crossOkRecs].length?[...normalRecs,...crossOkRecs]:null;
     const finalRecs=[...normalRecs,...crossOkRecs];
     const byMonth={};
-    finalRecs.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,count:0,cross:false}; byMonth[r.ym].income+=r.amount; byMonth[r.ym].count++; });
+    finalRecs.forEach(r=>{ if(!byMonth[r.ym]) byMonth[r.ym]={income:0,count:0,cross:false,hk:0,hkN:0}; byMonth[r.ym].income+=r.amount; byMonth[r.ym].count++; if(r.category==='蒔-官網香港'){ byMonth[r.ym].hk+=r.amount; byMonth[r.ym].hkN++; } });
     crossOkRecs.forEach(r=>{ if(byMonth[r.ym]) byMonth[r.ym].cross=true; });
     const months=Object.keys(byMonth).sort();
     let html=`<div class="imp-success">✅ Shopline 解析成功：${finalRecs.length} 筆，${months.length} 個月</div>`;
-    html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">官網收入（入帳確認）</th><th class="r">筆數</th></tr></thead><tbody>';
-    months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); const tag=d.cross?` <span style="font-size:10px;color:#0d9488">（跨月補入）</span>`:''; html+=`<tr><td>${+y-1911}年${+m}月${tag}</td><td class="r">${fmt(d.income)}</td><td class="r">${d.count}</td></tr>`; });
+    html+='<div style="overflow-x:auto"><table class="imp-tbl"><thead><tr><th>月份</th><th class="r">官網收入（入帳確認）</th><th class="r">其中香港</th><th class="r">筆數</th></tr></thead><tbody>';
+    months.forEach(ym=>{ const d=byMonth[ym],[y,m]=ym.split('-'); const tag=d.cross?` <span style="font-size:10px;color:#0d9488">（跨月補入）</span>`:''; html+=`<tr><td>${+y-1911}年${+m}月${tag}</td><td class="r">${fmt(d.income)}</td><td class="r">${d.hkN?fmt(d.hk)+'（'+d.hkN+' 筆）':'—'}</td><td class="r">${d.count}</td></tr>`; });
     html+='</tbody></table></div>';
     if(crossWarnRecs.length) html+=`<div style="margin-top:8px;padding:8px;background:#fff7ed;border-radius:6px;font-size:12px;color:#92400e">⚠️ ${crossWarnRecs.length} 筆跨月重複（Shopline）：目標月份已有相同類別及金額，不納入匯入</div>`;
     preview.innerHTML=html;
@@ -9025,7 +9030,8 @@ function bgDefaultWeights(){
 const BG_TEMPLATE = {
   shixin: {
     income: [
-      {id:'web',  label:'官網',           cats:['蒔-官網'],     share:70},
+      {id:'web',  label:'官網（台灣）',   cats:['蒔-官網'],     share:65},
+      {id:'hk',   label:'官網（香港）',   cats:['蒔-官網香港'], share:5},   // v3.31 香港市場獨立追蹤
       {id:'grp',  label:'親友／企業團購', cats:['蒔-親友團購'], share:14},
       {id:'dist', label:'通路經銷',       cats:['蒔-通路經銷'], share:10},
       {id:'ec',   label:'蝦皮＋其他電商', cats:['蒔-蝦皮','蒔-其他電商','蒔-其他'], share:6},
@@ -9033,6 +9039,8 @@ const BG_TEMPLATE = {
     expense: [
       ['銷貨成本','gm',[['代工原料',['蒔-銷貨成本-代工原料'],'p',25.5],['紙盒',['蒔-銷貨成本-紙盒'],'p',2],['鋁袋',['蒔-銷貨成本-鋁袋'],'p',1.5],['包材',['蒔-銷貨成本-包材'],'p',1],['外購商品',['蒔-銷貨成本-外購商品'],'p',5]]],
       ['行銷推廣','mkt',[['Meta 廣告',['蒔-數位廣告投放-Meta'],'p',10],['Google 廣告',['蒔-數位廣告投放-Google'],'p',5],['網紅/KOL、分潤',['蒔-網紅/KOL酬勞','蒔-銷售佣金、分潤'],'p',3],['SEO',['蒔-SEO'],'f',480000],['影片拍攝剪輯',['蒔-行銷製作-影片拍攝剪輯'],'f',300000],['部落客合作',['蒔-部落客合作'],'f',120000],['文宣設計',['蒔-文宣設計'],'f',100000],['新聞上刊',['蒔-新聞上刊'],'f',80000],['參賽/獎項',['蒔-參賽/獎項'],'f',100000]]],
+      // v3.31 香港市場：獨立編列，長期看香港營收 vs 香港行銷投入（廣告活動名稱含 HK 才記香港）
+      ['香港市場','mkt',[['香港廣告投放',['蒔-數位廣告投放-香港'],'f',150000],['香港 KOL／活動',['蒔-行銷推廣-香港'],'f',50000]]],
       ['人事','salary',[['人事薪資',['蒔-人事薪資'],'f',1060000]]],
       ['物流','gm',[['黑貓',['蒔-物流-黑貓'],'p',1],['7-11',['蒔-物流-7-11'],'p',0.6],['全家',['蒔-物流-全家'],'p',0.2],['郵局',['蒔-物流-郵局'],'p',0.2]]],
       ['金流手續費','gm',[['官網手續費',['蒔-金流-官網手續費'],'p',0.7],['刷卡手續費',['蒔-金流-刷卡手續費'],'p',0.6],['蝦皮手續費',['蒔-金流-蝦皮手續費'],'p',0.3],['簡訊費',['蒔-金流-簡訊費'],'p',0.15],['Line Pay',['蒔-金流-Line Pay手續費'],'p',0.05]]],
@@ -9092,7 +9100,7 @@ function bgExpCut(year){ const t=new Date(); return year<t.getFullYear()?12:year
 // 前一年營收年化（只算有官網資料的月份，避免把還沒匯入的月份當成 0）
 function bgBaseRevenue(co, year){
   const py=year-1, recs=approvedOnly(getRecs(co)).filter(r=>r.type==='income'&&!isSXInvCat(r.category)&&(r.date||'').startsWith(py+'-'));
-  const webMonths=recs.filter(r=>r.category==='蒔-官網').map(r=>+r.date.slice(5,7));
+  const webMonths=recs.filter(r=>r.category==='蒔-官網'||r.category==='蒔-官網香港').map(r=>+r.date.slice(5,7));
   const cut=webMonths.length?Math.max(...webMonths):12;
   const sum=recs.filter(r=>+r.date.slice(5,7)<=cut).reduce((s,r)=>s+r.amount,0);
   return { sum, cut, annual: Math.round(sum*12/cut) };
