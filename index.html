@@ -9372,7 +9372,13 @@ function bgMonthHTML(D){
 const BG_REF_COGS=0.35;
 // v3.31.1 成長% 存進預算 plan（refG），換電腦也一樣；舊預算沒存過才退回這台瀏覽器的設定
 function bgRefG(){ const c=_bg.cfg; if(c&&c.refG!=null) return +c.refG||0; try{ return +localStorage.getItem('bgRefG')||0; }catch(e){ return 0; } }
-function bgSetRefG(v){ const g=+v||0; if(_bg.cfg) _bg.cfg.refG=g; try{ localStorage.setItem('bgRefG',String(g)); }catch(e){} setTimeout(bgRenderEditor,0); }
+// v3.31.2 改成長% 後直接點「儲存預算」會沒反應：change 在按下滑鼠時觸發→整頁重畫→按鈕被換掉，click 落空。
+//   改為等滑鼠放開（click 完成）才重畫；儲存時若還有待重畫，先同步算完基準再存
+let _bgPtrDown=false, _bgRenderPending=false;
+document.addEventListener('pointerdown',()=>{ _bgPtrDown=true; },true);
+document.addEventListener('pointerup',()=>{ setTimeout(()=>{ _bgPtrDown=false; if(_bgRenderPending) bgRenderSoon(); },0); },true);
+function bgRenderSoon(){ _bgRenderPending=true; if(_bgPtrDown) return; _bgRenderPending=false; if(_bg.cfg&&_bg.view==='plan') bgRenderEditor(); }
+function bgSetRefG(v){ const g=+v||0; if(_bg.cfg) _bg.cfg.refG=g; try{ localStorage.setItem('bgRefG',String(g)); }catch(e){} bgRenderSoon(); }
 function bgRefData(c){
   const py=_bg.year-1, base=bgBaseRevenue(activeCo,_bg.year), cut=base.cut, mon={}, now=new Date();
   const A=py<now.getFullYear()?12:py===now.getFullYear()?now.getMonth():0;  // 已過完的月份數
@@ -9559,6 +9565,17 @@ function bgEdit(kind,i,field,val){
       if(l.span[0]>l.span[1]){ l.span=[Math.min(...l.span),Math.max(...l.span)]; } bgRenderEditor(); return; } }
   bgRecalc();
 }
+function _bgSaveWhy(){ const c=_bg.cfg; if(!c) return '';
+  const i=c.income.reduce((s,l)=>s+l.share,0), w=c.weights.reduce((s,x)=>s+x,0), m=[];
+  if(Math.abs(i-100)>=0.05) m.push(`收入通路比例合計 ${i.toFixed(1)}%，需等於 100%`);
+  if(Math.abs(w-100)>=0.05) m.push(`月份權重合計 ${w.toFixed(2)}%，需等於 100%`);
+  if(!(c.target>0)) m.push('營收目標需大於 0');
+  return m.join('；'); }
+const _bgSaveOk=()=>!_bgSaveWhy();
+function _bgSaveBtnSync(){ const b=document.getElementById('bgSaveBtn'), why=_bgSaveWhy(); if(!b) return;
+  b.disabled=!!why; b.title=why?'無法儲存：'+why:'';
+  let n=document.getElementById('bgSaveWhy'); if(!n){ n=document.createElement('div'); n.id='bgSaveWhy'; n.style.cssText='flex-basis:100%;font-size:12px;color:var(--exp);text-align:right'; b.parentNode.appendChild(n); }
+  n.textContent=why?'⚠️ 無法儲存：'+why+'（請捲到上方修正）':''; }
 function bgRecalc(){
   const c=_bg.cfg, P=bgBuildPlan(c);
   const incSum=c.income.reduce((s,l)=>s+l.share,0), wSum=c.weights.reduce((s,w)=>s+w,0);
@@ -9582,14 +9599,16 @@ function bgRecalc(){
   const grp={}; P.lines.filter(l=>l.kind==='expense').forEach(l=>grp[l.group]=(grp[l.group]||0)+bgSum(l.months));
   if(_bg.meet){ const vis=P.lines.filter(l=>l.kind==='expense'&&!bgHidden(l)).reduce((s,l)=>s+bgSum(l.months),0);
     document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px"><span>🙈 會議模式</span><span>營收目標 <b>${bgWan(c.target)}</b></span><span>畫面上的支出預算 <b>${bgWan(vis)}</b></span></div>`;
-    document.getElementById('bgSaveBtn').disabled=!(okI&&okW&&c.target>0); return; }
+    _bgSaveBtnSync(); return; }
   document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px">
     <span>營收 <b>${bgWan(c.target)}</b></span><span>支出 <b>${bgWan(exp)}</b>（${bgPct(exp/(c.target||1),1)}）</span>
     <span>預估結餘 <b style="color:${net>=0?'var(--inc)':'var(--exp)'}">${bgWan(net)}</b>（${bgPct(net/(c.target||1),1)}）</span></div>
     <div style="font-size:11px;color:var(--txt3);margin-top:4px">${planSum?`支出中已確認 ${bgWan(okSum)}、規劃中 ${bgWan(planSum)}（規劃中都不做的話，結餘 ${bgWan(net+planSum)}）　`:''}${Object.entries(grp).map(([g,v])=>`${g} ${bgPct(v/(c.target||1),1)}`).join(' · ')}</div>`;
-  document.getElementById('bgSaveBtn').disabled=!(okI&&okW&&c.target>0);
+  _bgSaveBtnSync();
 }
 async function bgSave(){
+  if(_bgRenderPending){ _bgRenderPending=false; bgRenderEditor(); }   // 先套用剛改的成長%（重算基準／目標）
+  if(!_bgSaveOk()){ toast(_bgSaveWhy(),false); return; }
   const c=_bg.cfg, btn=document.getElementById('bgSaveBtn');
   btn.disabled=true; btn.textContent='儲存中…';
   try{
