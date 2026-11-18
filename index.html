@@ -9116,7 +9116,7 @@ function bgCfgFromTemplate(co, year){
     income: T.income.map(x=>({...x})), expense };
 }
 function bgCfgFromPlan(plan){
-  return { base:plan.base, baseNote:plan.baseNote||'', target:plan.target, weights:[...plan.weights],
+  return { base:plan.base, baseNote:plan.baseNote||'', refG:plan.refG, target:plan.target, weights:[...plan.weights],
     income: plan.lines.filter(l=>l.kind==='income').map(l=>({id:l.id,label:l.label,cats:l.cats,share:l.share})),
     expense: plan.lines.filter(l=>l.kind==='expense').map(l=>({id:l.id,group:l.group,sens:l.sens,label:l.label,cats:l.cats,rule:l.rule,value:l.value,span:l.span||[1,12],items:JSON.parse(JSON.stringify(l.items||[])),custom:!!l.custom})) };
 }
@@ -9136,7 +9136,7 @@ function bgBuildPlan(cfg){
   // 四捨五入的尾差補在最後一個有金額的月份，讓全年合計＝年度金額
   lines.forEach(l=>{ if(l.rule==='i') return; const want=l.kind==='income'?Math.round(cfg.target*l.share/100):l.rule==='p'?Math.round(cfg.target*l.value/100):Math.round(l.value);
     const last=l.kind==='expense'&&l.rule==='f'?l.span[1]-1:11; l.months[last]+=want-l.months.reduce((a,b)=>a+b,0); });
-  return { version:2, base:cfg.base, baseNote:cfg.baseNote, target:cfg.target, weights:cfg.weights, lines };
+  return { version:2, base:cfg.base, baseNote:cfg.baseNote, refG:cfg.refG, target:cfg.target, weights:cfg.weights, lines };
 }
 
 async function bgFetch(co, year){
@@ -9370,8 +9370,9 @@ function bgMonthHTML(D){
 //   支出＝已過完的月份全用實際，剩下月份：人事用最後一個完整月、銷貨成本用預估營收×35%（依各線實際比重分）、
 //   新品投資不推估、其餘用近三個完整月平均；當月已記的金額比推估大就用實際
 const BG_REF_COGS=0.35;
-function bgRefG(){ try{ return +localStorage.getItem('bgRefG')||0; }catch(e){ return 0; } }
-function bgSetRefG(v){ try{ localStorage.setItem('bgRefG',String(+v||0)); }catch(e){} setTimeout(bgRenderEditor,0); }
+// v3.31.1 成長% 存進預算 plan（refG），換電腦也一樣；舊預算沒存過才退回這台瀏覽器的設定
+function bgRefG(){ const c=_bg.cfg; if(c&&c.refG!=null) return +c.refG||0; try{ return +localStorage.getItem('bgRefG')||0; }catch(e){ return 0; } }
+function bgSetRefG(v){ const g=+v||0; if(_bg.cfg) _bg.cfg.refG=g; try{ localStorage.setItem('bgRefG',String(g)); }catch(e){} setTimeout(bgRenderEditor,0); }
 function bgRefData(c){
   const py=_bg.year-1, base=bgBaseRevenue(activeCo,_bg.year), cut=base.cut, mon={}, now=new Date();
   const A=py<now.getFullYear()?12:py===now.getFullYear()?now.getMonth():0;  // 已過完的月份數
