@@ -1644,6 +1644,7 @@ const SHARED_EXP = ['薪資','勞健保','電費','水費','電信費','包租�
 // 蒔心田 categories
 const SX_TEL_TAG_RE = /電話/;   // v3.32：Shopline 訂單標籤（正式名稱確定後再收斂）
 const SX_INC = ['蒔-親友團購','蒔-官網','蒔-官網香港','蒔-官網電話訂購','蒔-蝦皮','蒔-其他電商','蒔-通路經銷','蒔-其他','蒔-股東投資','蒔-對外投資'];
+const SX_IP_RE = /商標|專利|智財/;   // v3.32.1：非悅敏捷專案的商標/專利 → 蒔-智財（商標/專利）
 const SX_EXP = [
   '蒔-銷貨成本-代工原料','蒔-銷貨成本-紙盒','蒔-銷貨成本-鋁袋','蒔-銷貨成本-包材','蒔-銷貨成本-外購商品',
   '蒔-物流-黑貓','蒔-物流-全家','蒔-物流-7-11','蒔-物流-郵局',
@@ -1651,7 +1652,7 @@ const SX_EXP = [
   '蒔-數位廣告投放-Meta','蒔-數位廣告投放-Google','蒔-數位廣告投放-香港','蒔-行銷推廣-香港','蒔-銷售佣金、分潤',   // v3.31 香港：廣告活動名稱含 HK 的花費記「投放-香港」，香港 KOL／活動記「行銷推廣-香港」
   '蒔-人事薪資','蒔-系統軟體','蒔-行銷製作-影片拍攝剪輯','蒔-網紅/KOL酬勞',
   '蒔-文宣設計','蒔-SEO','蒔-部落客合作','蒔-新聞上刊',
-  '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-雜項與其他',
+  '蒔-郵電費','蒔-參賽/獎項','蒔-檢驗費','蒔-智財（商標/專利）','蒔-雜項與其他',   // v3.32.1 智財：商標註冊/續展、專利等規費與代理費（悅敏捷新品的商標仍記專案）
   '蒔-專案-悅敏捷上市'   // v3.25：2027/3 新品，上市前原料、紙盒、設計、代言、認證都記這裡，不混進日常預算
 ];
 
@@ -1665,6 +1666,7 @@ const CAT_ICONS = {
   '車貸':'🚗','退押金':'📦','修繕維護費':'🔧','清潔費':'🧹','設備投資':'🖥',
   '系統費':'💻','廣告費':'📣','保險費':'🛡️','交際及福利':'☕','董事長家用':'🏡',
   '稅費':'📑','行政管理費':'🗂','A206事件費用':'⚠️','其他費用':'📌',
+  '蒔-智財（商標/專利）':'™️',
 };
 const PERSONAL_CAT_ICONS = {
   '私-薪資':'💼','私-投資':'📈','私-其他收入':'💰',
@@ -3347,6 +3349,15 @@ function catSugLocal(co, type, title, cp, selfId){
                           :`過去 ${b.n} 筆相近名稱用這個類別` };
 }
 
+// 關鍵字規則（v3.32.1）：新類別沒有歷史可比，先於歷史比對
+function catSugRule(co, type, title, cp){
+  if(co!=='shixin'||type!=='expense') return null;
+  const t=(title||'')+' '+(cp||'');
+  if(SX_IP_RE.test(t)&&!/悅敏捷/.test(t)&&_catSugCats(co,type).includes('蒔-智財（商標/專利）'))
+    return { category:'蒔-智財（商標/專利）', src:'rule', strong:false, reason:'名稱含商標／專利／智財' };
+  return null;
+}
+
 // 常用類別（近一年）給快速點選
 function catSugFrequent(co, type, limit=6){
   const valid=new Set(_catSugCats(co,type)), since=new Date(Date.now()-365*864e5).toISOString().slice(0,10), cnt={};
@@ -3416,7 +3427,7 @@ function catSugRender(k){
   let html='';
   if(st.loading) html+=`<div style="color:var(--txt3)">🤖 AI 判斷類別中…</div>`;
   else if(s){
-    const tag=s.src==='ai'?'🤖 AI 建議':'💡 依過去紀錄';
+    const tag=s.src==='ai'?'🤖 AI 建議':s.src==='rule'?'💡 依關鍵字':'💡 依過去紀錄';
     if(s.category===cur) html+=`<div style="color:var(--inc)">✓ ${tag}：${esc(s.reason||s.category)}</div>`;
     else html+=`<div style="background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);border-radius:6px;padding:5px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`+
       `<span>${tag}：<b>${esc(s.category)}</b>${s.reason?`<span style="color:var(--txt3)">（${esc(s.reason)}）</span>`:''}</span>`+
@@ -3439,7 +3450,7 @@ function catSugUpdate(k){
     const title=document.getElementById(f.title).value.trim(), cp=document.getElementById(f.cp).value.trim();
     const seq=++st.seq;
     st.loading=false;
-    st.sug=co?catSugLocal(co,type,title,cp,f.self?.()):null;
+    st.sug=co?(catSugRule(co,type,title,cp)||catSugLocal(co,type,title,cp,f.self?.())):null;
     if(st.sug&&!st.touched&&!f.edit) document.getElementById(f.cat).value=st.sug.category;
     catSugRender(k);
     if(st.sug||f.edit||!co||_catSugNorm(title).length<2) return;
@@ -3468,7 +3479,9 @@ function catSugConfirm(k){
   const f=CATSUG_FORMS[k], co=f.co();
   if(!co) return true;
   const cat=document.getElementById(f.cat).value;
-  const s=catSugLocal(co,f.type(),document.getElementById(f.title).value.trim(),document.getElementById(f.cp).value.trim(),f.self?.());
+  const _t=document.getElementById(f.title).value.trim(), _c=document.getElementById(f.cp).value.trim();
+  if(catSugRule(co,f.type(),_t,_c)) return true;   // 關鍵字規則命中的新類別，不拿舊分法擋
+  const s=catSugLocal(co,f.type(),_t,_c,f.self?.());
   if(!s||!s.strong||s.category===cat) return true;
   return confirm(`類別確認：${s.reason}「${s.category}」，\n這筆選的是「${cat}」。\n\n確定用「${cat}」嗎？（取消可回去改）`);
 }
@@ -5132,6 +5145,7 @@ function mapSXCatAll(type, mainCat, subCat, detail){
   if(SX_EXP.includes(main)) return main;
   if(['薪資','健保費','勞保費','勞保退休金','二代健保','端午節獎金'].some(k=>key.includes(k))) return '蒔-人事薪資';
   if(key.includes('悅敏捷')) return '蒔-專案-悅敏捷上市';
+  if(SX_IP_RE.test(key)) return '蒔-智財（商標/專利）';
   if(['膠原蛋白','益菌盾','優兒護','穀胱甘肽','蒔-藻油','代工','原料'].some(k=>(sub+main).includes(k))) return '蒔-銷貨成本-代工原料';
   if(key.includes('紙盒')) return '蒔-銷貨成本-紙盒';
   if(key.includes('鋁袋')) return '蒔-銷貨成本-鋁袋';
@@ -9049,7 +9063,7 @@ const BG_TEMPLATE = {
       ['人事','salary',[['人事薪資',['蒔-人事薪資'],'f',1060000]]],
       ['物流','gm',[['黑貓',['蒔-物流-黑貓'],'p',1],['7-11',['蒔-物流-7-11'],'p',0.6],['全家',['蒔-物流-全家'],'p',0.2],['郵局',['蒔-物流-郵局'],'p',0.2]]],
       ['金流手續費','gm',[['官網手續費',['蒔-金流-官網手續費'],'p',0.7],['刷卡手續費',['蒔-金流-刷卡手續費'],'p',0.6],['蝦皮手續費',['蒔-金流-蝦皮手續費'],'p',0.3],['簡訊費',['蒔-金流-簡訊費'],'p',0.15],['Line Pay',['蒔-金流-Line Pay手續費'],'p',0.05]]],
-      ['營運管理','gm',[['系統軟體',['蒔-系統軟體'],'f',120000],['會計記帳',['蒔-會計記帳費'],'f',36000],['郵電費',['蒔-郵電費'],'f',12000],['檢驗費',['蒔-檢驗費'],'f',150000],['雜項與其他',['蒔-雜項與其他'],'f',250000]]],
+      ['營運管理','gm',[['系統軟體',['蒔-系統軟體'],'f',120000],['會計記帳',['蒔-會計記帳費'],'f',36000],['郵電費',['蒔-郵電費'],'f',12000],['檢驗費',['蒔-檢驗費'],'f',150000],['雜項與其他',['蒔-雜項與其他'],'f',250000],['智財（商標/專利）',['蒔-智財（商標/專利）'],'f',0]]],
       // 新品投資：純素關節保健新品，屬於一次性投資，追蹤頁與日常營運分開看（先算日常營運結餘，再扣投資）
       ['新品投資','inv',[['悅敏捷上市（暫估，詢價中）',['蒔-專案-悅敏捷上市'],'f',500000,[1,3]]]],
     ],
