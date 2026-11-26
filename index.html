@@ -173,7 +173,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .txic{width:31px;height:31px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
 .txic.in{background:var(--inc-l)}.txic.out{background:var(--exp-l)}
 .txin{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.txim{font-size:11px;color:var(--txt3);font-family:'DM Mono',monospace}
+.txib{flex:1;min-width:0}
+.txim{font-size:11px;color:var(--txt3);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .txir{display:flex;align-items:center;gap:7px;flex-shrink:0}
 .txia{font-family:'DM Mono',monospace;font-size:13px;font-weight:500}
 .txia.in{color:var(--inc)}.txia.out{color:var(--exp)}
@@ -2568,7 +2569,7 @@ function renderTxList(recs,listId,cntId,showDel){
     return`<div class="txi">
       <div class="txil" style="cursor:pointer" onclick="openApDetail(${r.id},'${rco}')">
         <div class="txic ${r.type==='income'?'in':'out'}">${getCatIcon(r.category)}</div>
-        <div>
+        <div class="txib">
           <div class="txin">${esc(r.category)}${icon}${attIcon}${noteLine}</div>
           ${subLine}
           <div class="txim">${r.date}${r.by?' · '+esc(r.by):''}${docNoLine}${r._coName?' · <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--acc-l);color:var(--acc);font-weight:700">'+esc(r._coName)+'</span>':''}</div>
