@@ -9707,7 +9707,21 @@ async function renderStaffBudget(){
     <div class="card"><div class="chd"><div class="ct">行銷預算使用（1–${expCut} 月）</div></div><div style="overflow-x:auto"><table class="tbl">
       <thead><tr><th>項目</th><th class="r">年度預算</th><th class="r">累計預算</th><th class="r">累計實際</th><th class="r">使用率</th><th class="r">全年剩餘</th><th>狀態</th></tr></thead><tbody>${ex}</tbody></table></div>
       <div style="font-size:11px;color:var(--txt3);margin-top:8px">🔒 成本、人事、物流、金流與結餘僅主管可見。</div></div>
+    ${bgStaffItemsHTML(D)}
   </div>`;
+}
+// v3.34 員工版預算細項（唯讀；已花費由 RPC budget_view 依細項關鍵字彙總，只回彙總不回逐筆）
+function bgStaffItemsHTML(D){
+  const L=(D.expense||[]).filter(l=>(l.items||[]).length); if(!L.length) return '';
+  const body=L.map(l=>{ const its=l.items, bud=bgSum(l.months), act=its.reduce((s,it)=>s+(+it.act||0),0)+(+l.other_act||0);
+    const rows=its.map(it=>{ const y=bgItemYear(it), a=+it.act||0, r=y?a/y:null, [sc,st]=it.status==='cancel'?['bg-na','取消']:bgStatus(r);
+      return `<tr class="${it.status==='cancel'?'bgcx':''}"><td style="padding-left:22px">${esc(it.name||'（未命名）')}</td><td><span class="bgp bgst-${esc(it.status||'')}">${BG_ST[it.status]||''}</span></td><td>${esc(it.owner||'')}</td>
+        <td class="r">${bgFmt(y)}</td><td class="r">${it.cnt?bgFmt(a):'—'}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td><span class="bgp ${sc}">${st}</span></td></tr>`; }).join('')
+      +(l.other_cnt?`<tr><td style="padding-left:22px;color:var(--txt3)">沒對到細項的支出（${l.other_cnt} 筆）</td><td></td><td></td><td class="r">—</td><td class="r">${bgFmt(+l.other_act)}</td><td></td><td><span class="bgp bg-warn">待歸類</span></td></tr>`:'');
+    return `<tr class="shd"><td>${esc(l.label)}</td><td></td><td></td><td class="r">${bgFmt(bud)}</td><td class="r">${bgFmt(act)}</td><td class="r">${bgPct(bud?act/bud:null)}</td><td></td></tr>${rows}`; }).join('');
+  return `<div class="card" style="margin-top:16px"><div class="chd"><div class="ct">預算細項</div></div><div style="overflow-x:auto"><table class="tbl">
+    <thead><tr><th>類別／細項</th><th>狀態</th><th>負責人</th><th class="r">全年預估</th><th class="r">已花費</th><th class="r">使用率</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
+    <div style="font-size:11px;color:var(--txt3);margin-top:8px">「規劃中」＝還在討論、未定案。已花費＝今年該類別的記帳，依標題、對象、備註的關鍵字對到細項。細項由主管在預算設定維護，此頁僅供檢視。</div></div>`;
 }
 
 </script>
