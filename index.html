@@ -350,7 +350,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgitr>td{background:#fbf6ef;padding:10px 12px 12px 22px!important}
 .bgitw{min-width:0}
 .bgdh{cursor:grab;color:var(--txt2);font-size:15px;font-weight:700;user-select:none;width:16px;text-align:center;letter-spacing:-2px}.bgdh:active{cursor:grabbing}
-.bgit tr.bgdrag,tr.bgln.bgdrag{opacity:.4}.bglh{position:absolute;left:4px;top:50%;transform:translateY(-50%)}tr.bgln.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}tr.bgln.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}
+.bgit tr.bgdrag,tr.bgln.bgdrag{opacity:.4}.bglh{position:absolute;left:4px;top:50%;transform:translateY(-50%)}tr.bginc.bgdrag{opacity:.4}tr.bginc.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}tr.bginc.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}tr.bgln.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}tr.bgln.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}
 .bgit{font-size:12px;background:var(--sur)}
 .bgit td,.bgit th{padding:6px 6px!important;vertical-align:middle}
 .bgin{padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--sur);color:var(--txt)}
@@ -9486,7 +9486,7 @@ function bgRenderEditor(){
     </div></div>
   <div class="g2 mb16">
     <div class="card"><div class="chd"><div class="ct">收入依通路分配</div><div class="cbadge" id="bgIncSum"></div></div>
-      <div style="overflow-x:auto"><table class="tbl"><tbody>${c.income.map((l,i)=>`<tr><td>${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td><td class="r">${inp('bgI'+i,l.share,`bgEdit('i',${i},'share',this.value)`,70)} %</td><td class="r" id="bgI${i}y"></td><td class="r bgrefc">${(a=>a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">${R.py} 佔 ${bgPct(R.rev?a/R.rev:null,1)}</div><div class="bgref">全年預估 ${bgWan(R.est.inc(l.cats))}</div>`:'<span class="bgref">—</span>')(R.amt('income',l.cats))}</td></tr>`).join('')}</tbody></table></div>
+      <div style="overflow-x:auto"><table class="tbl"><tbody>${c.income.map((l,i)=>`<tr class="bginc" ondragover="bgIncDragOver(event,this)" ondragleave="this.classList.remove('bgdrop-a','bgdrop-b')" ondrop="bgIncDrop(event,${i},this)"><td style="padding-left:22px;position:relative"><span class="bgdh bglh" draggable="true" title="按住拖曳調整順序" ondragstart="bgIncDragStart(event,${i})" ondragend="bgItDragEnd()">⋮⋮</span>${esc(l.label)}<div class="bgsm">${l.cats.map(esc).join('、')}</div></td><td class="r">${inp('bgI'+i,l.share,`bgEdit('i',${i},'share',this.value)`,70)} %</td><td class="r" id="bgI${i}y"></td><td class="r bgrefc">${(a=>a?`<div class="bgref"><b>${bgFmt(a)}</b></div><div class="bgref">${R.py} 佔 ${bgPct(R.rev?a/R.rev:null,1)}</div><div class="bgref">全年預估 ${bgWan(R.est.inc(l.cats))}</div>`:'<span class="bgref">—</span>')(R.amt('income',l.cats))}</td></tr>`).join('')}</tbody></table></div>
       <div class="bgsm" style="margin-top:6px">最右欄＝${R.py} 年 1–${R.cut} 月實際，可對照今年要怎麼分配。</div></div>
     <div class="card"><div class="chd"><div class="ct">月份分配（%）</div><div class="cbadge" id="bgWSum"></div></div>
       <div class="bgwg">${c.weights.map((w,i)=>`<label>${i+1}月${inp('bgW'+i,w,`bgEdit('w',${i},'w',this.value)`,64)}</label>`).join('')}</div>
@@ -9528,7 +9528,7 @@ function bgItemsEditor(l,i){
 // v3.32.3 細項拖曳排序（只能在同一個類別內移動；順序跟著 plan 一起存）
 let _bgDrag=null;
 function bgItDragStart(e,i,j){ _bgDrag={t:'it',i,j}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
-function bgItDragEnd(){ _bgDrag=null; document.querySelectorAll('.bgit tr,tr.bgln').forEach(t=>t.classList.remove('bgdrag','bgdrop-a','bgdrop-b')); }
+function bgItDragEnd(){ _bgDrag=null; document.querySelectorAll('.bgit tr,tr.bgln,tr.bginc').forEach(t=>t.classList.remove('bgdrag','bgdrop-a','bgdrop-b')); }
 function bgItDragOver(e,tr){ if(!_bgDrag||_bgDrag.t!=='it') return; e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2;
   tr.classList.toggle('bgdrop-a',up); tr.classList.toggle('bgdrop-b',!up); }
 function bgItDrop(e,i,j,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); if(!d||d.t!=="it"||d.i!==i) return;
@@ -9542,6 +9542,12 @@ function bgLnDrop(e,i,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); c
   if(!d||d.t!=='ln'||ex[d.i].group!==ex[i].group) return;
   const r=tr.getBoundingClientRect(); let to=e.clientY<r.top+r.height/2?i:i+1; if(d.i<to) to--; if(to===d.i) return;
   const [m]=ex.splice(d.i,1); ex.splice(to,0,m); bgRenderEditor(); }
+// v3.32.5 收入通路拖曳排序
+function bgIncDragStart(e,i){ _bgDrag={t:'inc',i}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
+function bgIncDragOver(e,tr){ if(!_bgDrag||_bgDrag.t!=='inc') return; e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2; tr.classList.toggle('bgdrop-a',up); tr.classList.toggle('bgdrop-b',!up); }
+function bgIncDrop(e,i,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); if(!d||d.t!=='inc') return;
+  const r=tr.getBoundingClientRect(); let to=e.clientY<r.top+r.height/2?i:i+1; if(d.i<to) to--; if(to===d.i) return;
+  const a=_bg.cfg.income, [m]=a.splice(d.i,1); a.splice(to,0,m); bgRenderEditor(); }
 function bgToggle(i){ const id=_bg.cfg.expense[i].id; _bg.open.has(id)?_bg.open.delete(id):_bg.open.add(id); bgRenderEditor(); }
 function bgToggleAll(){ if(_bg.open.size) _bg.open.clear(); else _bg.cfg.expense.forEach(l=>_bg.open.add(l.id)); bgRenderEditor(); }
 function bgItem(i,j,f,v){ const l=_bg.cfg.expense[i], it=l.items[j];
