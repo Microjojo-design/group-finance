@@ -193,6 +193,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .tbl td.r{text-align:right;font-family:'DM Mono',monospace}
 .tbl tr:hover td{background:var(--sur2)}
 .tbl tr.shd td{background:#f7f8fd;font-weight:800;font-size:12px;color:var(--txt2);padding:6px 11px}
+.tbl tr.shd td.bggs{font-family:'DM Mono',monospace;font-weight:400;color:var(--txt)}.tbl tr.shd td.bggs b{font-weight:800}.tbl tr.shd td.bggs .bgsm{font-family:inherit}
 .tbl tr.sub td{background:var(--sur2);font-weight:700;border-top:1px solid var(--bdr);font-family:'DM Mono',monospace}
 .tbl tr.bal td{font-weight:800;font-size:14px;background:var(--acc-l);color:var(--co);font-family:'DM Mono',monospace}
 .tbl tr.bal.neg td{background:var(--exp-l);color:var(--exp)}
@@ -9456,9 +9457,14 @@ function bgRenderEditor(){
     if(nb>0&&(c.base!==nb||c.baseNote!==note)){ const follow=Math.abs(c.target-c.base*2)<=2; c.base=nb; c.baseNote=note; if(follow) c.target=nb*2; } }
   const inp=(id,val,on,w=90,step='any')=>`<input id="${id}" type="number" step="${step}" value="${val}" oninput="${on}" style="width:${w}px;padding:5px 7px;border:1px solid var(--bdr);border-radius:6px;text-align:right;font-family:'DM Mono',monospace">`;
   let er='', lastG='';
+  // v3.32.2 每個大項標題列顯示小計（預算由 bgRecalc 即時更新；參考欄只算畫面上看得到的類別）
+  const gVis=c.expense.filter(l=>!bgHidden({kind:'expense',...l})), gList=[...new Set(gVis.map(l=>l.group))];
+  const gRef=(g,f)=>gVis.filter(l=>l.group===g).reduce((s,l)=>s+f(l),0);
+  const gCell=(a,rev)=>a?`<b>${bgFmt(a)}</b><div class="bgsm">佔營收 ${bgPct(rev?a/rev:null,1)}</div>`:'—';
   c.expense.forEach((l,i)=>{
     if(bgHidden({kind:'expense',...l})) return;
-    if(l.group!==lastG){ er+=`<tr class="shd"><td colspan="6">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td></tr>`; lastG=l.group; }
+    if(l.group!==lastG){ const gi=gList.indexOf(l.group);
+      er+=`<tr class="shd"><td colspan="3">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td><td class="r bggs" id="bgG${gi}y"></td><td class="r bggs bgrefc">${gCell(gRef(l.group,x=>R.amt('expense',x.cats)),R.rev)}</td><td class="r bggs bgrefc">${gCell(gRef(l.group,x=>R.est.line(x)),R.est.rev)}</td></tr>`; lastG=l.group; }
     const its=bgItemsOf(l), nIt=its.filter(x=>x.status!=='cancel').length, open=_bg.open.has(l.id);
     er+=`<tr><td style="padding-left:22px">${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
         <button class="bgtog" aria-expanded="${open}" onclick="bgToggle(${i})">${open?'▾':'▸'} 細項 ${nIt?`<b>${nIt}</b> 項`:'（尚未列）'}</button></td>
@@ -9616,6 +9622,8 @@ function bgRecalc(){
     if(l.rule==='i'){ planSum+=pl; okSum+=yr-pl; } else okSum+=yr; });
   const exp=P.lines.filter(l=>l.kind==='expense').reduce((s,l)=>s+bgSum(l.months),0), net=c.target-exp;
   const grp={}; P.lines.filter(l=>l.kind==='expense').forEach(l=>grp[l.group]=(grp[l.group]||0)+bgSum(l.months));
+  { const gv={}; P.lines.filter(l=>l.kind==='expense'&&!bgHidden(l)).forEach(l=>gv[l.group]=(gv[l.group]||0)+bgSum(l.months));
+    Object.keys(gv).forEach((g,gi)=>{ const e=document.getElementById('bgG'+gi+'y'); if(e) e.innerHTML=`<b>${bgFmt(gv[g])}</b><div class="bgsm">佔營收 ${bgPct(gv[g]/(c.target||1),1)}</div>`; }); }
   if(_bg.meet){ const vis=P.lines.filter(l=>l.kind==='expense'&&!bgHidden(l)).reduce((s,l)=>s+bgSum(l.months),0);
     document.getElementById('bgSummary').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px"><span>🙈 會議模式</span><span>營收目標 <b>${bgWan(c.target)}</b></span><span>畫面上的支出預算 <b>${bgWan(vis)}</b></span></div>`;
     _bgSaveBtnSync(); return; }
