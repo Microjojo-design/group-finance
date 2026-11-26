@@ -348,6 +348,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgtog:hover{text-decoration:underline}
 .bgitr>td{background:#fbf6ef;padding:10px 12px 12px 22px!important}
 .bgitw{min-width:0}
+.bgdh{cursor:grab;color:var(--txt2);font-size:15px;font-weight:700;user-select:none;width:16px;text-align:center;letter-spacing:-2px}.bgdh:active{cursor:grabbing}
+.bgit tr.bgdrag{opacity:.4}.bgit tr.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}
 .bgit{font-size:12px;background:var(--sur)}
 .bgit td,.bgit th{padding:6px 6px!important;vertical-align:middle}
 .bgin{padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--sur);color:var(--txt)}
@@ -9507,7 +9509,8 @@ function bgMSel(id,v,on){ return `<select id="${id}" onchange="${on}" class="bgi
 function bgItemsEditor(l,i){
   const its=bgItemsOf(l);
   const rows=its.map((it,j)=>{ const on=f=>`bgItem(${i},${j},'${f}',this.value)`;
-    return `<tr class="${it.status==='cancel'?'bgcx':''}">
+    return `<tr class="${it.status==='cancel'?'bgcx':''}" ondragover="bgItDragOver(event,this)" ondragleave="this.classList.remove('bgdrop-a','bgdrop-b')" ondrop="bgItDrop(event,${i},${j},this)">
+      <td class="bgdh" draggable="true" title="按住拖曳調整順序" ondragstart="bgItDragStart(event,${i},${j})" ondragend="bgItDragEnd()">⋮⋮</td>
       <td><input id="bgI${i}_${j}n" class="bgin" style="width:100%;min-width:150px" value="${esc(it.name)}" placeholder="項目名稱" oninput="${on('name')}"></td>
       <td><select id="bgI${i}_${j}m" class="bgin" onchange="${on('mode')}"><option value="m" ${it.mode==='m'?'selected':''}>每月</option><option value="o" ${it.mode==='o'?'selected':''}>單次</option><option value="t" ${it.mode==='t'?'selected':''}>總額攤提</option></select></td>
       <td class="r"><input id="bgI${i}_${j}a" class="bgin bgnum" type="number" step="any" value="${+it.amt||0}" oninput="${on('amt')}"></td>
@@ -9517,10 +9520,19 @@ function bgItemsEditor(l,i){
       <td><input id="bgI${i}_${j}o" class="bgin" style="width:76px" value="${esc(it.owner||'')}" placeholder="負責人" oninput="${on('owner')}"></td>
       <td><input id="bgI${i}_${j}k" class="bgin" style="width:110px" value="${esc(it.kw||'')}" placeholder="比對關鍵字" title="記帳標題含這些字就算這個細項的實際花費，多個用 | 分隔" oninput="${on('kw')}"></td>
       <td><button class="bgx" title="刪除這個細項" onclick="bgItemDel(${i},${j})">✕</button></td></tr>`; }).join('');
-  return `<div class="bgitw"><table class="tbl bgit"><thead><tr><th>細項</th><th>方式</th><th class="r">金額</th><th>月份</th><th class="r">全年</th><th>狀態</th><th>負責人</th><th>比對關鍵字</th><th></th></tr></thead>
-    <tbody>${rows||`<tr><td colspan="9" class="bgsm" style="padding:10px">還沒有細項。按下方按鈕新增，或用上方「帶入建議細項」。</td></tr>`}</tbody></table>
+  return `<div class="bgitw"><table class="tbl bgit"><thead><tr><th></th><th>細項</th><th>方式</th><th class="r">金額</th><th>月份</th><th class="r">全年</th><th>狀態</th><th>負責人</th><th>比對關鍵字</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="10" class="bgsm" style="padding:10px">還沒有細項。按下方按鈕新增，或用上方「帶入建議細項」。</td></tr>`}</tbody></table>
     <div class="bgitf"><button class="btn bsm bgbtn" onclick="bgItemAdd(${i})">＋ 新增細項</button><span class="bgsm" id="bgE${i}it"></span></div></div>`;
 }
+// v3.32.3 細項拖曳排序（只能在同一個類別內移動；順序跟著 plan 一起存）
+let _bgDrag=null;
+function bgItDragStart(e,i,j){ _bgDrag={i,j}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
+function bgItDragEnd(){ _bgDrag=null; document.querySelectorAll('.bgit tr').forEach(t=>t.classList.remove('bgdrag','bgdrop-a','bgdrop-b')); }
+function bgItDragOver(e,tr){ if(!_bgDrag) return; e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2;
+  tr.classList.toggle('bgdrop-a',up); tr.classList.toggle('bgdrop-b',!up); }
+function bgItDrop(e,i,j,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); if(!d||d.i!==i) return;
+  const r=tr.getBoundingClientRect(); let to=e.clientY<r.top+r.height/2?j:j+1; if(d.j<to) to--; if(to===d.j) return;
+  const its=_bg.cfg.expense[i].items, [m]=its.splice(d.j,1); its.splice(to,0,m); bgRenderEditor(); }
 function bgToggle(i){ const id=_bg.cfg.expense[i].id; _bg.open.has(id)?_bg.open.delete(id):_bg.open.add(id); bgRenderEditor(); }
 function bgToggleAll(){ if(_bg.open.size) _bg.open.clear(); else _bg.cfg.expense.forEach(l=>_bg.open.add(l.id)); bgRenderEditor(); }
 function bgItem(i,j,f,v){ const l=_bg.cfg.expense[i], it=l.items[j];
