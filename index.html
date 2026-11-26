@@ -349,7 +349,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt)
 .bgitr>td{background:#fbf6ef;padding:10px 12px 12px 22px!important}
 .bgitw{min-width:0}
 .bgdh{cursor:grab;color:var(--txt2);font-size:15px;font-weight:700;user-select:none;width:16px;text-align:center;letter-spacing:-2px}.bgdh:active{cursor:grabbing}
-.bgit tr.bgdrag{opacity:.4}.bgit tr.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}
+.bgit tr.bgdrag,tr.bgln.bgdrag{opacity:.4}.bglh{position:absolute;left:4px;top:50%;transform:translateY(-50%)}tr.bgln.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}tr.bgln.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-a td{box-shadow:inset 0 2px 0 var(--acc,#b9693d)}.bgit tr.bgdrop-b td{box-shadow:inset 0 -2px 0 var(--acc,#b9693d)}
 .bgit{font-size:12px;background:var(--sur)}
 .bgit td,.bgit th{padding:6px 6px!important;vertical-align:middle}
 .bgin{padding:4px 6px;border:1px solid var(--bdr);border-radius:6px;font-size:12px;font-family:inherit;background:var(--sur);color:var(--txt)}
@@ -9468,7 +9468,7 @@ function bgRenderEditor(){
     if(l.group!==lastG){ const gi=gList.indexOf(l.group);
       er+=`<tr class="shd"><td colspan="3">${esc(l.group)}${l.sens==='mkt'?' <span class="bgr">員工可見</span>':''}</td><td class="r bggs" id="bgG${gi}y"></td><td class="r bggs bgrefc">${gCell(gRef(l.group,x=>R.amt('expense',x.cats)),R.rev)}</td><td class="r bggs bgrefc">${gCell(gRef(l.group,x=>R.est.line(x)),R.est.rev)}</td></tr>`; lastG=l.group; }
     const its=bgItemsOf(l), nIt=its.filter(x=>x.status!=='cancel').length, open=_bg.open.has(l.id);
-    er+=`<tr><td style="padding-left:22px">${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
+    er+=`<tr class="bgln" ondragover="bgLnDragOver(event,this,${i})" ondragleave="this.classList.remove('bgdrop-a','bgdrop-b')" ondrop="bgLnDrop(event,${i},this)"><td style="padding-left:22px;position:relative"><span class="bgdh bglh" draggable="true" title="按住拖曳調整類別順序（同一組內）" ondragstart="bgLnDragStart(event,${i})" ondragend="bgItDragEnd()">⋮⋮</span>${esc(l.label)}${l.custom?` <button class="bgx" title="刪除這個類別" onclick="bgDelLine(${i},this)">刪除</button>`:''}<div class="bgsm">${l.cats.length?l.cats.map(esc).join('、'):'（尚未對應記帳類別）'}</div>
         <button class="bgtog" aria-expanded="${open}" onclick="bgToggle(${i})">${open?'▾':'▸'} 細項 ${nIt?`<b>${nIt}</b> 項`:'（尚未列）'}</button></td>
       <td><select id="bgE${i}r" onchange="bgEdit('e',${i},'rule',this.value)" style="padding:5px;border:1px solid var(--bdr);border-radius:6px">
         <option value="p" ${l.rule==='p'?'selected':''}>佔營收 %</option><option value="f" ${l.rule==='f'?'selected':''}>年度固定金額</option><option value="i" ${l.rule==='i'?'selected':''}>依細項加總</option></select></td>
@@ -9526,13 +9526,21 @@ function bgItemsEditor(l,i){
 }
 // v3.32.3 細項拖曳排序（只能在同一個類別內移動；順序跟著 plan 一起存）
 let _bgDrag=null;
-function bgItDragStart(e,i,j){ _bgDrag={i,j}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
-function bgItDragEnd(){ _bgDrag=null; document.querySelectorAll('.bgit tr').forEach(t=>t.classList.remove('bgdrag','bgdrop-a','bgdrop-b')); }
-function bgItDragOver(e,tr){ if(!_bgDrag) return; e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2;
+function bgItDragStart(e,i,j){ _bgDrag={t:'it',i,j}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
+function bgItDragEnd(){ _bgDrag=null; document.querySelectorAll('.bgit tr,tr.bgln').forEach(t=>t.classList.remove('bgdrag','bgdrop-a','bgdrop-b')); }
+function bgItDragOver(e,tr){ if(!_bgDrag||_bgDrag.t!=='it') return; e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2;
   tr.classList.toggle('bgdrop-a',up); tr.classList.toggle('bgdrop-b',!up); }
-function bgItDrop(e,i,j,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); if(!d||d.i!==i) return;
+function bgItDrop(e,i,j,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); if(!d||d.t!=="it"||d.i!==i) return;
   const r=tr.getBoundingClientRect(); let to=e.clientY<r.top+r.height/2?j:j+1; if(d.j<to) to--; if(to===d.j) return;
   const its=_bg.cfg.expense[i].items, [m]=its.splice(d.j,1); its.splice(to,0,m); bgRenderEditor(); }
+// v3.32.4 類別拖曳排序（只能在同一組內移動，避免改到類別所屬的組）
+function bgLnDragStart(e,i){ _bgDrag={t:'ln',i}; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',''); const tr=e.target.closest('tr'); e.dataTransfer.setDragImage(tr,10,tr.offsetHeight/2); tr.classList.add('bgdrag'); }catch(_){} }
+function bgLnDragOver(e,tr,i){ const d=_bgDrag; if(!d||d.t!=='ln') return; const ex=_bg.cfg.expense; if(ex[d.i].group!==ex[i].group) return;
+  e.preventDefault(); const r=tr.getBoundingClientRect(), up=e.clientY<r.top+r.height/2; tr.classList.toggle('bgdrop-a',up); tr.classList.toggle('bgdrop-b',!up); }
+function bgLnDrop(e,i,tr){ e.preventDefault(); const d=_bgDrag; bgItDragEnd(); const ex=_bg.cfg.expense;
+  if(!d||d.t!=='ln'||ex[d.i].group!==ex[i].group) return;
+  const r=tr.getBoundingClientRect(); let to=e.clientY<r.top+r.height/2?i:i+1; if(d.i<to) to--; if(to===d.i) return;
+  const [m]=ex.splice(d.i,1); ex.splice(to,0,m); bgRenderEditor(); }
 function bgToggle(i){ const id=_bg.cfg.expense[i].id; _bg.open.has(id)?_bg.open.delete(id):_bg.open.add(id); bgRenderEditor(); }
 function bgToggleAll(){ if(_bg.open.size) _bg.open.clear(); else _bg.cfg.expense.forEach(l=>_bg.open.add(l.id)); bgRenderEditor(); }
 function bgItem(i,j,f,v){ const l=_bg.cfg.expense[i], it=l.items[j];
