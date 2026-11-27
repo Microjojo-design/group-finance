@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>年度路線圖</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f4f9;--sur:#fff;--sur2:#f0f3fa;--bdr:#e2e7f2;
+  --acc:#1a56db;--acc-l:#eff4ff;--ok:#0d9488;--ok-l:#e6f7f5;--warn:#b45309;--warn-l:#fff7e6;--bad:#e11d48;--bad-l:#fff1f4;
+  --txt:#181d32;--txt2:#4a5480;--txt3:#8a93ae;
+  --p-line:#06a35a;--p-ads:#1a56db;--p-product:#9333ea;--p-channel:#d97706;--p-ai:#0e7490;
+  --sh:0 1px 4px rgba(24,29,50,.07);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;min-height:100vh}
+.mono{font-family:'DM Mono',monospace}
+button,select,input,textarea{font:inherit;color:inherit}
+.btn{border:1px solid var(--bdr);background:var(--sur);border-radius:8px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.pri:hover{opacity:.9;color:#fff}
+.btn.dng{color:var(--bad)}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 16px 60px}
+/* login */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#090f1f,#162040 45%,#090f1f);padding:16px}
+.lbox{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:28px;width:100%;max-width:380px;color:#fff}
+.lbox h1{font-size:20px;margin-bottom:4px}.lbox p{color:#aab3d0;font-size:13px;margin-bottom:18px}
+.lbox input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:#fff;margin-bottom:10px}
+.lbox button{width:100%;padding:10px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:700;cursor:pointer}
+.lerr{color:#fda4af;font-size:13px;min-height:18px;margin-top:8px}
+/* header */
+.hd{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:6px}
+.hd h1{font-size:22px;font-weight:900}
+.hd .r{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sub{color:var(--txt3);font-size:12px;margin-bottom:16px}
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:14px;box-shadow:var(--sh);padding:18px;margin-bottom:16px;min-width:0}
+.ct{font-weight:700;font-size:15px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ct small{font-weight:400;color:var(--txt3);font-size:12px}
+.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.kc{background:var(--sur);border:1px solid var(--bdr);border-radius:14px;padding:14px 16px;box-shadow:var(--sh)}
+.kl{font-size:12px;color:var(--txt2)}.kv{font-size:22px;font-weight:700;margin:4px 0}.kn{font-size:12px;color:var(--txt3)}
+.chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;white-space:nowrap;font-weight:500}
+.s-ok{background:var(--ok-l);color:var(--ok)}.s-watch{background:var(--warn-l);color:var(--warn)}.s-behind{background:var(--bad-l);color:var(--bad)}.s-nodata{background:var(--sur2);color:var(--txt3)}
+.st-todo{background:var(--sur2);color:var(--txt2)}.st-doing{background:var(--acc-l);color:var(--acc)}.st-done{background:var(--ok-l);color:var(--ok)}.st-risk{background:var(--bad-l);color:var(--bad)}.st-drop{background:var(--sur2);color:var(--txt3);text-decoration:line-through}
+/* alerts */
+.al{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px dashed var(--bdr);font-size:13px}
+.al:first-child{border-top:0}
+.al .dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none}
+.al-alert .dot{background:var(--bad)}.al-warn .dot{background:var(--warn)}.al-info .dot{background:var(--acc)}
+/* pillars */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border:1px solid var(--bdr);background:var(--sur);border-radius:999px;padding:6px 14px;cursor:pointer;font-size:13px}
+.tab.on{background:var(--txt);color:#fff;border-color:var(--txt)}
+.pl{border-left:4px solid var(--pc,var(--acc))}
+.pdesc{color:var(--txt2);font-size:13px;line-height:1.7;margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+.g2>*{min-width:0}
+@media(max-width:860px){.g2{grid-template-columns:1fr}}
+.sec{font-size:12px;font-weight:700;color:var(--txt2);margin:10px 0 6px;letter-spacing:.04em}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;color:var(--txt3);font-weight:500;text-align:left;padding:6px 6px;border-bottom:1px solid var(--bdr);white-space:nowrap}
+td{padding:8px 6px;border-bottom:1px solid var(--sur2);vertical-align:middle}
+.r{text-align:right}.nw{white-space:nowrap}
+.tw{overflow-x:auto}
+.tw table{min-width:520px}
+.kt{font-weight:500}.kd{font-size:11px;color:var(--txt3);margin-top:2px;line-height:1.5}
+.ms{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--sur2)}
+.ms:last-child{border-bottom:0}
+.ms .q{font-size:11px;color:var(--txt3);width:62px;flex:none;padding-top:2px}
+.ms .b{flex:1;min-width:0}.ms .t{font-weight:500}.ms .d{font-size:12px;color:var(--txt3);margin-top:2px}
+.ms .od{color:var(--bad);font-size:11px;margin-left:4px}
+.ms select{font-size:12px;border:1px solid var(--bdr);border-radius:6px;padding:2px 4px;background:var(--sur)}
+.ckp{font-size:10px;border:1px solid var(--warn);color:var(--warn);border-radius:4px;padding:0 4px;margin-right:4px}
+.ed{border:0;background:none;color:var(--txt3);cursor:pointer;font-size:12px;padding:0 4px}
+.ed:hover{color:var(--acc)}
+/* timeline */
+.tl{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tl>*{min-width:0}
+@media(max-width:860px){.tl{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tl{grid-template-columns:1fr}}
+.tq{background:var(--sur2);border-radius:10px;padding:10px}
+.tq h4{font-size:13px;margin-bottom:8px;display:flex;justify-content:space-between}
+.ti{background:var(--sur);border-radius:8px;padding:7px 9px;margin-bottom:6px;font-size:12px;border-left:3px solid var(--pc);line-height:1.5}
+.ti .m{color:var(--txt3);font-size:11px}
+.ti.done{opacity:.55}.ti.done .tt{text-decoration:line-through}
+/* bars */
+.meter{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--sur2);vertical-align:middle;position:relative;overflow:hidden;margin-right:6px}
+.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.chart svg{width:100%;height:auto;display:block}
+.lg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--txt2);margin-top:6px}
+.lg span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+.empty{color:var(--txt3);font-size:13px;padding:10px 0}
+.note{padding:10px 0;border-top:1px solid var(--sur2);font-size:13px}
+.note:first-child{border-top:0}
+.note .h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.note .bd{color:var(--txt2);margin-top:4px;white-space:pre-wrap;line-height:1.6}
+/* modal */
+.mo{position:fixed;inset:0;background:rgba(10,15,30,.45);display:none;align-items:flex-start;justify-content:center;padding:30px 12px;overflow-y:auto;z-index:50}
+.mo.on{display:flex}
+.mb{background:var(--sur);border-radius:14px;width:100%;max-width:560px;padding:20px}
+.mb h3{margin-bottom:12px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fg>label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--txt2);min-width:0}
+.fg .full{grid-column:1/-1}
+.fg input,.fg select,.fg textarea{border:1px solid var(--bdr);border-radius:8px;padding:7px 9px;background:var(--sur);width:100%}
+.fg textarea{min-height:64px;resize:vertical}
+.bls{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;border:1px solid var(--bdr);border-radius:8px;padding:8px}
+.bls label{font-size:12px;display:flex;gap:4px;align-items:center;background:var(--sur2);border-radius:6px;padding:2px 6px}
+.mf{display:flex;justify-content:space-between;gap:8px;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--txt);color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;display:none;z-index:60}
+.lock{font-size:12px;color:var(--txt3);margin-top:6px}
+@media print{.hd .r,.btn,.ed,.tabs{display:none!important}.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="lbox">
+    <h1>年度路線圖</h1>
+    <p>使用集團收支系統的帳號登入</p>
+    <input id="lEmail" type="email" placeholder="電子郵件" autocomplete="username">
+    <input id="lPwd" type="password" placeholder="密碼" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button id="lBtn" onclick="doLogin()">登入</button>
+    <div class="lerr" id="lErr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="wrap">
+    <div class="hd">
+      <h1 id="hTitle">蒔心田 路線圖</h1>
+      <div class="r">
+        <select id="ySel" class="btn" onchange="load()"></select>
+        <button class="btn" onclick="load()">重新整理</button>
+        <button class="btn pri" id="addBtn" style="display:none" onclick="openEdit()">＋ 新增項目</button>
+        <a class="btn" href="./" style="text-decoration:none">回收支系統</a>
+        <button class="btn" onclick="logout()">登出</button>
+      </div>
+    </div>
+    <div class="sub" id="hSub"></div>
+    <div id="body"><div class="empty">載入中…</div></div>
+  </div>
+</div>
+
+<div class="mo" id="mo" onclick="if(event.target===this)closeEdit()"><div class="mb" id="moBox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL="https://dqxdgxbebumxtbyvbxkn.supabase.co";
+const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxeGRneGJlYnVteHRieXZieGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDEwMzMsImV4cCI6MjA5MTUxNzAzM30.PF-nVLU6oFcsArQveJF6jhdrN4LnYfzug3-SgCa0n5o";
+const CO='shixin', CO_NAME='蒔心田';
+let TOK=null, RT=null, D=null, PILLAR=null;
+
+const PCOL={line:'var(--p-line)',ads:'var(--p-ads)',product:'var(--p-product)',channel:'var(--p-channel)',ai:'var(--p-ai)'};
+const ST={todo:'未開始',doing:'進行中',done:'完成',risk:'有風險',drop:'取消'};
+const KS={ok:'達標',watch:'留意',behind:'落後',nodata:'尚無資料'};
+const KIND={pillar:'主軸',kpi:'指標',milestone:'里程碑',checkpoint:'檢查點'};
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmt(n){return n==null||isNaN(n)?'—':Math.round(+n).toLocaleString('en-US');}
+function pct(r,d=0){return r==null||isNaN(r)?'—':(r*100).toFixed(d)+'%';}
+function wan(n){return n==null?'—':(n/10000).toLocaleString('en-US',{maximumFractionDigits:1})+' 萬';}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2600);}
+function kval(k,v){ if(v==null) return '—'; if(k.unit==='') return pct(v,1); if(k.unit==='元') return fmt(v)+' 元'; return (+v).toLocaleString('en-US',{maximumFractionDigits:2})+' '+esc(k.unit); }
+
+// ---------- auth ----------
+async function authReq(body,grant){
+  const r=await fetch(SB_URL+'/auth/v1/token?grant_type='+grant,{method:'POST',headers:{apikey:SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error('auth'); const d=await r.json(); TOK=d.access_token; RT=d.refresh_token;
+  try{sessionStorage.setItem('rm_rt',RT);}catch(e){}
+}
+async function doLogin(){
+  const e=document.getElementById('lEmail').value.trim().toLowerCase(), p=document.getElementById('lPwd').value, err=document.getElementById('lErr'), b=document.getElementById('lBtn');
+  if(!e||!p){err.textContent='請填寫電子郵件與密碼';return;}
+  b.disabled=true;b.textContent='登入中…';err.textContent='';
+  try{ await authReq({email:e,password:p},'password'); enter(); }
+  catch(x){ err.textContent='電子郵件或密碼錯誤'; }
+  b.disabled=false;b.textContent='登入';
+}
+function logout(){ TOK=RT=null; try{sessionStorage.removeItem('rm_rt');}catch(e){} location.reload(); }
+setInterval(async()=>{ if(RT) try{ await authReq({refresh_token:RT},'refresh_token'); }catch(e){} },40*60*1000);
+async function sb(path,method='GET',body=null){
+  const r=await fetch(SB_URL+'/rest/v1/'+path,{method,headers:{apikey:SB_KEY,Authorization:'Bearer '+TOK,'Content-Type':'application/json',Prefer:'return=representation'},body:body?JSON.stringify(body):null});
+  const t=await r.text(); if(!r.ok) throw new Error(t); return t?JSON.parse(t):[];
+}
+function enter(){
+  document.getElementById('login').style.display='none'; document.getElementById('app').style.display='block';
+  const ys=document.getElementById('ySel'), now=new Date().getFullYear();
+  if(!ys.options.length){ for(const y of [now+1,now]) ys.add(new Option(y+' 年',y)); }
+  load();
+}
+
+// ---------- data ----------
+async function load(){
+  const y=+document.getElementById('ySel').value;
+  document.getElementById('body').innerHTML='<div class="empty">載入中…</div>';
+  try{ D=await sb('rpc/roadmap_snapshot','POST',{p_co:CO,p_year:y}); }
+  catch(e){
+    const m=String(e.message||e);
+    if(/JWT|expired/i.test(m)&&RT){ try{ await authReq({refresh_token:RT},'refresh_token'); return load(); }catch(x){} }
+    document.getElementById('body').innerHTML=`<div class="card">讀取失敗：${esc(/forbidden/.test(m)?'這個帳號沒有路線圖權限':m.slice(0,160))}</div>`; return;
+  }
+  render();
+}
+
+// ---------- render ----------
+function render(){
+  const full=D.level==='full', y=D.year;
+  document.getElementById('hTitle').textContent=`${CO_NAME} ${y} 年度路線圖`;
+  document.getElementById('addBtn').style.display=D.can_edit?'':'none';
+  document.getElementById('hSub').innerHTML=`更新時間 ${esc(String(D.generated_at).slice(0,16).replace('T',' '))} · 時間進度 ${pct(D.pace)} · 記帳官網營收入帳到 <b>${esc(D.ledger_web_cutoff||'—')}</b>（約晚 2 個月）· 官網即時數字來自 Shopline 後台`+(full?'':' · 🔒 員工版：營收只顯示達成率');
+  const pillars=D.items.filter(i=>i.kind==='pillar');
+  if(!PILLAR||!pillars.some(p=>p.pillar===PILLAR)) PILLAR=pillars[0]?.pillar||null;
+  document.getElementById('body').innerHTML =
+    overviewHTML(full) + alertsHTML() +
+    (pillars.length?`<div class="tabs">${pillars.map(p=>`<button class="tab ${p.pillar===PILLAR?'on':''}" onclick="PILLAR='${esc(p.pillar)}';render()" style="${p.pillar===PILLAR?'':'border-left:4px solid '+(PCOL[p.pillar]||'var(--acc)')}">${esc(p.title)}</button>`).join('')}</div>`+pillarHTML(pillars.find(p=>p.pillar===PILLAR)):`<div class="card empty">${y} 年還沒有路線圖項目${D.can_edit?'，按右上「＋ 新增項目」開始。':'。'}</div>`) +
+    timelineHTML() + channelHTML(full) + spendHTML() + notesHTML();
+}
+
+function overviewHTML(full){
+  const R=D.revenue||{};
+  if(!D.has_plan) return `<div class="card">⚠️ ${D.year} 年度預算尚未建立，營收與預算對照無法顯示。</div>`;
+  if(!full) return `<div class="kg">
+    <div class="kc"><div class="kl">年度營收達成率</div><div class="kv">${pct(R.ratio_ytd,1)}</div><div class="kn">時間進度 ${pct(D.pace)}</div></div>
+    <div class="kc"><div class="kl">已入帳月份 vs 應達進度</div><div class="kv">${pct(R.ratio_cut_vs_pace,0)}</div><div class="kn">100% = 剛好跟上</div></div></div>`;
+  const web=(R.web_live_months||[]).reduce((s,v)=>s+(+v||0),0);
+  const rc=D.rev_cut, onPace=R.expected_cut?R.actual_cut/R.expected_cut:null;
+  return `<div class="kg">
+    <div class="kc"><div class="kl">年度營收目標</div><div class="kv">${wan(R.target)}</div><div class="kn">時間進度 ${pct(D.pace)}，應達 ${wan(R.expected_ytd)}</div></div>
+    <div class="kc"><div class="kl">已入帳營收（1–${rc} 月）</div><div class="kv">${wan(R.actual_cut)}</div><div class="kn">同期應達 ${wan(R.expected_cut)} · <span class="chip ${onPace==null?'s-nodata':onPace>=1?'s-ok':onPace>=.9?'s-watch':'s-behind'}">${onPace==null?'尚無資料':'進度 '+pct(onPace)}</span></div></div>
+    <div class="kc"><div class="kl">官網即時營收（Shopline，今年累計）</div><div class="kv">${wan(web)}</div><div class="kn">官網年度目標 ${wan((D.channels.find(c=>c.id==='web')||{}).budget_year)}</div></div>
+    <div class="kc"><div class="kl">目前警示</div><div class="kv">${D.alerts.filter(a=>a.level==='alert').length} <span style="font-size:13px;color:var(--txt3)">紅 ／ ${D.alerts.filter(a=>a.level==='warn').length} 黃</span></div><div class="kn">見下方清單</div></div>
+  </div>
+  <div class="card"><div class="ct">每月營收：預算 vs 實際<small>灰＝預算　藍＝已入帳　綠線＝官網即時（Shopline）　虛線＝去年官網</small></div><div class="chart">${monthChart(R)}</div></div>`;
+}
+function monthChart(R){
+  const B=R.budget_months||[],A=R.actual_months||[],W=R.web_live_months||[],P=R.web_live_prev||[];
+  const mx=Math.max(1,...B,...A,...W.map(v=>+v||0),...P.map(v=>+v||0))*1.1, w=720,h=220,pl=46,pb=22,cw=(w-pl-8)/12,yv=v=>h-pb-(v/mx)*(h-pb-10);
+  let s=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="每月營收預算與實際">`;
+  for(let k=0;k<=4;k++){const v=mx/4*k,yy=yv(v);s+=`<line x1="${pl}" x2="${w-8}" y1="${yy}" y2="${yy}" stroke="#e2e7f2"/><text x="${pl-6}" y="${yy+4}" font-size="10" text-anchor="end" fill="#8a93ae">${Math.round(v/10000)}萬</text>`;}
+  for(let i=0;i<12;i++){const x=pl+i*cw;
+    s+=`<rect x="${x+cw*.12}" y="${yv(B[i]||0)}" width="${cw*.36}" height="${h-pb-yv(B[i]||0)}" fill="#d5dbe8" rx="2"><title>${i+1}月預算 ${fmt(B[i])}</title></rect>`;
+    if(i<D.rev_cut) s+=`<rect x="${x+cw*.5}" y="${yv(A[i]||0)}" width="${cw*.36}" height="${h-pb-yv(A[i]||0)}" fill="#1a56db" rx="2"><title>${i+1}月已入帳 ${fmt(A[i])}</title></rect>`;
+    s+=`<text x="${x+cw/2}" y="${h-6}" font-size="10" text-anchor="middle" fill="#8a93ae">${i+1}月</text>`;}
+  const line=(arr,col,dash)=>{const pts=arr.map((v,i)=>v==null?null:`${pl+i*cw+cw/2},${yv(+v)}`);let seg=[],out='';pts.forEach(p=>{if(p)seg.push(p);else{if(seg.length)out+=`<polyline points="${seg.join(' ')}" fill="none" stroke="${col}" stroke-width="2" ${dash?'stroke-dasharray="4 3"':''}/>`;seg=[];}});if(seg.length)out+=`<polyline points="${seg.join(' ')}" fill="none" stroke="${col}" stroke-width="2" ${dash?'stroke-dasharray="4 3"':''}/>`;arr.forEach((v,i)=>{if(v!=null&&!dash)out+=`<circle cx="${pl+i*cw+cw/2}" cy="${yv(+v)}" r="3" fill="${col}"><title>${i+1}月官網即時 ${fmt(v)}</title></circle>`;});return out;};
+  s+=line(P,'#9aa3be',true)+line(W,'#0d9488',false);
+  return s+'</svg>';
+}
+function alertsHTML(){
+  const A=D.alerts; if(!A.length) return `<div class="card"><div class="ct">警示</div><div class="empty">目前沒有警示 👍</div></div>`;
+  const sorted=[...A].sort((a,b)=>(a.level==='alert'?0:1)-(b.level==='alert'?0:1));
+  const show=sorted.slice(0,8), more=sorted.length-show.length;
+  return `<div class="card"><div class="ct">警示 <small>系統依指標目標、到期日、預算自動判斷；Grok bot 也讀同一份</small></div>
+    <div id="alList">${show.map(alHTML).join('')}</div>
+    ${more>0?`<button class="btn" style="margin-top:8px" onclick="document.getElementById('alList').innerHTML=D.alerts.slice().sort((a,b)=>(a.level==='alert'?0:1)-(b.level==='alert'?0:1)).map(alHTML).join('');this.remove()">顯示其餘 ${more} 則</button>`:''}</div>`;
+}
+function alHTML(a){return `<div class="al al-${esc(a.level)}"><span class="dot"></span><span>${esc(a.msg)}</span></div>`;}
+
+function spark(k){
+  const s=k.series, p=k.prev_series; if(!s) return '';
+  const vals=[...s,...(p||[])].filter(v=>v!=null).map(Number); if(k.target!=null&&k.basis!=='year') vals.push(+k.target);
+  if(!vals.length) return '<span class="kd">—</span>';
+  const mn=Math.min(0,...vals), mx=Math.max(...vals)||1, w=110,h=30, X=i=>2+i*(w-4)/11, Y=v=>h-2-(v-mn)/(mx-mn||1)*(h-4);
+  const pl=a=>{let o='',seg=[];(a||[]).forEach((v,i)=>{if(v==null){if(seg.length>1)o+=seg.join(' ')+'|';seg=[];}else seg.push(`${X(i).toFixed(1)},${Y(+v).toFixed(1)}`);});if(seg.length)o+=seg.join(' ');return o.split('|').filter(Boolean);};
+  let g=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`;
+  if(k.target!=null&&k.basis!=='year') g+=`<line x1="0" x2="${w}" y1="${Y(+k.target)}" y2="${Y(+k.target)}" stroke="#0d9488" stroke-dasharray="2 2" stroke-width="1"/>`;
+  pl(p).forEach(q=>g+=`<polyline points="${q}" fill="none" stroke="#c3c9d8" stroke-width="1.5"/>`);
+  pl(s).forEach(q=>g+=`<polyline points="${q}" fill="none" stroke="#1a56db" stroke-width="2"/>`);
+  return g+'</svg>';
+}
+function blHTML(ids){
+  if(!ids||!ids.length) return '';
+  const rows=ids.map(id=>D.spend.find(s=>s.id===id)).filter(Boolean);
+  if(!rows.length) return '';
+  return `<div class="sec">對應預算</div><div class="tw"><table><thead><tr><th>預算項目</th><th class="r">年度預算</th><th class="r">累計預算</th><th class="r">累計實際</th><th class="r">使用率</th></tr></thead><tbody>${rows.map(s=>`<tr><td>${esc(s.label)}</td><td class="r mono">${fmt(s.budget_year)}</td><td class="r mono">${fmt(s.budget_cut)}</td><td class="r mono">${fmt(s.actual_cut)}</td><td class="r nw">${meter(s.ratio_cut)}${pct(s.ratio_cut)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function meter(r){ if(r==null) return ''; const c=r>1.15?'var(--bad)':r>1?'var(--warn)':'var(--ok)'; return `<span class="meter"><i style="width:${Math.min(100,r*100)}%;background:${c}"></i></span>`; }
+function msRow(i){
+  const ed=D.can_edit;
+  return `<div class="ms"><div class="q">Q${i.quarter||'—'}${i.due?`<br>${esc(i.due.slice(5).replace('-','/'))}`:''}</div>
+    <div class="b"><div class="t">${i.kind==='checkpoint'?'<span class="ckp">檢查點</span>':''}${esc(i.title)}${i.overdue?'<span class="od">逾期</span>':''}${ed?` <button class="ed" title="編輯" onclick="openEdit('${i.id}')">✎</button>`:''}</div>
+    ${i.detail?`<div class="d">${esc(i.detail)}</div>`:''}${i.owner?`<div class="d">負責：${esc(i.owner)}</div>`:''}</div>
+    <div>${ed?`<select onchange="setStatus('${i.id}',this.value)">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k===i.status?'selected':''}>${v}</option>`).join('')}</select>`:`<span class="chip st-${esc(i.status)}">${ST[i.status]||esc(i.status)}</span>`}</div></div>`;
+}
+function pillarHTML(p){
+  const kp=D.kpis.filter(k=>k.pillar===p.pillar), ms=D.items.filter(i=>i.pillar===p.pillar&&i.kind!=='pillar');
+  const done=ms.filter(i=>i.status==='done').length;
+  const kr=kp.map(k=>`<tr><td><div class="kt">${esc(k.title)}${D.can_edit?` <button class="ed" onclick="openKpi('${k.id}')">✎</button>`:''}</div>${k.detail?`<div class="kd">${esc(k.detail)}</div>`:''}</td>
+    <td class="r nw mono">${k.masked?pct(k.ratio)+'<div class="kd">達成率</div>':kval(k,k.value)+(k.month?`<div class="kd">${k.basis==='year'?'1–'+k.month+' 月累計':k.month+' 月'}</div>`:'')}</td>
+    <td class="r nw mono">${k.masked?'—':kval(k,k.basis==='year'?k.expected:k.target)+(k.basis==='year'?'<div class="kd">依進度應達</div>':'')}${k.dir==='down'&&!k.masked?'<div class="kd">越低越好</div>':''}</td>
+    <td>${k.masked?'':spark(k)}</td><td><span class="chip s-${esc(k.status)}">${KS[k.status]||esc(k.status)}</span></td></tr>`).join('');
+  return `<div class="card pl" style="--pc:${PCOL[p.pillar]||'var(--acc)'}">
+    <div class="ct"><span>${esc(p.title)}${D.can_edit?` <button class="ed" onclick="openEdit('${p.id}')">✎</button>`:''}</span><small>里程碑 ${done}/${ms.length} 完成</small></div>
+    ${p.detail?`<div class="pdesc">${esc(p.detail)}</div>`:''}
+    <div class="g2"><div>
+      <div class="sec">成效指標</div>
+      ${kp.length?`<div class="tw"><table><thead><tr><th>指標</th><th class="r">目前</th><th class="r">目標</th><th>走勢（藍＝今年 灰＝去年）</th><th>狀態</th></tr></thead><tbody>${kr}</tbody></table></div>`:'<div class="empty">尚無指標</div>'}
+      ${blHTML(p.budget_lines)}
+    </div><div>
+      <div class="sec">里程碑與檢查點</div>
+      ${ms.length?ms.map(msRow).join(''):'<div class="empty">尚無項目</div>'}
+    </div></div></div>`;
+}
+function timelineHTML(){
+  const ms=D.items.filter(i=>i.kind!=='pillar'); if(!ms.length) return '';
+  const pt=Object.fromEntries(D.items.filter(i=>i.kind==='pillar').map(p=>[p.pillar,p.title]));
+  const col=q=>{const L=ms.filter(i=>i.quarter===q); return `<div class="tq"><h4><span>Q${q}</span><small style="color:var(--txt3);font-weight:400">${L.filter(i=>i.status==='done').length}/${L.length}</small></h4>${L.map(i=>`<div class="ti ${i.status==='done'?'done':''}" style="--pc:${PCOL[i.pillar]||'var(--acc)'}"><div class="tt">${i.kind==='checkpoint'?'🚩 ':''}${esc(i.title)}</div><div class="m">${esc(pt[i.pillar]||i.pillar)} · ${i.due?esc(i.due.slice(5).replace('-','/')):''} · <span class="chip st-${esc(i.status)}" style="padding:0 6px">${ST[i.status]}</span>${i.overdue?' <b style="color:var(--bad)">逾期</b>':''}</div></div>`).join('')||'<div class="empty">—</div>'}</div>`;};
+  return `<div class="card"><div class="ct">季度時間軸 <small>🚩＝檢查點（要做決定的時間點）</small></div><div class="tl">${[1,2,3,4].map(col).join('')}</div></div>`;
+}
+function channelHTML(full){
+  if(!D.channels.length) return '';
+  const rc=D.rev_cut;
+  const rows=D.channels.map(c=>{const r=c.ratio_cut, s=r==null?'s-nodata':r>=1?'s-ok':r>=.85?'s-watch':'s-behind';
+    return full?`<tr><td>${esc(c.label)}</td><td class="r">${c.share??''}%</td><td class="r mono">${fmt(c.budget_year)}</td><td class="r mono">${fmt(c.budget_cut)}</td><td class="r mono">${fmt(c.actual_cut)}</td><td class="r nw">${meter(r)}${pct(r)}</td><td><span class="chip ${s}">${r==null?'尚無資料':KS[s.slice(2)]}</span></td></tr>`
+      :`<tr><td>${esc(c.label)}</td><td class="r">${c.share??''}%</td><td class="r nw">${meter(r)}${pct(r)}</td><td class="r">${pct(c.ratio_year)}</td><td><span class="chip ${s}">${r==null?'尚無資料':KS[s.slice(2)]}</span></td></tr>`;}).join('');
+  return `<div class="card"><div class="ct">通路對照：預算 vs 實際<small>比到記帳已入帳的 1–${rc} 月</small></div><div class="tw"><table><thead><tr>${full?'<th>通路</th><th class="r">佔比</th><th class="r">年度預算</th><th class="r">同期預算</th><th class="r">同期實際</th><th class="r">達成</th><th>狀態</th>':'<th>通路</th><th class="r">佔比</th><th class="r">同期達成</th><th class="r">年度達成</th><th>狀態</th>'}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+function spendHTML(){
+  const S=D.spend.filter(s=>s.group==='行銷推廣'||s.group==='香港市場'||s.group==='新品投資'); if(!S.length) return '';
+  return `<div class="card"><div class="ct">行銷與新品預算使用<small>1–${D.current_month} 月</small></div><div class="tw"><table><thead><tr><th>項目</th><th class="r">年度預算</th><th class="r">累計預算</th><th class="r">累計實際</th><th class="r">使用率</th><th class="r">全年剩餘</th></tr></thead><tbody>${S.map(s=>`<tr><td>${esc(s.label)}</td><td class="r mono">${fmt(s.budget_year)}</td><td class="r mono">${fmt(s.budget_cut)}</td><td class="r mono">${fmt(s.actual_cut)}</td><td class="r nw">${meter(s.ratio_cut)}${pct(s.ratio_cut)}</td><td class="r mono">${fmt(s.budget_year-s.actual_year)}</td></tr>`).join('')}</tbody></table></div>${D.level==='full'?'':'<div class="lock">🔒 成本、人事、物流、金流僅主管可見。</div>'}</div>`;
+}
+function notesHTML(){
+  const N=D.notes||[];
+  return `<div class="card"><div class="ct">判斷與紀錄 <small>Grok bot 的判斷與主管備註</small>${D.can_edit?'<button class="btn" onclick="openNote()">＋ 新增備註</button>':''}</div>
+    ${N.length?N.map(n=>`<div class="note"><div class="h"><span class="chip ${n.level==='alert'?'s-behind':n.level==='warn'?'s-watch':'st-doing'}">${n.source==='bot'?'🤖 Bot':'✍️ '+esc(n.created_by||'主管')}</span><b>${esc(n.title)}</b><small style="color:var(--txt3)">${esc(String(n.created_at).slice(0,16).replace('T',' '))}</small>${D.can_edit?`<button class="ed" onclick="delNote('${n.id}')">刪除</button>`:''}</div>${n.body?`<div class="bd">${esc(n.body)}</div>`:''}</div>`).join(''):'<div class="empty">還沒有紀錄。</div>'}</div>`;
+}
+
+// ---------- edit（只有 Mark；RLS 也只放行 Mark） ----------
+async function setStatus(id,st){
+  try{ const r=await sb(`roadmap_items?id=eq.${id}`,'PATCH',{status:st,updated_at:new Date().toISOString(),updated_by:'Mark'}); if(!r.length) throw new Error('沒有權限'); toast('已更新'); load(); }
+  catch(e){ toast('更新失敗：'+String(e.message).slice(0,60)); }
+}
+const UNITS=[['','%（比例）'],['元','元'],['人','人'],['倍','倍'],['筆','筆']];
+function openKpi(id){ openEdit(id,'kpi'); }
+async function openEdit(id,kindHint){
+  let it=null;
+  if(id){ const r=await sb(`roadmap_items?id=eq.${id}&select=*`); it=r[0]; if(!it){toast('找不到項目');return;} }
+  it=it||{pillar:PILLAR||'',kind:kindHint||'milestone',title:'',detail:'',quarter:1,due:'',owner:'',status:'todo',metric:'',basis:'month',target:null,warn:null,unit:'',dir:'up',budget_lines:[],staff_visible:true,sort:0};
+  const pillars=D.items.filter(i=>i.kind==='pillar'), isPct=it.unit==='';
+  const cat=Object.keys(D.metric_catalog||{});
+  const bl=(D.budget_lines||[]).filter(l=>l.kind!=='income');
+  const pv=v=>v==null?'':(isPct&&it.kind==='kpi'?+(v*100).toFixed(4):v);
+  document.getElementById('moBox').innerHTML=`<h3>${id?'編輯':'新增'}項目</h3>
+  <div class="fg">
+    <label>類型<select id="fKind" onchange="kindSwitch()">${Object.entries(KIND).map(([k,v])=>`<option value="${k}" ${k===it.kind?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label>主軸<select id="fPillar" ${it.kind==='pillar'?'disabled':''}>${pillars.map(p=>`<option value="${esc(p.pillar)}" ${p.pillar===it.pillar?'selected':''}>${esc(p.title)}</option>`).join('')}</select></label>
+    <label class="full">名稱<input id="fTitle" value="${esc(it.title)}"></label>
+    <label class="full">說明<textarea id="fDetail">${esc(it.detail)}</textarea></label>
+    <div class="full fg" id="grpMs" style="grid-template-columns:repeat(3,1fr)">
+      <label>季度<select id="fQ">${[1,2,3,4].map(q=>`<option ${q===it.quarter?'selected':''}>${q}</option>`).join('')}</select></label>
+      <label>到期日<input id="fDue" type="date" value="${esc(it.due||'')}"></label>
+      <label>狀態<select id="fSt">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k===it.status?'selected':''}>${v}</option>`).join('')}</select></label>
+      <label class="full">負責人<input id="fOwner" value="${esc(it.owner)}"></label>
+    </div>
+    <div class="full fg" id="grpKpi">
+      <label class="full">指標代碼<input id="fMetric" list="mList" value="${esc(it.metric||'')}" placeholder="例如 returning_customers、prod_share:悅敏捷"><datalist id="mList">${cat.map(c=>`<option value="${esc(c)}">${esc(D.metric_catalog[c])}</option>`).join('')}</datalist></label>
+      <label>比較方式<select id="fBasis"><option value="month" ${it.basis==='month'?'selected':''}>看最近完整月份</option><option value="year" ${it.basis==='year'?'selected':''}>年度累計 × 時間進度</option></select></label>
+      <label>單位<select id="fUnit">${UNITS.map(([k,v])=>`<option value="${k}" ${k===it.unit?'selected':''}>${v}</option>`).join('')}</select></label>
+      <label>目標<input id="fTarget" type="number" step="any" value="${pv(it.target)}"></label>
+      <label>警戒值<input id="fWarn" type="number" step="any" value="${pv(it.warn)}"></label>
+      <label>方向<select id="fDir"><option value="up" ${it.dir==='up'?'selected':''}>越高越好</option><option value="down" ${it.dir==='down'?'selected':''}>越低越好</option></select></label>
+      <div class="kd full">單位選「%」時，目標與警戒值請填百分比數字（例如 45 代表 45%）。</div>
+    </div>
+    <label class="full">對應預算項目<div class="bls">${bl.map(l=>`<label><input type="checkbox" class="fBl" value="${esc(l.id)}" ${(it.budget_lines||[]).includes(l.id)?'checked':''}>${esc(l.label)}</label>`).join('')||'<span class="kd">此年度無預算</span>'}</div></label>
+    <label>排序<input id="fSort" type="number" value="${it.sort||0}"></label>
+    <label style="flex-direction:row;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" id="fStaff" ${it.staff_visible?'checked':''}>員工看得到</label>
+  </div>
+  <div class="mf"><div>${id?`<button class="btn dng" onclick="delItem('${id}')">刪除</button>`:''}</div><div style="display:flex;gap:8px"><button class="btn" onclick="closeEdit()">取消</button><button class="btn pri" onclick="saveItem('${id||''}')">儲存</button></div></div>`;
+  document.getElementById('mo').classList.add('on'); kindSwitch();
+}
+function kindSwitch(){ const k=document.getElementById('fKind').value;
+  document.getElementById('grpMs').style.display=(k==='milestone'||k==='checkpoint')?'grid':'none';
+  document.getElementById('grpKpi').style.display=k==='kpi'?'grid':'none';
+  document.getElementById('fPillar').disabled=k==='pillar'; }
+function closeEdit(){ document.getElementById('mo').classList.remove('on'); }
+async function saveItem(id){
+  const g=x=>document.getElementById(x), k=g('fKind').value, unit=g('fUnit').value;
+  const num=v=>v===''?null:(k==='kpi'&&unit===''?+v/100:+v);
+  const title=g('fTitle').value.trim(); if(!title){toast('請填名稱');return;}
+  let pillar=g('fPillar').value;
+  if(k==='pillar'){ pillar=id?(D.items.find(i=>i.id===id)||{}).pillar:('p'+Date.now().toString(36)); }
+  const row={co:CO,year:D.year,kind:k,pillar,title,detail:g('fDetail').value.trim(),sort:+g('fSort').value||0,staff_visible:g('fStaff').checked,
+    budget_lines:[...document.querySelectorAll('.fBl:checked')].map(x=>x.value),updated_at:new Date().toISOString(),updated_by:'Mark'};
+  if(k==='milestone'||k==='checkpoint') Object.assign(row,{quarter:+g('fQ').value,due:g('fDue').value||null,status:g('fSt').value,owner:g('fOwner').value.trim()});
+  if(k==='kpi'){ const m=g('fMetric').value.trim(); if(!m){toast('請填指標代碼');return;}
+    Object.assign(row,{metric:m,basis:g('fBasis').value,unit,target:num(g('fTarget').value),warn:num(g('fWarn').value),dir:g('fDir').value}); }
+  try{ const r=id?await sb(`roadmap_items?id=eq.${id}`,'PATCH',row):await sb('roadmap_items','POST',row); if(!r.length) throw new Error('沒有權限');
+    closeEdit(); toast('已儲存'); load(); }
+  catch(e){ toast('儲存失敗：'+String(e.message).slice(0,80)); }
+}
+async function delItem(id){
+  const it=D.items.find(i=>i.id===id)||D.kpis.find(i=>i.id===id);
+  if(it&&it.kind==='pillar'&&D.items.some(i=>i.pillar===it.pillar&&i.kind!=='pillar')){toast('這個主軸底下還有項目，請先移走或刪除');return;}
+  if(!confirm('確定刪除這個項目？')) return;
+  try{ await sb(`roadmap_items?id=eq.${id}`,'DELETE'); closeEdit(); toast('已刪除'); load(); }catch(e){ toast('刪除失敗'); }
+}
+function openNote(){
+  document.getElementById('moBox').innerHTML=`<h3>新增備註</h3><div class="fg">
+    <label class="full">標題<input id="nTitle"></label><label class="full">內容<textarea id="nBody" style="min-height:110px"></textarea></label>
+    <label>等級<select id="nLevel"><option value="info">一般</option><option value="warn">留意</option><option value="alert">警示</option></select></label>
+    <label style="flex-direction:row;align-items:center;gap:6px;margin-top:18px"><input type="checkbox" id="nStaff">員工看得到</label></div>
+    <div class="mf"><div></div><div style="display:flex;gap:8px"><button class="btn" onclick="closeEdit()">取消</button><button class="btn pri" onclick="saveNote()">儲存</button></div></div>`;
+  document.getElementById('mo').classList.add('on');
+}
+async function saveNote(){
+  const t=document.getElementById('nTitle').value.trim(); if(!t){toast('請填標題');return;}
+  try{ await sb('roadmap_notes','POST',{co:CO,year:D.year,source:'gm',level:document.getElementById('nLevel').value,title:t,body:document.getElementById('nBody').value.trim(),staff_visible:document.getElementById('nStaff').checked,created_by:'Mark'}); closeEdit(); toast('已新增'); load(); }
+  catch(e){ toast('儲存失敗'); }
+}
+async function delNote(id){ if(!confirm('刪除這則紀錄？')) return; try{ await sb(`roadmap_notes?id=eq.${id}`,'DELETE'); load(); }catch(e){ toast('刪除失敗'); } }
+
+// ---------- boot ----------
+(async()=>{ let rt=null; try{rt=sessionStorage.getItem('rm_rt');}catch(e){}
+  if(rt){ try{ await authReq({refresh_token:rt},'refresh_token'); enter(); }catch(e){ try{sessionStorage.removeItem('rm_rt');}catch(x){} } } })();
+</script>
+</body>
+</html>
