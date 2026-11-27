@@ -721,6 +721,7 @@ span.bgst-ok{background:#f0fdfa}span.bgst-plan{background:#fffbeb}span.bgst-canc
       <div class="topbar">
         <div><div class="pt">🎯 年度預算</div><div class="ps">蒔心田生醫 · 營業目標與預算達成</div></div>
         <div class="tbr">
+          <a href="roadmap.html" target="_blank" rel="noopener" style="padding:6px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur);font-size:13px;color:var(--acc);text-decoration:none;white-space:nowrap">🗺️ 年度路線圖</a>
           <select id="bgYear" onchange="_bg.cfg=null;renderBudget()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--sur);font-size:13px"></select>
           <div class="vts" id="bgTabs">
             <button class="vt active" data-v="track" onclick="bgSetView('track')">達成率追蹤</button>
@@ -9697,6 +9698,7 @@ async function renderStaffBudget(){
   const ex=D.expense.map(l=>{ const b=bgSum(l.months,0,expCut), a=bgSum(l.actual,0,expCut), r=b?a/b:(a>0?9.99:null), [c,t]=bgStatus(r);
     return `<tr><td>${esc(l.label)}</td><td class="r">${bgFmt(bgSum(l.months))}</td><td class="r">${bgFmt(b)}</td><td class="r">${bgFmt(a)}</td><td class="r">${bgMeter(r)} ${bgPct(r)}</td><td class="r">${bgFmt(bgSum(l.months)-bgSum(l.actual))}</td><td><span class="bgp ${c}">${t}</span></td></tr>`; }).join('');
   box.innerHTML=`<div class="bgw">
+    <div style="margin-bottom:10px"><a href="roadmap.html" target="_blank" rel="noopener" style="font-size:13px;color:var(--acc)">🗺️ 開啟年度路線圖 ↗</a></div>
     <div class="bgnote">${y} 年度 · 官網營收資料截至 <b>${D.web_cutoff||'—'}</b>（約晚 2 個月匯入）；營收只顯示達成率，金額請洽主管。</div>
     <div class="kg">
       <div class="kc bgk"><div class="kl">年度營收達成率</div><div class="kv">${bgPct(D.rev_year_ratio,1)}</div><div class="kch">時間進度 ${bgPct(D.pace)}</div></div>
